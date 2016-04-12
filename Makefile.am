@@ -23,9 +23,9 @@ libmacgetter_la_LIBADD = \
 qspnclient_SOURCES =  \
 	proof.vala \
 	mac-getter/hw.vapi \
-	$(srcdir)/../identities/identities.vapi \
-	$(srcdir)/../neighborhood/neighborhood.vapi \
-	$(srcdir)/../qspn/qspn.vapi \
+	../identities/identities.vapi \
+	../neighborhood/neighborhood.vapi \
+	../qspn/qspn.vapi \
 	$(NULL)
 
 qspnclient_VALAFLAGS = \
