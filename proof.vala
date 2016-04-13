@@ -18,6 +18,9 @@
 
 using Gee;
 using Netsukuku;
+using Netsukuku.Neighborhood;
+using Netsukuku.Identities;
+using Netsukuku.Qspn;
 using TaskletSystem;
 
 namespace ProofOfConcept
@@ -74,9 +77,11 @@ namespace ProofOfConcept
         // typeof(MyNodeID).class_peek();
 
         // TODO startup
+
         NeighborhoodManager.init(tasklet);
         identity_mgr = null;
         identity_mgr_constructor_started = false;
+        linklocals = new HashMap<int, HandledNic>();
         neighborhood_mgr = new NeighborhoodManager(
             get_identity_skeleton,
             get_identity_skeleton_set,
@@ -84,6 +89,7 @@ namespace ProofOfConcept
             1000 /*very high max_arcs*/,
             new NeighborhoodStubFactory(),
             new NeighborhoodIPRouteManager());
+        // TODO neighborhood_mgr.start_monitor
         Gee.List<string> if_list_dev = new ArrayList<string>();
         Gee.List<string> if_list_mac = new ArrayList<string>();
         Gee.List<string> if_list_linklocal = new ArrayList<string>();
@@ -99,6 +105,7 @@ namespace ProofOfConcept
             if_list_dev, if_list_mac, if_list_linklocal,
             new IdmgmtNetnsManager(),
             new IdmgmtStubFactory());
+
         // end startup
 
         // start a tasklet to get commands from stdin.

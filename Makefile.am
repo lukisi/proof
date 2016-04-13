@@ -23,9 +23,9 @@ libmacgetter_la_LIBADD = \
 qspnclient_SOURCES =  \
 	proof.vala \
 	mac-getter/hw.vapi \
-	../identities/identities.vapi \
-	../neighborhood/neighborhood.vapi \
-	../qspn/qspn.vapi \
+	identities/identities.vapi \
+	neighborhood/neighborhood.vapi \
+	qspn/qspn.vapi \
 	$(NULL)
 
 qspnclient_VALAFLAGS = \
@@ -44,9 +44,9 @@ qspnclient_CPPFLAGS = \
 	$(TASKLETSYSTEM_CFLAGS) \
 	$(PTHTASKLET_CFLAGS) \
 	$(NTKDRPC_CFLAGS) \
-	-I$(srcdir)/../identities \
-	-I$(srcdir)/../neighborhood \
-	-I$(srcdir)/../qspn \
+	-I$(srcdir)/identities \
+	-I$(srcdir)/neighborhood \
+	-I$(srcdir)/qspn \
 	$(NULL)
 
 qspnclient_LDADD = \
@@ -58,8 +58,8 @@ qspnclient_LDADD = \
 	$(PTHTASKLET_LIBS) \
 	$(NTKDRPC_LIBS) \
 	$(builddir)/libmacgetter.la \
-	$(srcdir)/../neighborhood/finalbuild/libneighborhood.la \
-	$(srcdir)/../identities/finalbuild/libidentities.la \
-	$(srcdir)/../qspn/finalbuild/libqspn.la \
+	$(srcdir)/neighborhood/libneighborhood.la \
+	$(srcdir)/identities/libidentities.la \
+	$(srcdir)/qspn/libqspn.la \
 	$(NULL)
 

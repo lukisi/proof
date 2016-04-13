@@ -1,0 +1,9 @@
+[submodule "qspn"]
+	path = qspn
+	url = git@github.com:lukisi/qspn.git
+[submodule "neighborhood"]
+	path = neighborhood
+	url = git@github.com:lukisi/neighborhood.git
+[submodule "identities"]
+	path = identities
+	url = git@github.com:lukisi/identities.git
