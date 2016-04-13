@@ -44,6 +44,9 @@ qspnclient_CPPFLAGS = \
 	$(TASKLETSYSTEM_CFLAGS) \
 	$(PTHTASKLET_CFLAGS) \
 	$(NTKDRPC_CFLAGS) \
+	-I$(srcdir)/../identities \
+	-I$(srcdir)/../neighborhood \
+	-I$(srcdir)/../qspn \
 	$(NULL)
 
 qspnclient_LDADD = \
