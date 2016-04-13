@@ -30,6 +30,11 @@ namespace ProofOfConcept
     bool no_anonymize;
 
     ITasklet tasklet;
+    NeighborhoodManager neighborhood_mgr;
+    IdentityManager? identity_mgr;
+    bool identity_mgr_constructor_started;
+    int linklocal_nextindex;
+    HashMap<int, HandledNic> linklocals;
     int main(string[] args)
     {
         accept_anonymous_requests = false; // default
@@ -69,6 +74,32 @@ namespace ProofOfConcept
         // typeof(MyNodeID).class_peek();
 
         // TODO startup
+        NeighborhoodManager.init(tasklet);
+        identity_mgr = null;
+        identity_mgr_constructor_started = false;
+        neighborhood_mgr = new NeighborhoodManager(
+            get_identity_skeleton,
+            get_identity_skeleton_set,
+            node_skeleton,
+            1000 /*very high max_arcs*/,
+            new NeighborhoodStubFactory(),
+            new NeighborhoodIPRouteManager());
+        Gee.List<string> if_list_dev = new ArrayList<string>();
+        Gee.List<string> if_list_mac = new ArrayList<string>();
+        Gee.List<string> if_list_linklocal = new ArrayList<string>();
+        foreach (HandledNic n in linklocals.values)
+        {
+            if_list_dev.add(n.dev);
+            if_list_mac.add(n.mac);
+            if_list_linklocal.add(n.linklocal);
+        }
+        identity_mgr_constructor_started = true;
+        identity_mgr = new IdentityManager(
+            tasklet,
+            if_list_dev, if_list_mac, if_list_linklocal,
+            new IdmgmtNetnsManager(),
+            new IdmgmtStubFactory());
+        // end startup
 
         // start a tasklet to get commands from stdin.
         CommandLineInterfaceTasklet ts = new CommandLineInterfaceTasklet();
@@ -149,6 +180,161 @@ Command list:
             }
         }
     }
+
+    class HandledNic : Object
+    {
+        public string dev;
+        public string mac;
+        public string linklocal;
+    }
+
+    class NeighborhoodIPRouteManager : Object, INeighborhoodIPRouteManager
+    {
+		public void add_address(string my_addr, string my_dev)
+		{
+		    string my_mac = macgetter.get_mac(my_dev).up();
+		    HandledNic n = new HandledNic();
+		    n.dev = my_dev;
+		    n.mac = my_mac;
+		    n.linklocal = my_addr;
+		    int linklocal_index = linklocal_nextindex++;
+		    linklocals[linklocal_index] = n;
+		    print(@"linklocals: #$(linklocal_index): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
+		    if (identity_mgr_constructor_started)
+		    {
+		        while (identity_mgr == null) tasklet.ms_wait(1);
+		        identity_mgr.add_handled_nic(n.dev, n.mac, n.linklocal);
+		    }
+		    error("not implemented yet");
+		}
+
+		public void add_neighbor(string my_addr, string my_dev, string neighbor_addr)
+		{
+		    error("not implemented yet");
+		}
+
+		public void remove_address(string my_addr, string my_dev)
+		{
+		    error("not implemented yet");
+		}
+
+		public void remove_neighbor(string my_addr, string my_dev, string neighbor_addr)
+		{
+		    error("not implemented yet");
+		}
+    }
+
+    class NeighborhoodStubFactory : Object, INeighborhoodStubFactory
+    {
+		public IAddressManagerStub
+		get_broadcast(
+		    Gee.List<string> devs,
+		    Gee.List<string> src_ips,
+		    ISourceID source_id,
+		    IBroadcastID broadcast_id,
+		    IAckCommunicator? ack_com = null)
+		{
+		    error("not implemented yet");
+		}
+
+		public IAddressManagerStub
+		get_tcp(
+		    string dest,
+		    ISourceID source_id,
+		    IUnicastID unicast_id,
+		    bool wait_reply = true)
+		{
+		    error("not implemented yet");
+		}
+
+		public IAddressManagerStub
+		get_unicast(
+		    string dev,
+		    string src_ip,
+		    ISourceID source_id,
+		    IUnicastID unicast_id,
+		    bool wait_reply = true)
+		{
+		    error("not implemented yet");
+		}
+    }
+
+    class IdmgmtNetnsManager : Object, IIdmgmtNetnsManager
+    {
+		public void add_address(string ns, string pseudo_dev, string linklocal)
+		{
+		    error("not implemented yet");
+		}
+
+		public void add_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
+		{
+		    error("not implemented yet");
+		}
+
+		public void create_namespace(string ns)
+		{
+		    error("not implemented yet");
+		}
+
+		public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
+		{
+		    error("not implemented yet");
+		}
+
+		public void delete_namespace(string ns)
+		{
+		    error("not implemented yet");
+		}
+
+		public void delete_pseudodev(string ns, string pseudo_dev)
+		{
+		    error("not implemented yet");
+		}
+
+		public void flush_table(string ns)
+		{
+		    error("not implemented yet");
+		}
+
+		public void remove_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
+		{
+		    error("not implemented yet");
+		}
+    }
+
+    class IdmgmtStubFactory : Object, IIdmgmtStubFactory
+    {
+		public IIdmgmtArc? get_arc(CallerInfo caller)
+		{
+		    error("not implemented yet");
+		}
+
+		public IIdentityManagerStub get_stub(IIdmgmtArc arc)
+		{
+		    error("not implemented yet");
+		}
+    }
+
+    IAddressManagerSkeleton?
+    get_identity_skeleton(
+        NodeID source_id,
+        NodeID unicast_id,
+        string peer_address)
+    {
+        error("not implemented yet");
+    }
+
+    Gee.List<IAddressManagerSkeleton>
+    get_identity_skeleton_set(
+        NodeID source_id,
+        Gee.List<NodeID> broadcast_set,
+        string peer_address,
+        string dev)
+    {
+        error("not implemented yet");
+    }
+
+    IAddressManagerSkeleton node_skeleton;
 
     void show_linklocals()
     {
