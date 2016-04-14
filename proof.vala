@@ -299,7 +299,11 @@ Command list:
 
         public void remove_address(string my_addr, string my_dev)
         {
-            error("not implemented yet");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(@"ip address del $(my_addr)/32 dev $(my_dev)");
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
 
         public void remove_neighbor(string my_addr, string my_dev, string neighbor_addr)
@@ -599,7 +603,11 @@ Command list:
 
     void show_linklocals()
     {
-        error("not implemented yet");
+        foreach (int i in linklocals.keys)
+        {
+            HandledNic n = linklocals[i];
+            print(@"linklocals: #$(i): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
+        }
     }
 }
 
