@@ -41,6 +41,8 @@ namespace ProofOfConcept
     IdentityManager? identity_mgr;
     int linklocal_nextindex;
     HashMap<int, HandledNic> linklocals;
+    int nodeid_nextindex;
+    HashMap<int, NodeID> nodeids;
 
     IAddressManagerSkeleton node_skeleton;
     ServerDelegate dlg;
@@ -103,10 +105,13 @@ namespace ProofOfConcept
         // start listen TCP
         t_tcp = tcp_listen(dlg, err, ntkd_port);
 
+        linklocal_nextindex = 0;
+        linklocals = new HashMap<int, HandledNic>();
+        nodeid_nextindex = 0;
+        nodeids = new HashMap<int, NodeID>();
         // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
         identity_mgr = null;
-        linklocals = new HashMap<int, HandledNic>();
         neighborhood_mgr = new NeighborhoodManager(
             get_identity_skeleton,
             get_identity_skeleton_set,
@@ -134,6 +139,10 @@ namespace ProofOfConcept
         identity_mgr.identity_arc_added.connect(identity_arc_added);
         identity_mgr.identity_arc_changed.connect(identity_arc_changed);
         identity_mgr.identity_arc_removed.connect(identity_arc_removed);
+        NodeID nodeid = identity_mgr.get_main_id();
+        int nodeid_index = nodeid_nextindex++;
+        nodeids[nodeid_index] = nodeid;
+        print(@"nodeids: #$(nodeid_index): $(nodeid.id).\n");
 
         // end startup
 
@@ -247,6 +256,10 @@ namespace ProofOfConcept
                     {
                         show_linklocals();
                     }
+                    else if (_args[0] == "show_nodeids" && _args.size == 1)
+                    {
+                        show_nodeids();
+                    }
                     else if (_args[0] == "help" && _args.size == 1)
                     {
                         print("""
@@ -254,6 +267,9 @@ Command list:
 
 > show_linklocals
   List current link-local addresses
+
+> show_nodeids
+  List current NodeID values
 
 > help
   Shows this menu.
@@ -607,6 +623,15 @@ Command list:
         {
             HandledNic n = linklocals[i];
             print(@"linklocals: #$(i): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
+        }
+    }
+
+    void show_nodeids()
+    {
+        foreach (int i in nodeids.keys)
+        {
+            NodeID nodeid = nodeids[i];
+            print(@"nodeids: #$(i): $(nodeid.id).\n");
         }
     }
 }
