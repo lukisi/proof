@@ -87,6 +87,7 @@ namespace ProofOfConcept
 
         // TODO startup
 
+        prepare_all_nics();
         node_skeleton = new AddressManagerForNode();
         // Pass tasklet system to the RPC library (ntkdrpc)
         init_tasklet_system(tasklet);
@@ -115,10 +116,7 @@ namespace ProofOfConcept
             new NeighborhoodIPRouteManager());
         // connect signals
         neighborhood_mgr.nic_address_set.connect(nic_address_set);
-        foreach (string dev in _devs)
-        {
-            neighborhood_mgr.start_monitor(new NeighborhoodNetworkInterface(dev));
-        }
+        foreach (string dev in _devs) manage_nic(dev);
         Gee.List<string> if_list_dev = new ArrayList<string>();
         Gee.List<string> if_list_mac = new ArrayList<string>();
         Gee.List<string> if_list_linklocal = new ArrayList<string>();
@@ -179,6 +177,17 @@ namespace ProofOfConcept
     {
         // We got here because of a signal. Quick processing.
         do_me_exit = true;
+    }
+
+    void manage_nic(string dev)
+    {
+        prepare_nic(dev);
+        // Start listen UDP on dev
+        t_udp_list.add(udp_listen(dlg, err, ntkd_port, dev));
+        // Run monitor
+        neighborhood_mgr.start_monitor(new NeighborhoodNetworkInterface(dev));
+        // Here the linklocal address has been added, and the signal handler for
+        //  nic_address_set has been processed, so the module Identities gets its knowledge.
     }
 
     void prepare_all_nics(string ns_prefix="")
