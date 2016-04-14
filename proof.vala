@@ -36,12 +36,18 @@ namespace ProofOfConcept
     bool no_anonymize;
 
     ITasklet tasklet;
-    Netsukuku.Neighborhood.NeighborhoodManager neighborhood_mgr;
+    Netsukuku.Neighborhood.NeighborhoodManager? neighborhood_mgr;
     Netsukuku.Identities.
     IdentityManager? identity_mgr;
     bool identity_mgr_constructor_started;
     int linklocal_nextindex;
     HashMap<int, HandledNic> linklocals;
+
+    IAddressManagerSkeleton node_skeleton;
+    ServerDelegate dlg;
+    ServerErrorHandler err;
+    ArrayList<ITaskletHandle> t_udp_list;
+
     int main(string[] args)
     {
         accept_anonymous_requests = false; // default
@@ -83,6 +89,21 @@ namespace ProofOfConcept
         // TODO startup
 
         node_skeleton = new AddressManagerForNode();
+        // Pass tasklet system to the RPC library (ntkdrpc)
+        init_tasklet_system(tasklet);
+
+        dlg = new ServerDelegate();
+        err = new ServerErrorHandler();
+
+        // Handle for TCP
+        ITaskletHandle t_tcp;
+        // Handles for UDP
+        t_udp_list = new ArrayList<ITaskletHandle>();
+
+        // start listen TCP
+        t_tcp = tcp_listen(dlg, err, ntkd_port);
+
+        // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
         identity_mgr = null;
         identity_mgr_constructor_started = false;
@@ -135,6 +156,20 @@ namespace ProofOfConcept
 
         // TODO cleanup
 
+        // This will destroy the object NeighborhoodManager and hence call
+        //  its stop_monitor_all.
+        // Beware that node_skeleton.neighborhood_mgr
+        //  is a weak reference.
+        // Beware also that since we destroy the object, we won't receive
+        //  any more signal from it, such as nic_address_unset for all the
+        //  linklocal addresses that will be removed from the NICs.
+        neighborhood_mgr = null;
+
+        foreach (ITaskletHandle t_udp in t_udp_list) t_udp.kill();
+        t_tcp.kill();
+
+        tasklet.ms_wait(100);
+
         PthTaskletImplementer.kill();
         print("\nExiting.\n");
         return 0;
@@ -145,6 +180,38 @@ namespace ProofOfConcept
     {
         // We got here because of a signal. Quick processing.
         do_me_exit = true;
+    }
+
+    void prepare_all_nics(string ns_prefix="")
+    {
+        // disable rp_filter
+        set_sys_ctl("net.ipv4.conf.all.rp_filter", "0", ns_prefix);
+        // arp policies
+        set_sys_ctl("net.ipv4.conf.all.arp_ignore", "1", ns_prefix);
+        set_sys_ctl("net.ipv4.conf.all.arp_announce", "2", ns_prefix);
+    }
+
+    void prepare_nic(string nic, string ns_prefix="")
+    {
+        // disable rp_filter
+        set_sys_ctl(@"net.ipv4.conf.$(nic).rp_filter", "0", ns_prefix);
+        // arp policies
+        set_sys_ctl(@"net.ipv4.conf.$(nic).arp_ignore", "1", ns_prefix);
+        set_sys_ctl(@"net.ipv4.conf.$(nic).arp_announce", "2", ns_prefix);
+    }
+
+    void set_sys_ctl(string key, string val, string ns_prefix="")
+    {
+        try {
+            TaskletCommandResult com_ret = tasklet.exec_command(@"$(ns_prefix)sysctl $(key)=$(val)");
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.stderr)\n");
+            com_ret = tasklet.exec_command(@"$(ns_prefix)sysctl -n $(key)");
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.stderr)\n");
+            if (com_ret.stdout != @"$(val)\n")
+                error(@"Failed to set key '$(key)' to val '$(val)': now it reports '$(com_ret.stdout)'\n");
+        } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
     }
 
     class CommandLineInterfaceTasklet : Object, ITaskletSpawnable
@@ -368,6 +435,57 @@ Command list:
         }
     }
 
+    class ServerDelegate : Object, IRpcDelegate
+    {
+        public Gee.List<IAddressManagerSkeleton> get_addr_set(CallerInfo caller)
+        {
+            if (caller is TcpclientCallerInfo)
+            {
+                TcpclientCallerInfo c = (TcpclientCallerInfo)caller;
+                string peer_address = c.peer_address;
+                ISourceID sourceid = c.sourceid;
+                IUnicastID unicastid = c.unicastid;
+                var ret = new ArrayList<IAddressManagerSkeleton>();
+                IAddressManagerSkeleton? d = neighborhood_mgr.get_dispatcher(sourceid, unicastid, peer_address, null);
+                if (d != null) ret.add(d);
+                return ret;
+            }
+            else if (caller is UnicastCallerInfo)
+            {
+                UnicastCallerInfo c = (UnicastCallerInfo)caller;
+                string peer_address = c.peer_address;
+                string dev = c.dev;
+                ISourceID sourceid = c.sourceid;
+                IUnicastID unicastid = c.unicastid;
+                var ret = new ArrayList<IAddressManagerSkeleton>();
+                IAddressManagerSkeleton? d = neighborhood_mgr.get_dispatcher(sourceid, unicastid, peer_address, dev);
+                if (d != null) ret.add(d);
+                return ret;
+            }
+            else if (caller is BroadcastCallerInfo)
+            {
+                BroadcastCallerInfo c = (BroadcastCallerInfo)caller;
+                string peer_address = c.peer_address;
+                string dev = c.dev;
+                ISourceID sourceid = c.sourceid;
+                IBroadcastID broadcastid = c.broadcastid;
+                return neighborhood_mgr.get_dispatcher_set(sourceid, broadcastid, peer_address, dev);
+            }
+            else
+            {
+                error(@"Unexpected class $(caller.get_type().name())");
+            }
+        }
+    }
+
+    class ServerErrorHandler : Object, IRpcErrorHandler
+    {
+        public void error_handler(Error e)
+        {
+            error(@"error_handler: $(e.message)");
+        }
+    }
+
     class AddressManagerForIdentity : Object, IAddressManagerSkeleton
     {
         public unowned INeighborhoodManagerSkeleton
@@ -467,8 +585,6 @@ Command list:
     {
         error("not implemented yet");
     }
-
-    IAddressManagerSkeleton node_skeleton;
 
     void show_linklocals()
     {
