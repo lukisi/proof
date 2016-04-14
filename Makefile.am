@@ -22,6 +22,8 @@ libmacgetter_la_LIBADD = \
 
 qspnclient_SOURCES =  \
 	proof.vala \
+	naddr.vala \
+	serialize_helpers.vala \
 	mac-getter/hw.vapi \
 	identities/identities.vapi \
 	neighborhood/neighborhood.vapi \

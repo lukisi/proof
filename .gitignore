@@ -1,4 +1,6 @@
 proof.c
+naddr.c
+serialize_helpers.c
 Makefile.in
 Makefile
 *.lo

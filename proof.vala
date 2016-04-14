@@ -27,6 +27,9 @@ namespace ProofOfConcept
 {
 
     const uint16 ntkd_port = 60269;
+    const int max_paths = 5;
+    const double max_common_hops_ratio = 0.6;
+    const int arc_timeout = 10000;
 
     string naddr;
     string gsizes;
@@ -36,8 +39,7 @@ namespace ProofOfConcept
     bool no_anonymize;
 
     ITasklet tasklet;
-    Netsukuku.Neighborhood.NeighborhoodManager? neighborhood_mgr;
-    Netsukuku.Identities.
+    NeighborhoodManager? neighborhood_mgr;
     IdentityManager? identity_mgr;
     int linklocal_nextindex;
     HashMap<int, HandledNic> linklocals;
@@ -74,9 +76,11 @@ namespace ProofOfConcept
         naddr = args[2];
         ArrayList<int> _naddr = new ArrayList<int>();
         ArrayList<int> _gsizes = new ArrayList<int>();
+        ArrayList<int> _elderships = new ArrayList<int>();
         ArrayList<string> _devs = new ArrayList<string>();
         foreach (string s_piece in naddr.split(".")) _naddr.insert(0, int.parse(s_piece));
         foreach (string s_piece in gsizes.split(".")) _gsizes.insert(0, int.parse(s_piece));
+        for (int i = 0; i < _gsizes.size; i++) _elderships.add(0);
         foreach (string dev in interfaces) _devs.add(dev);
         if (_naddr.size != _gsizes.size) error("You have to use same number of levels");
 
@@ -143,6 +147,14 @@ namespace ProofOfConcept
         int nodeid_index = nodeid_nextindex++;
         nodeids[nodeid_index] = nodeid;
         print(@"nodeids: #$(nodeid_index): $(nodeid.id).\n");
+        // First qspn manager
+        QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
+        Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
+        Fingerprint my_fp = new Fingerprint(_elderships.to_array());
+        QspnManager qspn_mgr = new QspnManager.create_net(my_naddr,
+            my_fp,
+            new QspnStubFactory());
+        identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
 
         // end startup
 
@@ -447,6 +459,35 @@ Command list:
         public long measure_rtt(string peer_addr, string peer_mac, string my_dev, string my_addr) throws NeighborhoodGetRttError
         {
             error("not implemented yet");
+        }
+    }
+
+    class QspnStubFactory : Object, IQspnStubFactory
+    {
+        public IQspnManagerStub
+                        i_qspn_get_broadcast(
+                            Gee.List<IQspnArc> arcs,
+                            IQspnMissingArcHandler? missing_handler=null
+                        )
+        {
+            error("not implemented yet");
+        }
+
+        public IQspnManagerStub
+                        i_qspn_get_tcp(
+                            IQspnArc arc,
+                            bool wait_reply=true
+                        )
+        {
+            error("not implemented yet");
+        }
+    }
+
+    class ThresholdCalculator : Object, IQspnThresholdCalculator
+    {
+        public int i_qspn_calculate_threshold(IQspnNodePath p1, IQspnNodePath p2)
+        {
+            return 10000;
         }
     }
 
