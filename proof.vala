@@ -113,6 +113,8 @@ namespace ProofOfConcept
             1000 /*very high max_arcs*/,
             new NeighborhoodStubFactory(),
             new NeighborhoodIPRouteManager());
+        // connect signals
+        neighborhood_mgr.nic_address_set.connect(nic_address_set);
         foreach (string dev in _devs)
         {
             neighborhood_mgr.start_monitor(new NeighborhoodNetworkInterface(dev));
@@ -274,18 +276,6 @@ Command list:
     {
         public void add_address(string my_addr, string my_dev)
         {
-            string my_mac = macgetter.get_mac(my_dev).up();
-            HandledNic n = new HandledNic();
-            n.dev = my_dev;
-            n.mac = my_mac;
-            n.linklocal = my_addr;
-            int linklocal_index = linklocal_nextindex++;
-            linklocals[linklocal_index] = n;
-            print(@"linklocals: #$(linklocal_index): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
-            if (identity_mgr != null)
-            {
-                identity_mgr.add_handled_nic(n.dev, n.mac, n.linklocal);
-            }
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(@"ip address add $(my_addr) dev $(my_dev)");
                 if (com_ret.exit_status != 0)
@@ -580,6 +570,22 @@ Command list:
     void identity_arc_removed(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
     {
         error("not implemented yet");
+    }
+
+    void nic_address_set(string my_dev, string my_addr)
+    {
+        string my_mac = macgetter.get_mac(my_dev).up();
+        HandledNic n = new HandledNic();
+        n.dev = my_dev;
+        n.mac = my_mac;
+        n.linklocal = my_addr;
+        int linklocal_index = linklocal_nextindex++;
+        linklocals[linklocal_index] = n;
+        print(@"linklocals: #$(linklocal_index): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
+        if (identity_mgr != null)
+        {
+            identity_mgr.add_handled_nic(n.dev, n.mac, n.linklocal);
+        }
     }
 
     void show_linklocals()
