@@ -39,7 +39,6 @@ namespace ProofOfConcept
     Netsukuku.Neighborhood.NeighborhoodManager? neighborhood_mgr;
     Netsukuku.Identities.
     IdentityManager? identity_mgr;
-    bool identity_mgr_constructor_started;
     int linklocal_nextindex;
     HashMap<int, HandledNic> linklocals;
 
@@ -106,7 +105,6 @@ namespace ProofOfConcept
         // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
         identity_mgr = null;
-        identity_mgr_constructor_started = false;
         linklocals = new HashMap<int, HandledNic>();
         neighborhood_mgr = new NeighborhoodManager(
             get_identity_skeleton,
@@ -128,7 +126,6 @@ namespace ProofOfConcept
             if_list_mac.add(n.mac);
             if_list_linklocal.add(n.linklocal);
         }
-        identity_mgr_constructor_started = true;
         identity_mgr = new IdentityManager(
             tasklet,
             if_list_dev, if_list_mac, if_list_linklocal,
@@ -285,9 +282,8 @@ Command list:
             int linklocal_index = linklocal_nextindex++;
             linklocals[linklocal_index] = n;
             print(@"linklocals: #$(linklocal_index): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
-            if (identity_mgr_constructor_started)
+            if (identity_mgr != null)
             {
-                while (identity_mgr == null) tasklet.ms_wait(1);
                 identity_mgr.add_handled_nic(n.dev, n.mac, n.linklocal);
             }
             try {
