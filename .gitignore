@@ -1,7 +1,4 @@
 proof.c
-qspn.vapi
-identities.vapi
-neighborhood.vapi
 Makefile.in
 Makefile
 *.lo
