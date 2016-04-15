@@ -326,7 +326,20 @@ Command list:
 
         public void add_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
-            error("not implemented yet");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(@"ip route add $(neighbor_addr) dev $(my_dev) src $(my_addr)");
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+
+        public void remove_neighbor(string my_addr, string my_dev, string neighbor_addr)
+        {
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(@"ip route del $(neighbor_addr) dev $(my_dev) src $(my_addr)");
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
 
         public void remove_address(string my_addr, string my_dev)
@@ -336,11 +349,6 @@ Command list:
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
-        }
-
-        public void remove_neighbor(string my_addr, string my_dev, string neighbor_addr)
-        {
-            error("not implemented yet");
         }
     }
 
@@ -361,16 +369,6 @@ Command list:
         }
 
         public IAddressManagerStub
-        get_tcp(
-            string dest,
-            ISourceID source_id,
-            IUnicastID unicast_id,
-            bool wait_reply = true)
-        {
-            error("not implemented yet");
-        }
-
-        public IAddressManagerStub
         get_unicast(
             string dev,
             string src_ip,
@@ -378,7 +376,21 @@ Command list:
             IUnicastID unicast_id,
             bool wait_reply = true)
         {
-            error("not implemented yet");
+            var uc = get_addr_unicast(dev, ntkd_port, src_ip, source_id, unicast_id, wait_reply);
+            return uc;
+        }
+
+        public IAddressManagerStub
+        get_tcp(
+            string dest,
+            ISourceID source_id,
+            IUnicastID unicast_id,
+            bool wait_reply = true)
+        {
+            var tc = get_addr_tcp_client(dest, ntkd_port, source_id, unicast_id);
+            assert(tc is ITcpClientRootStub);
+            ((ITcpClientRootStub)tc).wait_reply = wait_reply;
+            return tc;
         }
     }
 
@@ -462,7 +474,30 @@ Command list:
 
         public long measure_rtt(string peer_addr, string peer_mac, string my_dev, string my_addr) throws NeighborhoodGetRttError
         {
-            error("not implemented yet");
+            TaskletCommandResult com_ret;
+            try {
+                com_ret = tasklet.exec_command(@"ping -n -q -c 1 $(peer_addr)");
+            } catch (Error e) {
+                throw new NeighborhoodGetRttError.GENERIC(@"Unable to spawn a command: $(e.message)");
+            }
+            if (com_ret.exit_status != 0)
+                throw new NeighborhoodGetRttError.GENERIC(@"ping: error $(com_ret.stdout)");
+            foreach (string line in com_ret.stdout.split("\n"))
+            {
+                /*  """rtt min/avg/max/mdev = 2.854/2.854/2.854/0.000 ms"""  */
+                if (line.has_prefix("rtt ") && line.has_suffix(" ms"))
+                {
+                    string s2 = line.substring(line.index_of(" = ") + 3);
+                    string s3 = s2.substring(0, s2.index_of("/"));
+                    double x;
+                    bool res = double.try_parse (s3, out x);
+                    if (res)
+                    {
+                        return (long)(x * 1000);
+                    }
+                }
+            }
+            throw new NeighborhoodGetRttError.GENERIC(@"could not parse $(com_ret.stdout)");
         }
     }
 
