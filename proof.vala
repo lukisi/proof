@@ -94,7 +94,6 @@ namespace ProofOfConcept
         // TODO startup
 
         prepare_all_nics();
-        node_skeleton = new AddressManagerForNode();
         // Pass tasklet system to the RPC library (ntkdrpc)
         init_tasklet_system(tasklet);
 
@@ -143,6 +142,9 @@ namespace ProofOfConcept
         identity_mgr.identity_arc_added.connect(identity_arc_added);
         identity_mgr.identity_arc_changed.connect(identity_arc_changed);
         identity_mgr.identity_arc_removed.connect(identity_arc_removed);
+        node_skeleton = new AddressManagerForNode(neighborhood_mgr, identity_mgr);
+
+        // First identity
         NodeID nodeid = identity_mgr.get_main_id();
         int nodeid_index = nodeid_nextindex++;
         nodeids[nodeid_index] = nodeid;
@@ -544,22 +546,30 @@ Command list:
 
     class AddressManagerForIdentity : Object, IAddressManagerSkeleton
     {
+        public AddressManagerForIdentity(IQspnManagerSkeleton qspn_mgr)
+        {
+            this.qspn_mgr = qspn_mgr;
+        }
+        private IQspnManagerSkeleton qspn_mgr;
+
         public unowned INeighborhoodManagerSkeleton
         neighborhood_manager_getter()
         {
-            error("AddressManagerForIdentity.neighborhood_manager_getter: not for identity");
+            warning("AddressManagerForIdentity.neighborhood_manager_getter: not for identity");
+            tasklet.exit_tasklet(null);
         }
 
         protected unowned IIdentityManagerSkeleton
         identity_manager_getter()
         {
-            error("AddressManagerForIdentity.identity_manager_getter: not for identity");
+            warning("AddressManagerForIdentity.identity_manager_getter: not for identity");
+            tasklet.exit_tasklet(null);
         }
 
         public unowned IQspnManagerSkeleton
         qspn_manager_getter()
         {
-            error("not implemented yet");
+            return qspn_mgr;
         }
 
         public unowned IPeersManagerSkeleton
@@ -577,22 +587,31 @@ Command list:
 
     class AddressManagerForNode : Object, IAddressManagerSkeleton
     {
+        public AddressManagerForNode(INeighborhoodManagerSkeleton neighborhood_mgr, IIdentityManagerSkeleton identity_mgr)
+        {
+            this.neighborhood_mgr = neighborhood_mgr;
+            this.identity_mgr = identity_mgr;
+        }
+        private INeighborhoodManagerSkeleton neighborhood_mgr;
+        private IIdentityManagerSkeleton identity_mgr;
+
         public unowned INeighborhoodManagerSkeleton
         neighborhood_manager_getter()
         {
-            error("not implemented yet");
+            return neighborhood_mgr;
         }
 
         protected unowned IIdentityManagerSkeleton
         identity_manager_getter()
         {
-            error("not implemented yet");
+            return identity_mgr;
         }
 
         public unowned IQspnManagerSkeleton
         qspn_manager_getter()
         {
-            error("AddressManagerForNode.qspn_manager_getter: not for node");
+            warning("AddressManagerForNode.qspn_manager_getter: not for node");
+            tasklet.exit_tasklet(null);
         }
 
         public unowned IPeersManagerSkeleton
