@@ -46,7 +46,7 @@ namespace ProofOfConcept
     int nodeid_nextindex;
     HashMap<int, NodeID> nodeids;
 
-    IAddressManagerSkeleton node_skeleton;
+    AddressManagerForNode node_skeleton;
     ServerDelegate dlg;
     ServerErrorHandler err;
     ArrayList<ITaskletHandle> t_udp_list;
@@ -115,6 +115,7 @@ namespace ProofOfConcept
         // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
         identity_mgr = null;
+        node_skeleton = new AddressManagerForNode();
         neighborhood_mgr = new NeighborhoodManager(
             get_identity_skeleton,
             get_identity_skeleton_set,
@@ -122,6 +123,7 @@ namespace ProofOfConcept
             1000 /*very high max_arcs*/,
             new NeighborhoodStubFactory(),
             new NeighborhoodIPRouteManager());
+        node_skeleton.neighborhood_mgr = neighborhood_mgr;
         // connect signals
         neighborhood_mgr.nic_address_set.connect(nic_address_set);
         foreach (string dev in _devs) manage_nic(dev);
@@ -139,10 +141,10 @@ namespace ProofOfConcept
             if_list_dev, if_list_mac, if_list_linklocal,
             new IdmgmtNetnsManager(),
             new IdmgmtStubFactory());
+        node_skeleton.identity_mgr = identity_mgr;
         identity_mgr.identity_arc_added.connect(identity_arc_added);
         identity_mgr.identity_arc_changed.connect(identity_arc_changed);
         identity_mgr.identity_arc_removed.connect(identity_arc_removed);
-        node_skeleton = new AddressManagerForNode(neighborhood_mgr, identity_mgr);
 
         // First identity
         NodeID nodeid = identity_mgr.get_main_id();
@@ -587,13 +589,8 @@ Command list:
 
     class AddressManagerForNode : Object, IAddressManagerSkeleton
     {
-        public AddressManagerForNode(INeighborhoodManagerSkeleton neighborhood_mgr, IIdentityManagerSkeleton identity_mgr)
-        {
-            this.neighborhood_mgr = neighborhood_mgr;
-            this.identity_mgr = identity_mgr;
-        }
-        private INeighborhoodManagerSkeleton neighborhood_mgr;
-        private IIdentityManagerSkeleton identity_mgr;
+        public INeighborhoodManagerSkeleton neighborhood_mgr;
+        public IIdentityManagerSkeleton identity_mgr;
 
         public unowned INeighborhoodManagerSkeleton
         neighborhood_manager_getter()
