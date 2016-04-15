@@ -1,5 +1,5 @@
 AC_PREREQ([2.68])
-AC_INIT([qspnclient],[0.1])
+AC_INIT([proof],[0.1])
 AC_CONFIG_MACRO_DIR([m4])
 
 AM_INIT_AUTOMAKE([subdir-objects] [1.11])
@@ -27,5 +27,8 @@ PKG_CHECK_MODULES([PTHTASKLET], [pth-tasklet])
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_SUBDIRS([neighborhood])
+AC_CONFIG_SUBDIRS([identities])
+AC_CONFIG_SUBDIRS([qspn])
 AC_OUTPUT
 

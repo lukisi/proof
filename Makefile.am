@@ -1,6 +1,12 @@
 NULL = 
 ACLOCAL_AMFLAGS = -I m4
 
+SUBDIRS = \
+	neighborhood \
+	identities \
+	qspn \
+	$(NULL)
+
 noinst_LTLIBRARIES = \
 	libmacgetter.la \
 	$(NULL)
@@ -60,8 +66,8 @@ qspnclient_LDADD = \
 	$(PTHTASKLET_LIBS) \
 	$(NTKDRPC_LIBS) \
 	$(builddir)/libmacgetter.la \
-	$(srcdir)/neighborhood/libneighborhood.la \
-	$(srcdir)/identities/libidentities.la \
-	$(srcdir)/qspn/libqspn.la \
+	$(builddir)/neighborhood/libneighborhood.la \
+	$(builddir)/identities/libidentities.la \
+	$(builddir)/qspn/libqspn.la \
 	$(NULL)
 

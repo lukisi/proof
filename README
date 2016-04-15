@@ -1,3 +1,9 @@
 Part of Netsukuku.
 
 Proof of concept for modules Neighborhood, Identities, QSPN.
+
+Run "git submodule update --init" before "autoreconf --install"
+and you are ready to go with usual:
+  ./configure && make check && make dist
+even from a different build-directory.
+
