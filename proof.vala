@@ -598,7 +598,7 @@ Command list:
         {
             this.qspn_mgr = qspn_mgr;
         }
-        private IQspnManagerSkeleton qspn_mgr;
+        private weak IQspnManagerSkeleton qspn_mgr;
 
         public unowned INeighborhoodManagerSkeleton
         neighborhood_manager_getter()
@@ -635,8 +635,8 @@ Command list:
 
     class AddressManagerForNode : Object, IAddressManagerSkeleton
     {
-        public INeighborhoodManagerSkeleton neighborhood_mgr;
-        public IIdentityManagerSkeleton identity_mgr;
+        public weak INeighborhoodManagerSkeleton neighborhood_mgr;
+        public weak IIdentityManagerSkeleton identity_mgr;
 
         public unowned INeighborhoodManagerSkeleton
         neighborhood_manager_getter()
