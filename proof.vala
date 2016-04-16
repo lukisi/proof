@@ -318,7 +318,9 @@ Command list:
         public void add_address(string my_addr, string my_dev)
         {
             try {
-                TaskletCommandResult com_ret = tasklet.exec_command(@"ip address add $(my_addr) dev $(my_dev)");
+                string cmd = @"ip address add $(my_addr) dev $(my_dev)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
@@ -327,7 +329,9 @@ Command list:
         public void add_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
             try {
-                TaskletCommandResult com_ret = tasklet.exec_command(@"ip route add $(neighbor_addr) dev $(my_dev) src $(my_addr)");
+                string cmd = @"ip route add $(neighbor_addr) dev $(my_dev) src $(my_addr)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
@@ -336,7 +340,9 @@ Command list:
         public void remove_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
             try {
-                TaskletCommandResult com_ret = tasklet.exec_command(@"ip route del $(neighbor_addr) dev $(my_dev) src $(my_addr)");
+                string cmd = @"ip route del $(neighbor_addr) dev $(my_dev) src $(my_addr)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
@@ -345,7 +351,9 @@ Command list:
         public void remove_address(string my_addr, string my_dev)
         {
             try {
-                TaskletCommandResult com_ret = tasklet.exec_command(@"ip address del $(my_addr)/32 dev $(my_dev)");
+                string cmd = @"ip address del $(my_addr)/32 dev $(my_dev)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
@@ -476,6 +484,7 @@ Command list:
         {
             TaskletCommandResult com_ret;
             try {
+                print(@"ping -n -q -c 1 $(peer_addr)\n");
                 com_ret = tasklet.exec_command(@"ping -n -q -c 1 $(peer_addr)");
             } catch (Error e) {
                 throw new NeighborhoodGetRttError.GENERIC(@"Unable to spawn a command: $(e.message)");
@@ -493,7 +502,9 @@ Command list:
                     bool res = double.try_parse (s3, out x);
                     if (res)
                     {
-                        return (long)(x * 1000);
+                        long ret = (long)(x * 1000);
+                        print(@" returned $(ret) microseconds.\n");
+                        return ret;
                     }
                 }
             }
