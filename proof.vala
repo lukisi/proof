@@ -49,6 +49,8 @@ namespace ProofOfConcept
     HashMap<string, INeighborhoodArc> neighborhood_arcs;
     int nodearc_nextindex;
     HashMap<int, Arc> nodearcs;
+    int identityarc_nextindex;
+    HashMap<int, IdentityArc> identityarcs;
 
     AddressManagerForNode node_skeleton;
     ServerDelegate dlg;
@@ -120,6 +122,8 @@ namespace ProofOfConcept
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         nodearc_nextindex = 0;
         nodearcs = new HashMap<int, Arc>();
+        identityarc_nextindex = 0;
+        identityarcs = new HashMap<int, IdentityArc>();
         // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
         identity_mgr = null;
@@ -358,6 +362,13 @@ Command list:
         public int cost;
         public INeighborhoodArc neighborhood_arc;
         public IdmgmtArc idmgmt_arc;
+    }
+
+    class IdentityArc : Object
+    {
+        public IIdmgmtArc arc;
+        public NodeID id;
+        public IIdmgmtIdentityArc id_arc;
     }
 
     class NeighborhoodIPRouteManager : Object, INeighborhoodIPRouteManager
@@ -837,7 +848,12 @@ Command list:
 
     void identity_arc_added(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
-        error("not implemented yet");
+        IdentityArc ia = new IdentityArc();
+        ia.arc = arc;
+        ia.id = id;
+        ia.id_arc = id_arc;
+        int identityarc_index = identityarc_nextindex++;
+        identityarcs[identityarc_index] = ia;
     }
 
     void identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
