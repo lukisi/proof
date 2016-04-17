@@ -47,6 +47,8 @@ namespace ProofOfConcept
     int nodeid_nextindex;
     HashMap<int, NodeID> nodeids;
     HashMap<string, INeighborhoodArc> neighborhood_arcs;
+    int nodearc_nextindex;
+    HashMap<int, Arc> nodearcs;
 
     AddressManagerForNode node_skeleton;
     ServerDelegate dlg;
@@ -116,6 +118,8 @@ namespace ProofOfConcept
         nodeid_nextindex = 0;
         nodeids = new HashMap<int, NodeID>();
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
+        nodearc_nextindex = 0;
+        nodearcs = new HashMap<int, Arc>();
         // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
         identity_mgr = null;
@@ -287,6 +291,21 @@ namespace ProofOfConcept
                     {
                         show_neighborhood_arcs();
                     }
+                    else if (_args[0] == "add_node_arc" && _args.size == 4)
+                    {
+                        string k = @"$(_args[1])-$(_args[2])".up();
+                        int i_cost = int.parse(_args[3]);
+                        if (! (k in neighborhood_arcs.keys))
+                        {
+                            print(@"wrong key '$(k)'\n");
+                            continue;
+                        }
+                        add_node_arc(neighborhood_arcs[k], i_cost);
+                    }
+                    else if (_args[0] == "show_node_arcs" && _args.size == 1)
+                    {
+                        show_node_arcs();
+                    }
                     else if (_args[0] == "help" && _args.size == 1)
                     {
                         print("""
@@ -300,6 +319,13 @@ Command list:
 
 > show_neighborhood_arcs
   List current usable arcs
+
+> add_node_arc <from_MAC> <to_MAC> <cost>
+  Notify a arc to IdentityManager.
+  You choose a cost in microseconds for it.
+
+> show_node_arcs
+  List current accepted arcs
 
 > help
   Shows this menu.
@@ -325,6 +351,13 @@ Command list:
         public string dev;
         public string mac;
         public string linklocal;
+    }
+
+    class Arc : Object
+    {
+        public int cost;
+        public INeighborhoodArc neighborhood_arc;
+        public IdmgmtArc idmgmt_arc;
     }
 
     class NeighborhoodIPRouteManager : Object, INeighborhoodIPRouteManager
@@ -469,6 +502,30 @@ Command list:
         public IIdentityManagerStub get_stub(IIdmgmtArc arc)
         {
             error("not implemented yet");
+        }
+    }
+
+    class IdmgmtArc : Object, Netsukuku.Identities. IIdmgmtArc
+    {
+        public IdmgmtArc(Arc arc)
+        {
+            this.arc = arc;
+        }
+        public weak Arc arc;
+
+        public string get_dev()
+        {
+            return arc.neighborhood_arc.nic.dev;
+        }
+
+        public string get_peer_mac()
+        {
+            return arc.neighborhood_arc.neighbour_mac;
+        }
+
+        public string get_peer_linklocal()
+        {
+            return arc.neighborhood_arc.neighbour_nic_addr;
         }
     }
 
@@ -780,6 +837,33 @@ Command list:
         {
             INeighborhoodArc arc = neighborhood_arcs[k];
             print(@"arc $(k) is for $(arc.neighbour_nic_addr)\n");
+        }
+    }
+
+    void add_node_arc(INeighborhoodArc _arc, int cost)
+    {
+        Arc arc = new Arc();
+        arc.cost = cost;
+        arc.neighborhood_arc = _arc;
+        arc.idmgmt_arc = new IdmgmtArc(arc);
+        int nodearc_index = nodearc_nextindex++;
+        nodearcs[nodearc_index] = arc;
+        string _dev = arc.idmgmt_arc.get_dev();
+        string _p_ll = arc.idmgmt_arc.get_peer_linklocal();
+        string _p_mac = arc.idmgmt_arc.get_peer_mac();
+        print(@"nodearcs: #$(nodearc_index): from $(_dev) to $(_p_ll) ($(_p_mac)).\n");
+        identity_mgr.add_arc(arc.idmgmt_arc);
+    }
+
+    void show_node_arcs()
+    {
+        foreach (int i in nodearcs.keys)
+        {
+            Arc arc = nodearcs[i];
+            string _dev = arc.idmgmt_arc.get_dev();
+            string _p_ll = arc.idmgmt_arc.get_peer_linklocal();
+            string _p_mac = arc.idmgmt_arc.get_peer_mac();
+            print(@"nodearcs: #$(i): from $(_dev) to $(_p_ll) ($(_p_mac)).\n");
         }
     }
 }
