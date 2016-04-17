@@ -291,10 +291,10 @@ namespace ProofOfConcept
                     {
                         show_neighborhood_arcs();
                     }
-                    else if (_args[0] == "add_node_arc" && _args.size == 4)
+                    else if (_args[0] == "add_node_arc" && _args.size == 3)
                     {
-                        string k = @"$(_args[1])-$(_args[2])".up();
-                        int i_cost = int.parse(_args[3]);
+                        string k = _args[1];
+                        int i_cost = int.parse(_args[2]);
                         if (! (k in neighborhood_arcs.keys))
                         {
                             print(@"wrong key '$(k)'\n");
@@ -320,7 +320,7 @@ Command list:
 > show_neighborhood_arcs
   List current usable arcs
 
-> add_node_arc <from_MAC> <to_MAC> <cost>
+> add_node_arc <from_MAC>-<to_MAC> <cost>
   Notify a arc to IdentityManager.
   You choose a cost in microseconds for it.
 
@@ -494,18 +494,93 @@ Command list:
 
     class IdmgmtStubFactory : Object, IIdmgmtStubFactory
     {
+        /* IIdentityManagerStub
+         * This "holder" class is needed because the IdentityManagerRemote class provided by
+         * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
+         */
+        private class IdentityManagerStubHolder : Object, IIdentityManagerStub
+        {
+            public IdentityManagerStubHolder(IAddressManagerStub addr)
+            {
+                this.addr = addr;
+            }
+            private IAddressManagerStub addr;
+
+		    public IIdentityID get_peer_main_id()
+		    throws StubError, DeserializeError
+		    {
+		        return addr.identity_manager.get_peer_main_id();
+		    }
+
+		    public IDuplicationData? match_duplication
+		    (int migration_id, IIdentityID peer_id, IIdentityID old_id,
+		    IIdentityID new_id, string old_id_new_mac, string old_id_new_linklocal)
+		    throws StubError, DeserializeError
+		    {
+		        return addr.identity_manager.match_duplication
+		            (migration_id, peer_id, old_id,
+		             new_id, old_id_new_mac, old_id_new_linklocal);
+		    }
+
+		    public void notify_identity_removed(IIdentityID id)
+		    throws StubError, DeserializeError
+		    {
+		        addr.identity_manager.notify_identity_removed(id);
+		    }
+        }
+
         public IIdmgmtArc? get_arc(CallerInfo caller)
         {
-            error("not implemented yet");
+            if (caller is TcpclientCallerInfo)
+            {
+                TcpclientCallerInfo c = (TcpclientCallerInfo)caller;
+                ISourceID sourceid = c.sourceid;
+                string my_address = c.my_address;
+                foreach (string dev in current_nics.keys)
+                {
+                    HandledNic n = current_nics[dev];
+                    if (n.linklocal == my_address)
+                    {
+                        INeighborhoodArc? neighborhood_arc = neighborhood_mgr.get_node_arc(sourceid, dev);
+                        if (neighborhood_arc == null)
+                        {
+                            // TODO print something?
+                            return null;
+                        }
+                        foreach (int i in nodearcs.keys)
+                        {
+                            Arc arc = nodearcs[i];
+                            if (arc.neighborhood_arc == neighborhood_arc)
+                            {
+                                return arc.idmgmt_arc;
+                            }
+                        }
+                        error("missing something?");
+                    }
+                }
+                print(@"got a unknown caller:\n");
+                print(@"  my_address was $(my_address).\n");
+                foreach (string dev in current_nics.keys)
+                {
+                    HandledNic n = current_nics[dev];
+                    print(@"  in $(dev) we have $(n.linklocal).\n");
+                }
+                return null;
+            }
+            error(@"not a expected type of caller $(caller.get_type().name()).");
         }
 
         public IIdentityManagerStub get_stub(IIdmgmtArc arc)
         {
-            error("not implemented yet");
+            IdmgmtArc _arc = (IdmgmtArc)arc;
+            IAddressManagerStub addrstub = 
+                neighborhood_mgr.get_stub_whole_node_unicast(_arc.arc.neighborhood_arc);
+            IdentityManagerStubHolder ret = new IdentityManagerStubHolder(addrstub);
+            return ret;
         }
     }
 
-    class IdmgmtArc : Object, Netsukuku.Identities. IIdmgmtArc
+    class IdmgmtArc : Object, IIdmgmtArc
     {
         public IdmgmtArc(Arc arc)
         {
