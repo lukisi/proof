@@ -43,8 +43,10 @@ namespace ProofOfConcept
     IdentityManager? identity_mgr;
     int linklocal_nextindex;
     HashMap<int, HandledNic> linklocals;
+    HashMap<string, HandledNic> current_nics;
     int nodeid_nextindex;
     HashMap<int, NodeID> nodeids;
+    HashMap<string, INeighborhoodArc> neighborhood_arcs;
 
     AddressManagerForNode node_skeleton;
     ServerDelegate dlg;
@@ -110,8 +112,10 @@ namespace ProofOfConcept
 
         linklocal_nextindex = 0;
         linklocals = new HashMap<int, HandledNic>();
+        current_nics = new HashMap<string, HandledNic>();
         nodeid_nextindex = 0;
         nodeids = new HashMap<int, NodeID>();
+        neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
         identity_mgr = null;
@@ -126,6 +130,9 @@ namespace ProofOfConcept
         node_skeleton.neighborhood_mgr = neighborhood_mgr;
         // connect signals
         neighborhood_mgr.nic_address_set.connect(nic_address_set);
+        neighborhood_mgr.arc_added.connect(arc_added);
+        neighborhood_mgr.arc_changed.connect(arc_changed);
+        neighborhood_mgr.arc_removed.connect(arc_removed);
         foreach (string dev in _devs) manage_nic(dev);
         Gee.List<string> if_list_dev = new ArrayList<string>();
         Gee.List<string> if_list_mac = new ArrayList<string>();
@@ -276,6 +283,10 @@ namespace ProofOfConcept
                     {
                         show_nodeids();
                     }
+                    else if (_args[0] == "show_neighborhood_arcs" && _args.size == 1)
+                    {
+                        show_neighborhood_arcs();
+                    }
                     else if (_args[0] == "help" && _args.size == 1)
                     {
                         print("""
@@ -286,6 +297,9 @@ Command list:
 
 > show_nodeids
   List current NodeID values
+
+> show_neighborhood_arcs
+  List current usable arcs
 
 > help
   Shows this menu.
@@ -713,11 +727,33 @@ Command list:
         n.linklocal = my_addr;
         int linklocal_index = linklocal_nextindex++;
         linklocals[linklocal_index] = n;
+        current_nics[n.dev] = n;
         print(@"linklocals: #$(linklocal_index): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
         if (identity_mgr != null)
         {
             identity_mgr.add_handled_nic(n.dev, n.mac, n.linklocal);
         }
+    }
+
+    void arc_added(INeighborhoodArc arc)
+    {
+        print(@"arc_added for $(arc.neighbour_nic_addr)\n");
+        print(@" $(arc.nic.dev) ($(arc.nic.mac) = $(current_nics[arc.nic.dev].linklocal)) connected to $(arc.neighbour_mac)\n");
+        string k = @"$(arc.nic.mac)-$(arc.neighbour_mac)";
+        assert(! (k in neighborhood_arcs.keys));
+        neighborhood_arcs[k] = arc;
+    }
+
+    void arc_changed(INeighborhoodArc arc)
+    {
+        print(@"arc_changed (no effect) for $(arc.neighbour_nic_addr)\n");
+    }
+
+    void arc_removed(INeighborhoodArc arc)
+    {
+        print(@"arc_removed for $(arc.neighbour_nic_addr)\n");
+        string k = @"$(arc.nic.mac)-$(arc.neighbour_mac)";
+        neighborhood_arcs.unset(k);
     }
 
     void show_linklocals()
@@ -735,6 +771,15 @@ Command list:
         {
             NodeID nodeid = nodeids[i];
             print(@"nodeids: #$(i): $(nodeid.id).\n");
+        }
+    }
+
+    void show_neighborhood_arcs()
+    {
+        foreach (string k in neighborhood_arcs.keys)
+        {
+            INeighborhoodArc arc = neighborhood_arcs[k];
+            print(@"arc $(k) is for $(arc.neighbour_nic_addr)\n");
         }
     }
 }
