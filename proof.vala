@@ -40,7 +40,6 @@ namespace ProofOfConcept
 
     ITasklet tasklet;
     NeighborhoodManager? neighborhood_mgr;
-    Netsukuku.Identities.
     IdentityManager? identity_mgr;
     int linklocal_nextindex;
     HashMap<int, HandledNic> linklocals;
@@ -568,8 +567,7 @@ Command list:
 
     class IdmgmtStubFactory : Object, IIdmgmtStubFactory
     {
-        /* IIdentityManagerStub
-         * This "holder" class is needed because the IdentityManagerRemote class provided by
+        /* This "holder" class is needed because the IdentityManagerRemote class provided by
          * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
          */
         private class IdentityManagerStubHolder : Object, IIdentityManagerStub
@@ -734,6 +732,42 @@ Command list:
 
     class QspnStubFactory : Object, IQspnStubFactory
     {
+        /* This "holder" class is needed because the QspnManagerRemote class provided by
+         * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
+         */
+        private class QspnManagerStubHolder : Object, IQspnManagerStub
+        {
+            public QspnManagerStubHolder(IAddressManagerStub addr)
+            {
+                this.addr = addr;
+            }
+            private IAddressManagerStub addr;
+
+		    public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
+		    throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
+            {
+                return addr.qspn_manager.get_full_etp(requesting_address);
+            }
+
+		    public void got_destroy()
+		    throws StubError, DeserializeError
+            {
+                addr.qspn_manager.got_destroy();
+            }
+
+		    public void got_prepare_destroy()
+		    throws StubError, DeserializeError
+            {
+                addr.qspn_manager.got_prepare_destroy();
+            }
+
+		    public void send_etp(IQspnEtpMessage etp, bool is_full)
+		    throws QspnNotAcceptedError, StubError, DeserializeError
+            {
+                addr.qspn_manager.send_etp(etp, is_full);
+            }
+        }
+
         public IQspnManagerStub
                         i_qspn_get_broadcast(
                             Gee.List<IQspnArc> arcs,
