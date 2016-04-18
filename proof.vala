@@ -173,7 +173,11 @@ namespace ProofOfConcept
         QspnManager qspn_mgr = new QspnManager.create_net(my_naddr,
             my_fp,
             new QspnStubFactory());
+        QspnInitData qspn_initdata = new QspnInitData();
+        qspn_initdata.my_naddr = my_naddr;
+        qspn_initdata.my_fp = my_fp;
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
+        identity_mgr.set_identity_module(nodeid, "qspn_initdata", qspn_initdata);
 
         // end startup
 
@@ -314,6 +318,16 @@ namespace ProofOfConcept
                     {
                         show_identityarcs();
                     }
+                    else if (_args[0] == "show_ntkaddress" && _args.size == 2)
+                    {
+                        int nodeid_index = int.parse(_args[1]);
+                        if (! (nodeid_index in nodeids.keys))
+                        {
+                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            continue;
+                        }
+                        show_ntkaddress(nodeids[nodeid_index]);
+                    }
                     else if (_args[0] == "help" && _args.size == 1)
                     {
                         print("""
@@ -337,6 +351,9 @@ Command list:
 
 > show_identityarcs
   List current identity-arcs
+
+> show_ntkaddress <nodeid_index>
+  Show address and elderships of one of my identities
 
 > help
   Shows this menu.
@@ -376,6 +393,12 @@ Command list:
         public IIdmgmtArc arc;
         public NodeID id;
         public IIdmgmtIdentityArc id_arc;
+    }
+
+    class QspnInitData : Object
+    {
+        public Naddr my_naddr;
+        public Fingerprint my_fp;
     }
 
     class NeighborhoodIPRouteManager : Object, INeighborhoodIPRouteManager
@@ -978,6 +1001,29 @@ Command list:
             print(@"identityarcs: #$(i): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
             print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
         }
+    }
+
+    void show_ntkaddress(NodeID id)
+    {
+        QspnInitData qspn_initdata = (QspnInitData)identity_mgr.get_identity_module(id, "qspn_initdata");
+        Naddr my_naddr = qspn_initdata.my_naddr;
+        Fingerprint my_fp = qspn_initdata.my_fp;
+        string my_naddr_str = "";
+        string sep = "";
+        for (int i = 0; i < my_naddr.i_qspn_get_levels(); i++)
+        {
+            my_naddr_str += @"$(sep)$(my_naddr.i_qspn_get_pos(i))";
+            sep = ", ";
+        }
+        string my_elderships_str = "";
+        sep = "";
+        assert(my_fp.level == 0);
+        for (int i = 0; i < my_fp.elderships.size; i++)
+        {
+            my_elderships_str += @"$(sep)$(my_fp.elderships[i])";
+            sep = ", ";
+        }
+        print(@"my_naddr = [$(my_naddr_str)], elderships = [$(my_elderships_str)], fingerprint = $(my_fp.id).\n");
     }
 }
 

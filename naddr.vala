@@ -116,19 +116,6 @@ namespace ProofOfConcept
             }
             return true;
         }
-
-        public string to_string()
-        {
-            string sep = "";
-            string positions = "";
-            for (int l = 0; l < i_qspn_get_levels(); l++)
-            {
-                int pos = i_qspn_get_pos(l);
-                positions += @"$(sep)$(pos)";
-                sep = ", ";
-            }
-            return @"[$(positions)]";
-        }
     }
 
     public class Fingerprint : Object, IQspnFingerprint, Json.Serializable
