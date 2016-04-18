@@ -306,9 +306,13 @@ namespace ProofOfConcept
                         }
                         add_node_arc(neighborhood_arcs[k], i_cost);
                     }
-                    else if (_args[0] == "show_node_arcs" && _args.size == 1)
+                    else if (_args[0] == "show_nodearcs" && _args.size == 1)
                     {
-                        show_node_arcs();
+                        show_nodearcs();
+                    }
+                    else if (_args[0] == "show_identityarcs" && _args.size == 1)
+                    {
+                        show_identityarcs();
                     }
                     else if (_args[0] == "help" && _args.size == 1)
                     {
@@ -328,8 +332,11 @@ Command list:
   Notify a arc to IdentityManager.
   You choose a cost in microseconds for it.
 
-> show_node_arcs
+> show_nodearcs
   List current accepted arcs
+
+> show_identityarcs
+  List current identity-arcs
 
 > help
   Shows this menu.
@@ -854,6 +861,8 @@ Command list:
         ia.id_arc = id_arc;
         int identityarc_index = identityarc_nextindex++;
         identityarcs[identityarc_index] = ia;
+        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
+        print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
     }
 
     void identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
@@ -946,7 +955,7 @@ Command list:
         identity_mgr.add_arc(arc.idmgmt_arc);
     }
 
-    void show_node_arcs()
+    void show_nodearcs()
     {
         foreach (int i in nodearcs.keys)
         {
@@ -955,6 +964,19 @@ Command list:
             string _p_ll = arc.idmgmt_arc.get_peer_linklocal();
             string _p_mac = arc.idmgmt_arc.get_peer_mac();
             print(@"nodearcs: #$(i): from $(_dev) to $(_p_ll) ($(_p_mac)).\n");
+        }
+    }
+
+    void show_identityarcs()
+    {
+        foreach (int i in identityarcs.keys)
+        {
+            IdentityArc ia = identityarcs[i];
+            IIdmgmtArc arc = ia.arc;
+            NodeID id = ia.id;
+            IIdmgmtIdentityArc id_arc = ia.id_arc;
+            print(@"identityarcs: #$(i): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
+            print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
         }
     }
 }
