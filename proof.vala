@@ -40,12 +40,14 @@ namespace ProofOfConcept
 
     ITasklet tasklet;
     NeighborhoodManager? neighborhood_mgr;
+    Netsukuku.Identities.
     IdentityManager? identity_mgr;
     int linklocal_nextindex;
     HashMap<int, HandledNic> linklocals;
     HashMap<string, HandledNic> current_nics;
     int nodeid_nextindex;
     HashMap<int, NodeID> nodeids;
+    HashMap<int, bool> nodeids_ready;
     HashMap<string, INeighborhoodArc> neighborhood_arcs;
     int nodearc_nextindex;
     HashMap<int, Arc> nodearcs;
@@ -119,6 +121,7 @@ namespace ProofOfConcept
         current_nics = new HashMap<string, HandledNic>();
         nodeid_nextindex = 0;
         nodeids = new HashMap<int, NodeID>();
+        nodeids_ready = new HashMap<int, bool>();
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         nodearc_nextindex = 0;
         nodearcs = new HashMap<int, Arc>();
@@ -165,6 +168,7 @@ namespace ProofOfConcept
         NodeID nodeid = identity_mgr.get_main_id();
         int nodeid_index = nodeid_nextindex++;
         nodeids[nodeid_index] = nodeid;
+        nodeids_ready[nodeid_index] = false;
         print(@"nodeids: #$(nodeid_index): $(nodeid.id).\n");
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
@@ -178,6 +182,7 @@ namespace ProofOfConcept
         qspn_initdata.my_fp = my_fp;
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
         identity_mgr.set_identity_module(nodeid, "qspn_initdata", qspn_initdata);
+        nodeids_ready[nodeid_index] = true;
 
         // end startup
 
@@ -328,6 +333,28 @@ namespace ProofOfConcept
                         }
                         show_ntkaddress(nodeids[nodeid_index]);
                     }
+                    else if (_args[0] == "prepare_add_identity" && _args.size == 3)
+                    {
+                        int migration_id = int.parse(_args[1]);
+                        int nodeid_index = int.parse(_args[2]);
+                        if (! (nodeid_index in nodeids.keys))
+                        {
+                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            continue;
+                        }
+                        prepare_add_identity(migration_id, nodeids[nodeid_index]);
+                    }
+                    else if (_args[0] == "add_identity" && _args.size == 3)
+                    {
+                        int migration_id = int.parse(_args[1]);
+                        int nodeid_index = int.parse(_args[2]);
+                        if (! (nodeid_index in nodeids.keys))
+                        {
+                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            continue;
+                        }
+                        add_identity(migration_id, nodeids[nodeid_index]);
+                    }
                     else if (_args[0] == "help" && _args.size == 1)
                     {
                         print("""
@@ -354,6 +381,12 @@ Command list:
 
 > show_ntkaddress <nodeid_index>
   Show address and elderships of one of my identities
+
+> prepare_add_identity <migration_id> <nodeid_index>
+  Prepare to create new identity
+
+> add_identity <migration_id> <nodeid_index>
+  Create new identity
 
 > help
   Shows this menu.
@@ -950,7 +983,8 @@ Command list:
         foreach (int i in nodeids.keys)
         {
             NodeID nodeid = nodeids[i];
-            print(@"nodeids: #$(i): $(nodeid.id).\n");
+            bool nodeid_ready = nodeids_ready[i];
+            print(@"nodeids: #$(i): $(nodeid.id), $(nodeid_ready ? "" : "not ")ready.\n");
         }
     }
 
@@ -1024,6 +1058,20 @@ Command list:
             sep = ", ";
         }
         print(@"my_naddr = [$(my_naddr_str)], elderships = [$(my_elderships_str)], fingerprint = $(my_fp.id).\n");
+    }
+
+    void prepare_add_identity(int migration_id, NodeID old_id)
+    {
+        identity_mgr.prepare_add_identity(migration_id, old_id);
+    }
+
+    void add_identity(int migration_id, NodeID old_id)
+    {
+        NodeID new_id = identity_mgr.add_identity(migration_id, old_id);
+        int nodeid_index = nodeid_nextindex++;
+        nodeids[nodeid_index] = new_id;
+        nodeids_ready[nodeid_index] = false;
+        print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
     }
 }
 
