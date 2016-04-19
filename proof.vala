@@ -730,6 +730,24 @@ Command list:
         }
     }
 
+    class NeighborhoodMissingArcHandler : Object, INeighborhoodMissingArcHandler
+    {
+        public NeighborhoodMissingArcHandler.from_qspn(IQspnMissingArcHandler qspn_missing)
+        {
+            this.qspn_missing = qspn_missing;
+        }
+        private IQspnMissingArcHandler? qspn_missing;
+
+        public void missing(INeighborhoodArc arc)
+        {
+            if (qspn_missing != null)
+            {
+                error("TODO NeighborhoodMissingArcHandler.from_qspn: from a INeighborhoodArc get a list of IQspnArc.");
+                // qspn_missing.i_qspn_missing(arc/*TODO*/);
+            }
+        }
+    }
+
     class QspnStubFactory : Object, IQspnStubFactory
     {
         /* This "holder" class is needed because the QspnManagerRemote class provided by
@@ -743,26 +761,26 @@ Command list:
             }
             private IAddressManagerStub addr;
 
-		    public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
-		    throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
+            public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
+            throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
             {
                 return addr.qspn_manager.get_full_etp(requesting_address);
             }
 
-		    public void got_destroy()
-		    throws StubError, DeserializeError
+            public void got_destroy()
+            throws StubError, DeserializeError
             {
                 addr.qspn_manager.got_destroy();
             }
 
-		    public void got_prepare_destroy()
-		    throws StubError, DeserializeError
+            public void got_prepare_destroy()
+            throws StubError, DeserializeError
             {
                 addr.qspn_manager.got_prepare_destroy();
             }
 
-		    public void send_etp(IQspnEtpMessage etp, bool is_full)
-		    throws QspnNotAcceptedError, StubError, DeserializeError
+            public void send_etp(IQspnEtpMessage etp, bool is_full)
+            throws QspnNotAcceptedError, StubError, DeserializeError
             {
                 addr.qspn_manager.send_etp(etp, is_full);
             }
@@ -774,7 +792,26 @@ Command list:
                             IQspnMissingArcHandler? missing_handler=null
                         )
         {
-            error("not implemented yet");
+            assert(! arcs.is_empty);
+            NodeID source_node_id = ((QspnArc)arcs[0]).sourceid;
+            ArrayList<NodeID> broadcast_node_id_set = new ArrayList<NodeID>();
+            foreach (IQspnArc arc in arcs)
+            {
+                QspnArc _arc = (QspnArc)arc;
+                broadcast_node_id_set.add(_arc.destid);
+            }
+            INeighborhoodMissingArcHandler? n_missing_handler = null;
+            if (missing_handler != null)
+            {
+                n_missing_handler = new NeighborhoodMissingArcHandler.from_qspn(missing_handler);
+            }
+            IAddressManagerStub addrstub = 
+                neighborhood_mgr.get_stub_identity_aware_broadcast(
+                source_node_id,
+                broadcast_node_id_set,
+                n_missing_handler);
+            QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub);
+            return ret;
         }
 
         public IQspnManagerStub
@@ -783,7 +820,15 @@ Command list:
                             bool wait_reply=true
                         )
         {
-            error("not implemented yet");
+            QspnArc _arc = (QspnArc)arc;
+            IAddressManagerStub addrstub = 
+                neighborhood_mgr.get_stub_identity_aware_unicast(
+                _arc.arc.neighborhood_arc,
+                _arc.sourceid,
+                _arc.destid,
+                wait_reply);
+            QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub);
+            return ret;
         }
     }
 
@@ -792,6 +837,33 @@ Command list:
         public int i_qspn_calculate_threshold(IQspnNodePath p1, IQspnNodePath p2)
         {
             return 10000;
+        }
+    }
+
+    class QspnArc : Object, IQspnArc
+    {
+        public weak Arc arc;
+        public NodeID sourceid;
+        public NodeID destid;
+
+        public IQspnCost i_qspn_get_cost()
+        {
+            error("not implemented yet");
+        }
+
+        public IQspnNaddr i_qspn_get_naddr()
+        {
+            error("not implemented yet");
+        }
+
+        public bool i_qspn_equals(IQspnArc other)
+        {
+            error("not implemented yet");
+        }
+
+        public bool i_qspn_comes_from(CallerInfo rpc_caller)
+        {
+            error("not implemented yet");
         }
     }
 
