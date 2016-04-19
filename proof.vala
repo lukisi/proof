@@ -261,10 +261,10 @@ namespace ProofOfConcept
         try {
             TaskletCommandResult com_ret = tasklet.exec_command(@"$(ns_prefix)sysctl $(key)=$(val)");
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.stderr)\n");
+                error(@"$(com_ret.stderr)");
             com_ret = tasklet.exec_command(@"$(ns_prefix)sysctl -n $(key)");
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.stderr)\n");
+                error(@"$(com_ret.stderr)");
             if (com_ret.stdout != @"$(val)\n")
                 error(@"Failed to set key '$(key)' to val '$(val)': now it reports '$(com_ret.stdout)'\n");
         } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
@@ -442,7 +442,7 @@ Command list:
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error(@"$(com_ret.stderr)");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
 
@@ -453,7 +453,7 @@ Command list:
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error(@"$(com_ret.stderr)");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
 
@@ -464,7 +464,7 @@ Command list:
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error(@"$(com_ret.stderr)");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
 
@@ -475,7 +475,7 @@ Command list:
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error(@"$(com_ret.stderr)");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
     }
@@ -524,44 +524,114 @@ Command list:
 
     class IdmgmtNetnsManager : Object, IIdmgmtNetnsManager
     {
-        public void add_address(string ns, string pseudo_dev, string linklocal)
-        {
-            error("not implemented yet");
-        }
-
-        public void add_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
-        {
-            error("not implemented yet");
-        }
-
         public void create_namespace(string ns)
         {
-            error("not implemented yet");
+            assert(ns != "");
+            try {
+                string cmd = @"ip netns add $(ns)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
 
         public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
         {
-            error("not implemented yet");
+            assert(ns != "");
+            try {
+                string cmd = @"ip link add dev $(pseudo_dev) link $(dev) type macvlan";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+                pseudo_mac = macgetter.get_mac(pseudo_dev).up();
+                cmd = @"ip link set dev $(pseudo_dev) netns $(ns)";
+                print(@"$(cmd)\n");
+                com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+                prepare_nic(pseudo_dev, @"ip netns exec $(ns) ");
+                cmd = @"ip netns exec $(ns) ip link set dev $(pseudo_dev) up";
+                print(@"$(cmd)\n");
+                com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
 
-        public void delete_namespace(string ns)
+        public void add_address(string ns, string pseudo_dev, string linklocal)
         {
-            error("not implemented yet");
+            assert(ns != "");
+            try {
+                string cmd = @"ip netns exec $(ns) ip address add $(linklocal) dev $(pseudo_dev)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
 
-        public void delete_pseudodev(string ns, string pseudo_dev)
+        public void add_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
         {
-            error("not implemented yet");
-        }
-
-        public void flush_table(string ns)
-        {
-            error("not implemented yet");
+            // ns may be empty-string.
+            try {
+                string cmd = @"ip route add $(linklocal_dst) dev $(dev) src $(linklocal_src)";
+                if (ns != "") cmd = @"ip netns exec $(ns) $(cmd)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
 
         public void remove_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
         {
-            error("not implemented yet");
+            // ns may be empty-string.
+            try {
+                string cmd = @"ip route del $(linklocal_dst) dev $(dev) src $(linklocal_src)";
+                if (ns != "") cmd = @"ip netns exec $(ns) $(cmd)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+
+        public void flush_table(string ns)
+        {
+            assert(ns != "");
+            try {
+                string cmd = @"ip netns exec $(ns) ip route flush table main";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+
+        public void delete_pseudodev(string ns, string pseudo_dev)
+        {
+            assert(ns != "");
+            try {
+                string cmd = @"ip netns exec $(ns) ip link delete $(pseudo_dev) type macvlan";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+
+        public void delete_namespace(string ns)
+        {
+            assert(ns != "");
+            try {
+                string cmd = @"ip netns del $(ns)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
     }
 
