@@ -287,24 +287,49 @@ namespace ProofOfConcept
                     foreach (string s_piece in line.split(" ")) _args.add(s_piece);
                     if (_args.size == 0)
                     {}
-                    else if (_args[0] == "quit" && _args.size == 1)
+                    else if (_args[0] == "quit")
                     {
+                        if (_args.size != 1)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         do_me_exit = true;
                     }
-                    else if (_args[0] == "show_linklocals" && _args.size == 1)
+                    else if (_args[0] == "show_linklocals")
                     {
+                        if (_args.size != 1)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         show_linklocals();
                     }
-                    else if (_args[0] == "show_nodeids" && _args.size == 1)
+                    else if (_args[0] == "show_nodeids")
                     {
+                        if (_args.size != 1)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         show_nodeids();
                     }
-                    else if (_args[0] == "show_neighborhood_arcs" && _args.size == 1)
+                    else if (_args[0] == "show_neighborhood_arcs")
                     {
+                        if (_args.size != 1)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         show_neighborhood_arcs();
                     }
-                    else if (_args[0] == "add_node_arc" && _args.size == 3)
+                    else if (_args[0] == "add_node_arc")
                     {
+                        if (_args.size != 3)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         string k = _args[1];
                         int i_cost = int.parse(_args[2]);
                         if (! (k in neighborhood_arcs.keys))
@@ -314,16 +339,31 @@ namespace ProofOfConcept
                         }
                         add_node_arc(neighborhood_arcs[k], i_cost);
                     }
-                    else if (_args[0] == "show_nodearcs" && _args.size == 1)
+                    else if (_args[0] == "show_nodearcs")
                     {
+                        if (_args.size != 1)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         show_nodearcs();
                     }
-                    else if (_args[0] == "show_identityarcs" && _args.size == 1)
+                    else if (_args[0] == "show_identityarcs")
                     {
+                        if (_args.size != 1)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         show_identityarcs();
                     }
-                    else if (_args[0] == "show_ntkaddress" && _args.size == 2)
+                    else if (_args[0] == "show_ntkaddress")
                     {
+                        if (_args.size != 2)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         int nodeid_index = int.parse(_args[1]);
                         if (! (nodeid_index in nodeids.keys))
                         {
@@ -332,8 +372,13 @@ namespace ProofOfConcept
                         }
                         show_ntkaddress(nodeids[nodeid_index]);
                     }
-                    else if (_args[0] == "prepare_add_identity" && _args.size == 3)
+                    else if (_args[0] == "prepare_add_identity")
                     {
+                        if (_args.size != 3)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         int migration_id = int.parse(_args[1]);
                         int nodeid_index = int.parse(_args[2]);
                         if (! (nodeid_index in nodeids.keys))
@@ -343,8 +388,13 @@ namespace ProofOfConcept
                         }
                         prepare_add_identity(migration_id, nodeids[nodeid_index]);
                     }
-                    else if (_args[0] == "add_identity" && _args.size == 3)
+                    else if (_args[0] == "add_identity")
                     {
+                        if (_args.size != 3)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         int migration_id = int.parse(_args[1]);
                         int nodeid_index = int.parse(_args[2]);
                         if (! (nodeid_index in nodeids.keys))
@@ -354,44 +404,80 @@ namespace ProofOfConcept
                         }
                         add_identity(migration_id, nodeids[nodeid_index]);
                     }
-                    else if (_args[0] == "help" && _args.size == 1)
+                    else if (_args[0] == "enter_net")
                     {
+                        if (_args.size < 9)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        enter_net();
+                    }
+                    else if (_args[0] == "add_qspnarc")
+                    {
+                        if (_args.size != 3)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        add_qspnarc();
+                    }
+                    else if (_args[0] == "help")
+                    {
+                        if (_args.size != 1)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
                         print("""
 Command list:
 
 > show_linklocals
-  List current link-local addresses
+  List current link-local addresses.
 
 > show_nodeids
-  List current NodeID values
+  List current NodeID values.
 
 > show_neighborhood_arcs
-  List current usable arcs
+  List current usable arcs.
 
 > add_node_arc <from_MAC>-<to_MAC> <cost>
   Notify a arc to IdentityManager.
   You choose a cost in microseconds for it.
 
 > show_nodearcs
-  List current accepted arcs
+  List current accepted arcs.
 
 > show_identityarcs
-  List current identity-arcs
+  List current identity-arcs.
 
 > show_ntkaddress <nodeid_index>
-  Show address and elderships of one of my identities
+  Show address and elderships of one of my identities.
 
 > prepare_add_identity <migration_id> <nodeid_index>
-  Prepare to create new identity
+  Prepare to create new identity.
 
 > add_identity <migration_id> <nodeid_index>
-  Create new identity
+  Create new identity.
+
+> enter_net <new_nodeid_index>
+            <previous_nodeid_index>
+            <address>
+            <elderships>
+            <hooking_gnode_level>
+            <into_gnode_level>
+                  <identityarc_index>    -| one or more times
+                  <identityarc_address>  -|
+  Enter network (migrate) with a newly created identity.
+
+> add_qspnarc <identityarc_index> <identityarc_address>
+  Add a QspnArc.
 
 > help
-  Shows this menu.
+  Show this menu.
 
 > quit
-  Exits. You can also press <ctrl-C>.
+  Exit. You can also press <ctrl-C>.
 
 """);
                     }
@@ -1249,6 +1335,16 @@ Command list:
         nodeids[nodeid_index] = new_id;
         nodeids_ready[nodeid_index] = false;
         print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
+    }
+
+    void enter_net()
+    {
+        error("not implemented yet");
+    }
+
+    void add_qspnarc()
+    {
+        error("not implemented yet");
     }
 }
 
