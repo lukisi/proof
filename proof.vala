@@ -1099,7 +1099,8 @@ Command list:
 
     void identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
-        error("not implemented yet");
+        print(@"identity_arc_changed: on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
+        print(@"                      id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
     }
 
     void identity_arc_removed(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
@@ -1222,18 +1223,18 @@ Command list:
         string sep = "";
         for (int i = 0; i < my_naddr.i_qspn_get_levels(); i++)
         {
-            my_naddr_str += @"$(sep)$(my_naddr.i_qspn_get_pos(i))";
-            sep = ", ";
+            my_naddr_str = @"$(my_naddr.i_qspn_get_pos(i))$(sep)$(my_naddr_str)";
+            sep = ".";
         }
         string my_elderships_str = "";
         sep = "";
         assert(my_fp.level == 0);
         for (int i = 0; i < my_fp.elderships.size; i++)
         {
-            my_elderships_str += @"$(sep)$(my_fp.elderships[i])";
-            sep = ", ";
+            my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
+            sep = ".";
         }
-        print(@"my_naddr = [$(my_naddr_str)], elderships = [$(my_elderships_str)], fingerprint = $(my_fp.id).\n");
+        print(@"my_naddr = $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
     }
 
     void prepare_add_identity(int migration_id, NodeID old_id)
