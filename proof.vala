@@ -39,6 +39,8 @@ namespace ProofOfConcept
     bool no_anonymize;
 
     ITasklet tasklet;
+    ArrayList<int> _gsizes;
+    int levels;
     NeighborhoodManager? neighborhood_mgr;
     IdentityManager? identity_mgr;
     int linklocal_nextindex;
@@ -82,7 +84,7 @@ namespace ProofOfConcept
         gsizes = args[1];
         naddr = args[2];
         ArrayList<int> _naddr = new ArrayList<int>();
-        ArrayList<int> _gsizes = new ArrayList<int>();
+        _gsizes = new ArrayList<int>();
         ArrayList<int> _elderships = new ArrayList<int>();
         ArrayList<string> _devs = new ArrayList<string>();
         foreach (string s_piece in naddr.split(".")) _naddr.insert(0, int.parse(s_piece));
@@ -90,6 +92,7 @@ namespace ProofOfConcept
         for (int i = 0; i < _gsizes.size; i++) _elderships.add(0);
         foreach (string dev in interfaces) _devs.add(dev);
         if (_naddr.size != _gsizes.size) error("You have to use same number of levels");
+        levels = _gsizes.size;
 
         // Initialize tasklet system
         PthTaskletImplementer.init();
@@ -462,8 +465,8 @@ Command list:
 
 > enter_net <new_nodeid_index>
             <previous_nodeid_index>
-            <address>
-            <elderships>
+            <address_new_gnode>
+            <elderships_new_gnode>
             <hooking_gnode_level>
             <into_gnode_level>
                   <identityarc_index>    -| one or more times
@@ -1307,7 +1310,7 @@ Command list:
         Fingerprint my_fp = qspn_initdata.my_fp;
         string my_naddr_str = "";
         string sep = "";
-        for (int i = 0; i < my_naddr.i_qspn_get_levels(); i++)
+        for (int i = 0; i < levels; i++)
         {
             my_naddr_str = @"$(my_naddr.i_qspn_get_pos(i))$(sep)$(my_naddr_str)";
             sep = ".";
@@ -1315,7 +1318,7 @@ Command list:
         string my_elderships_str = "";
         sep = "";
         assert(my_fp.level == 0);
-        for (int i = 0; i < my_fp.elderships.size; i++)
+        for (int i = 0; i < levels; i++)
         {
             my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
             sep = ".";
