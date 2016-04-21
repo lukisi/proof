@@ -1235,6 +1235,31 @@ Command list:
         neighborhood_arcs.unset(k);
     }
 
+    string naddr_repr(Naddr my_naddr)
+    {
+        string my_naddr_str = "";
+        string sep = "";
+        for (int i = 0; i < levels; i++)
+        {
+            my_naddr_str = @"$(my_naddr.i_qspn_get_pos(i))$(sep)$(my_naddr_str)";
+            sep = ".";
+        }
+        return my_naddr_str;
+    }
+
+    string fp_elderships_repr(Fingerprint my_fp)
+    {
+        string my_elderships_str = "";
+        string sep = "";
+        assert(my_fp.level == 0);
+        for (int i = 0; i < levels; i++)
+        {
+            my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
+            sep = ".";
+        }
+        return my_elderships_str;
+    }
+
     void show_linklocals()
     {
         foreach (int i in linklocals.keys)
@@ -1308,21 +1333,8 @@ Command list:
         QspnInitData qspn_initdata = (QspnInitData)identity_mgr.get_identity_module(id, "qspn_initdata");
         Naddr my_naddr = qspn_initdata.my_naddr;
         Fingerprint my_fp = qspn_initdata.my_fp;
-        string my_naddr_str = "";
-        string sep = "";
-        for (int i = 0; i < levels; i++)
-        {
-            my_naddr_str = @"$(my_naddr.i_qspn_get_pos(i))$(sep)$(my_naddr_str)";
-            sep = ".";
-        }
-        string my_elderships_str = "";
-        sep = "";
-        assert(my_fp.level == 0);
-        for (int i = 0; i < levels; i++)
-        {
-            my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
-            sep = ".";
-        }
+        string my_naddr_str = naddr_repr(my_naddr);
+        string my_elderships_str = fp_elderships_repr(my_fp);
         print(@"my_naddr = $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
     }
 
