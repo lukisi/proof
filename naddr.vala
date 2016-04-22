@@ -125,9 +125,16 @@ namespace ProofOfConcept
         // elderships has n items, where level + n = levels of the network.
         public ArrayList<int> elderships {get; set;}
         public ArrayList<int> elderships_seed {get; set;}
-        public Fingerprint(int[] elderships)
+        public Fingerprint(int[] elderships, int64 id=-1)
         {
-            id = Random.int_range(0, 1000000);
+            if (id == -1)
+            {
+                this.id = Random.int_range(0, 1000000);
+                this.id *= 1000000;
+                this.id = Random.int_range(0, 1000000);
+            }
+            else
+                this.id = id;
             level = 0;
             this.elderships = new ArrayList<int>();
             this.elderships.add_all_array(elderships);

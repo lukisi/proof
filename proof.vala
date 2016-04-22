@@ -414,16 +414,73 @@ namespace ProofOfConcept
                             print(@"Bad arguments number.\n");
                             continue;
                         }
-                        enter_net();
-                    }
-                    else if (_args[0] == "add_qspnarc")
-                    {
-                        if (_args.size != 3)
+                        int pairs = _args.size - 9;
+                        int pairs2 = pairs / 2;
+                        if (pairs != pairs2 * 2)
                         {
                             print(@"Bad arguments number.\n");
                             continue;
                         }
-                        add_qspnarc();
+                        int new_nodeid_index = int.parse(_args[1]);
+                        if (! (new_nodeid_index in nodeids.keys))
+                        {
+                            print(@"wrong new_nodeid_index '$(new_nodeid_index)'\n");
+                            continue;
+                        }
+                        assert(new_nodeid_index in nodeids_ready.keys);
+                        if (nodeids_ready[new_nodeid_index])
+                        {
+                            print(@"wrong new_nodeid_index '$(new_nodeid_index)' (it is already started)\n");
+                            continue;
+                        }
+                        int previous_nodeid_index = int.parse(_args[2]);
+                        if (! (previous_nodeid_index in nodeids.keys))
+                        {
+                            print(@"wrong previous_nodeid_index '$(previous_nodeid_index)'\n");
+                            continue;
+                        }
+                        assert(previous_nodeid_index in nodeids_ready.keys);
+                        if (! nodeids_ready[previous_nodeid_index])
+                        {
+                            print(@"wrong previous_nodeid_index '$(previous_nodeid_index)' (it is not started)\n");
+                            continue;
+                        }
+                        string s_naddr_new_gnode = _args[3];
+                        string s_elderships_new_gnode = _args[4];
+                        int hooking_gnode_level = int.parse(_args[5]);
+                        int into_gnode_level = int.parse(_args[6]);
+                        int i = 7;
+                        Gee.List<int> idarc_index_set = new ArrayList<int>();
+                        Gee.List<string> idarc_address_set = new ArrayList<string>();
+                        while (i < _args.size)
+                        {
+                            assert(i+1 < _args.size);
+                            int idarc_index = int.parse(_args[i]);
+                            idarc_index_set.add(idarc_index);
+                            string idarc_address = _args[i+1];
+                            idarc_address_set.add(idarc_address);
+                            i += 2;
+                        }
+                        enter_net(new_nodeid_index,
+                            previous_nodeid_index,
+                            s_naddr_new_gnode,
+                            s_elderships_new_gnode,
+                            hooking_gnode_level,
+                            into_gnode_level,
+                            idarc_index_set,
+                            idarc_address_set);
+                    }
+                    else if (_args[0] == "add_qspnarc")
+                    {
+                        if (_args.size != 4)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        int nodeid_index = int.parse(_args[1]);
+                        int idarc_index = int.parse(_args[2]);
+                        string s_naddr_neighbour = _args[3];
+                        add_qspnarc(nodeid_index, idarc_index, s_naddr_neighbour);
                     }
                     else if (_args[0] == "help")
                     {
@@ -473,7 +530,7 @@ Command list:
                   <identityarc_address>  -|
   Enter network (migrate) with a newly created identity.
 
-> add_qspnarc <identityarc_index> <identityarc_address>
+> add_qspnarc <nodeid_index> <identityarc_index> <identityarc_address>
   Add a QspnArc.
 
 > help
@@ -1001,28 +1058,53 @@ Command list:
 
     class QspnArc : Object, IQspnArc
     {
+        public QspnArc(Arc arc, NodeID sourceid, NodeID destid, Naddr neighbour_naddr)
+        {
+            this.arc = arc;
+            this.sourceid = sourceid;
+            this.destid = destid;
+            this.neighbour_naddr = neighbour_naddr;
+        }
         public weak Arc arc;
         public NodeID sourceid;
         public NodeID destid;
+        public Naddr neighbour_naddr;
 
         public IQspnCost i_qspn_get_cost()
         {
-            error("not implemented yet");
+            return new Cost(arc.cost);
         }
 
         public IQspnNaddr i_qspn_get_naddr()
         {
-            error("not implemented yet");
+            return neighbour_naddr;
         }
 
         public bool i_qspn_equals(IQspnArc other)
         {
-            error("not implemented yet");
+            return other == this;
         }
 
         public bool i_qspn_comes_from(CallerInfo rpc_caller)
         {
-            error("not implemented yet");
+            string neighbour_nic_addr = arc.neighborhood_arc.neighbour_nic_addr;
+            if (rpc_caller is TcpclientCallerInfo)
+            {
+                return neighbour_nic_addr == ((TcpclientCallerInfo)rpc_caller).peer_address;
+            }
+            else if (rpc_caller is BroadcastCallerInfo)
+            {
+                return neighbour_nic_addr == ((BroadcastCallerInfo)rpc_caller).peer_address;
+            }
+            else if (rpc_caller is UnicastCallerInfo)
+            {
+                warning("QspnArc.i_qspn_comes_from: got a call in udp-unicast. Ignore it.");
+                tasklet.exit_tasklet(null);
+            }
+            else
+            {
+                assert_not_reached();
+            }
         }
     }
 
@@ -1352,14 +1434,97 @@ Command list:
         print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
     }
 
-    void enter_net()
+    void enter_net
+    (int new_nodeid_index,
+     int previous_nodeid_index,
+     string s_naddr_new_gnode,
+     string s_elderships_new_gnode,
+     int hooking_gnode_level,
+     int into_gnode_level,
+     Gee.List<int> idarc_index_set,
+     Gee.List<string> idarc_address_set)
     {
-        error("not implemented yet");
+        NodeID new_id = nodeids[new_nodeid_index];
+        NodeID previous_id = nodeids[previous_nodeid_index];
+        QspnManager previous_id_mgr = (QspnManager)identity_mgr.get_identity_module(previous_id, "qspn");
+        QspnInitData previous_id_qspn_initdata = (QspnInitData)identity_mgr.get_identity_module(previous_id, "qspn_initdata");
+        Naddr previous_id_my_naddr = previous_id_qspn_initdata.my_naddr;
+        Fingerprint previous_id_my_fp = previous_id_qspn_initdata.my_fp;
+
+        ArrayList<int> _naddr = new ArrayList<int>();
+        ArrayList<int> _elderships = new ArrayList<int>();
+        foreach (string s_piece in s_naddr_new_gnode.split(".")) _naddr.insert(0, int.parse(s_piece));
+        foreach (string s_piece in s_elderships_new_gnode.split(".")) _elderships.insert(0, int.parse(s_piece));
+        if (_naddr.size != _elderships.size) error("You have to use same number of levels");
+        int level_new_gnode = levels - _naddr.size;
+        assert(into_gnode_level > level_new_gnode);
+        assert(level_new_gnode >= hooking_gnode_level);
+        for (int i = level_new_gnode-1; i >= 0; i--)
+        {
+            int pos = previous_id_my_naddr.pos[i];
+            int eldership = previous_id_my_fp.elderships[i];
+            _naddr.insert(0, pos);
+            if (i >= hooking_gnode_level)
+                _elderships.insert(0, 0);
+            else
+                _elderships.insert(0, eldership);
+        }
+        Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
+        Fingerprint my_fp = new Fingerprint(_elderships.to_array(), previous_id_my_fp.id);
+        string my_naddr_str = naddr_repr(my_naddr);
+        string my_elderships_str = fp_elderships_repr(my_fp);
+        print(@"new identity will be $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
+        ArrayList<IQspnArc> my_arcs = new ArrayList<IQspnArc>();
+        assert(idarc_index_set.size == idarc_address_set.size);
+        for (int i = 0; i < idarc_index_set.size; i++)
+        {
+            int idarc_index = idarc_index_set[i];
+            string idarc_address = idarc_address_set[i];
+            ArrayList<int> idarc_naddr = new ArrayList<int>();
+            foreach (string s_piece in idarc_address.split(".")) idarc_naddr.insert(0, int.parse(s_piece));
+            Naddr neighbour_naddr = new Naddr(idarc_naddr.to_array(), _gsizes.to_array());
+            assert(idarc_index in identityarcs.keys);
+            IdentityArc ia = identityarcs[idarc_index];
+            NodeID destid = ia.id_arc.get_peer_nodeid();
+            NodeID sourceid = ia.id;
+            IdmgmtArc __arc = (IdmgmtArc)ia.arc;
+            Arc _arc = __arc.arc;
+            QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr);
+            my_arcs.add(arc);
+        }
+
+        QspnManager qspn_mgr = new QspnManager.enter_net(my_naddr,
+            my_arcs,
+            my_fp,
+            new QspnStubFactory(),
+            hooking_gnode_level,
+            into_gnode_level,
+            previous_id_mgr);
+        identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
+
+        QspnInitData qspn_initdata = new QspnInitData();
+        qspn_initdata.my_naddr = my_naddr;
+        qspn_initdata.my_fp = my_fp;
+        identity_mgr.set_identity_module(new_id, "qspn_initdata", qspn_initdata);
+        nodeids_ready[new_nodeid_index] = true;
     }
 
-    void add_qspnarc()
+    void add_qspnarc(int nodeid_index, int idarc_index, string idarc_address)
     {
-        error("not implemented yet");
+        NodeID id = nodeids[nodeid_index];
+        QspnManager id_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
+
+        ArrayList<int> idarc_naddr = new ArrayList<int>();
+        foreach (string s_piece in idarc_address.split(".")) idarc_naddr.insert(0, int.parse(s_piece));
+        Naddr neighbour_naddr = new Naddr(idarc_naddr.to_array(), _gsizes.to_array());
+        assert(idarc_index in identityarcs.keys);
+        IdentityArc ia = identityarcs[idarc_index];
+        NodeID destid = ia.id_arc.get_peer_nodeid();
+        NodeID sourceid = ia.id;
+        IdmgmtArc __arc = (IdmgmtArc)ia.arc;
+        Arc _arc = __arc.arc;
+        QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr);
+        id_mgr.arc_add(arc);
     }
 }
 
