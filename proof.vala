@@ -204,6 +204,14 @@ namespace ProofOfConcept
 
         // TODO cleanup
 
+        // Remove identities and their network namespaces and linklocal addresses.
+        NodeID _main_id = identity_mgr.get_main_id();
+        foreach (NodeID _id in identity_mgr.get_id_list())
+        {
+            if (_id.equals(_main_id)) continue;
+            identity_mgr.remove_identity(_id);
+        }
+
         // This will destroy the object NeighborhoodManager and hence call
         //  its stop_monitor_all.
         // Beware that node_skeleton.neighborhood_mgr
