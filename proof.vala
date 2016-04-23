@@ -47,8 +47,7 @@ namespace ProofOfConcept
     HashMap<int, HandledNic> linklocals;
     HashMap<string, HandledNic> current_nics;
     int nodeid_nextindex;
-    HashMap<int, NodeID> nodeids;
-    HashMap<int, bool> nodeids_ready;
+    HashMap<int, IdentityData> nodeids;
     HashMap<string, INeighborhoodArc> neighborhood_arcs;
     int nodearc_nextindex;
     HashMap<int, Arc> nodearcs;
@@ -122,8 +121,7 @@ namespace ProofOfConcept
         linklocals = new HashMap<int, HandledNic>();
         current_nics = new HashMap<string, HandledNic>();
         nodeid_nextindex = 0;
-        nodeids = new HashMap<int, NodeID>();
-        nodeids_ready = new HashMap<int, bool>();
+        nodeids = new HashMap<int, IdentityData>();
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         nodearc_nextindex = 0;
         nodearcs = new HashMap<int, Arc>();
@@ -169,8 +167,7 @@ namespace ProofOfConcept
         // First identity
         NodeID nodeid = identity_mgr.get_main_id();
         int nodeid_index = nodeid_nextindex++;
-        nodeids[nodeid_index] = nodeid;
-        nodeids_ready[nodeid_index] = false;
+        nodeids[nodeid_index] = new IdentityData(nodeid);
         print(@"nodeids: #$(nodeid_index): $(nodeid.id).\n");
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
@@ -179,12 +176,11 @@ namespace ProofOfConcept
         QspnManager qspn_mgr = new QspnManager.create_net(my_naddr,
             my_fp,
             new QspnStubFactory());
-        QspnInitData qspn_initdata = new QspnInitData();
-        qspn_initdata.my_naddr = my_naddr;
-        qspn_initdata.my_fp = my_fp;
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
-        identity_mgr.set_identity_module(nodeid, "qspn_initdata", qspn_initdata);
-        nodeids_ready[nodeid_index] = true;
+        nodeids[nodeid_index].my_naddr = my_naddr;
+        nodeids[nodeid_index].my_fp = my_fp;
+        nodeids[nodeid_index].ready = true;
+        nodeids[nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
 
         // end startup
 
@@ -381,7 +377,7 @@ namespace ProofOfConcept
                             print(@"wrong nodeid_index '$(nodeid_index)'\n");
                             continue;
                         }
-                        show_ntkaddress(nodeids[nodeid_index]);
+                        show_ntkaddress(nodeid_index);
                     }
                     else if (_args[0] == "prepare_add_identity")
                     {
@@ -397,7 +393,7 @@ namespace ProofOfConcept
                             print(@"wrong nodeid_index '$(nodeid_index)'\n");
                             continue;
                         }
-                        prepare_add_identity(migration_id, nodeids[nodeid_index]);
+                        prepare_add_identity(migration_id, nodeid_index);
                     }
                     else if (_args[0] == "add_identity")
                     {
@@ -413,7 +409,7 @@ namespace ProofOfConcept
                             print(@"wrong nodeid_index '$(nodeid_index)'\n");
                             continue;
                         }
-                        add_identity(migration_id, nodeids[nodeid_index]);
+                        add_identity(migration_id, nodeid_index);
                     }
                     else if (_args[0] == "enter_net")
                     {
@@ -435,8 +431,7 @@ namespace ProofOfConcept
                             print(@"wrong new_nodeid_index '$(new_nodeid_index)'\n");
                             continue;
                         }
-                        assert(new_nodeid_index in nodeids_ready.keys);
-                        if (nodeids_ready[new_nodeid_index])
+                        if (nodeids[new_nodeid_index].ready)
                         {
                             print(@"wrong new_nodeid_index '$(new_nodeid_index)' (it is already started)\n");
                             continue;
@@ -447,8 +442,7 @@ namespace ProofOfConcept
                             print(@"wrong previous_nodeid_index '$(previous_nodeid_index)'\n");
                             continue;
                         }
-                        assert(previous_nodeid_index in nodeids_ready.keys);
-                        if (! nodeids_ready[previous_nodeid_index])
+                        if (! nodeids[previous_nodeid_index].ready)
                         {
                             print(@"wrong previous_nodeid_index '$(previous_nodeid_index)' (it is not started)\n");
                             continue;
@@ -581,10 +575,19 @@ Command list:
         public IIdmgmtIdentityArc id_arc;
     }
 
-    class QspnInitData : Object
+    class IdentityData : Object
     {
+        public IdentityData(NodeID nodeid)
+        {
+            this.nodeid = nodeid;
+            ready = false;
+        }
+
+        public NodeID nodeid;
         public Naddr my_naddr;
         public Fingerprint my_fp;
+        public bool ready;
+        public AddressManagerForIdentity addr_man;
     }
 
     class NeighborhoodIPRouteManager : Object, INeighborhoodIPRouteManager
@@ -1251,7 +1254,30 @@ Command list:
         NodeID unicast_id,
         string peer_address)
     {
-        error("not implemented yet");
+        foreach (int nodeid_index in nodeids.keys)
+        {
+            NodeID nodeid_index_id = nodeids[nodeid_index].nodeid;
+            if (nodeid_index_id.equals(unicast_id))
+            {
+                foreach (int identityarc_index in identityarcs.keys)
+                {
+                    IdentityArc ia = identityarcs[identityarc_index];
+                    IdmgmtArc __arc = (IdmgmtArc)ia.arc;
+                    Arc _arc = __arc.arc;
+                    if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address)
+                    {
+                        if (ia.id.equals(nodeid_index_id))
+                        {
+                            if (ia.id_arc.get_peer_nodeid().equals(source_id))
+                            {
+                                return nodeids[nodeid_index].addr_man;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     Gee.List<IAddressManagerSkeleton>
@@ -1261,7 +1287,32 @@ Command list:
         string peer_address,
         string dev)
     {
-        error("not implemented yet");
+        ArrayList<IAddressManagerSkeleton> ret = new ArrayList<IAddressManagerSkeleton>();
+        foreach (int nodeid_index in nodeids.keys)
+        {
+            NodeID nodeid_index_id = nodeids[nodeid_index].nodeid;
+            if (nodeid_index_id in broadcast_set)
+            {
+                foreach (int identityarc_index in identityarcs.keys)
+                {
+                    IdentityArc ia = identityarcs[identityarc_index];
+                    IdmgmtArc __arc = (IdmgmtArc)ia.arc;
+                    Arc _arc = __arc.arc;
+                    if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address
+                        && _arc.neighborhood_arc.nic.dev == dev)
+                    {
+                        if (ia.id.equals(nodeid_index_id))
+                        {
+                            if (ia.id_arc.get_peer_nodeid().equals(source_id))
+                            {
+                                ret.add(nodeids[nodeid_index].addr_man);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return ret;
     }
 
     void identity_arc_added(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
@@ -1363,8 +1414,8 @@ Command list:
     {
         foreach (int i in nodeids.keys)
         {
-            NodeID nodeid = nodeids[i];
-            bool nodeid_ready = nodeids_ready[i];
+            NodeID nodeid = nodeids[i].nodeid;
+            bool nodeid_ready = nodeids[i].ready;
             print(@"nodeids: #$(i): $(nodeid.id), $(nodeid_ready ? "" : "not ")ready.\n");
         }
     }
@@ -1418,27 +1469,27 @@ Command list:
         }
     }
 
-    void show_ntkaddress(NodeID id)
+    void show_ntkaddress(int nodeid_index)
     {
-        QspnInitData qspn_initdata = (QspnInitData)identity_mgr.get_identity_module(id, "qspn_initdata");
-        Naddr my_naddr = qspn_initdata.my_naddr;
-        Fingerprint my_fp = qspn_initdata.my_fp;
+        Naddr my_naddr = nodeids[nodeid_index].my_naddr;
+        Fingerprint my_fp = nodeids[nodeid_index].my_fp;
         string my_naddr_str = naddr_repr(my_naddr);
         string my_elderships_str = fp_elderships_repr(my_fp);
         print(@"my_naddr = $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
     }
 
-    void prepare_add_identity(int migration_id, NodeID old_id)
+    void prepare_add_identity(int migration_id, int old_nodeid_index)
     {
+        NodeID old_id = nodeids[old_nodeid_index].nodeid;
         identity_mgr.prepare_add_identity(migration_id, old_id);
     }
 
-    void add_identity(int migration_id, NodeID old_id)
+    void add_identity(int migration_id, int old_nodeid_index)
     {
+        NodeID old_id = nodeids[old_nodeid_index].nodeid;
         NodeID new_id = identity_mgr.add_identity(migration_id, old_id);
         int nodeid_index = nodeid_nextindex++;
-        nodeids[nodeid_index] = new_id;
-        nodeids_ready[nodeid_index] = false;
+        nodeids[nodeid_index] = new IdentityData(new_id);
         print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
     }
 
@@ -1452,12 +1503,11 @@ Command list:
      Gee.List<int> idarc_index_set,
      Gee.List<string> idarc_address_set)
     {
-        NodeID new_id = nodeids[new_nodeid_index];
-        NodeID previous_id = nodeids[previous_nodeid_index];
+        NodeID new_id = nodeids[new_nodeid_index].nodeid;
+        NodeID previous_id = nodeids[previous_nodeid_index].nodeid;
         QspnManager previous_id_mgr = (QspnManager)identity_mgr.get_identity_module(previous_id, "qspn");
-        QspnInitData previous_id_qspn_initdata = (QspnInitData)identity_mgr.get_identity_module(previous_id, "qspn_initdata");
-        Naddr previous_id_my_naddr = previous_id_qspn_initdata.my_naddr;
-        Fingerprint previous_id_my_fp = previous_id_qspn_initdata.my_fp;
+        Naddr previous_id_my_naddr = nodeids[previous_nodeid_index].my_naddr;
+        Fingerprint previous_id_my_fp = nodeids[previous_nodeid_index].my_fp;
 
         ArrayList<int> _naddr = new ArrayList<int>();
         ArrayList<int> _elderships = new ArrayList<int>();
@@ -1509,17 +1559,15 @@ Command list:
             into_gnode_level,
             previous_id_mgr);
         identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
-
-        QspnInitData qspn_initdata = new QspnInitData();
-        qspn_initdata.my_naddr = my_naddr;
-        qspn_initdata.my_fp = my_fp;
-        identity_mgr.set_identity_module(new_id, "qspn_initdata", qspn_initdata);
-        nodeids_ready[new_nodeid_index] = true;
+        nodeids[new_nodeid_index].my_naddr = my_naddr;
+        nodeids[new_nodeid_index].my_fp = my_fp;
+        nodeids[new_nodeid_index].ready = true;
+        nodeids[new_nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
     }
 
     void add_qspnarc(int nodeid_index, int idarc_index, string idarc_address)
     {
-        NodeID id = nodeids[nodeid_index];
+        NodeID id = nodeids[nodeid_index].nodeid;
         QspnManager id_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
 
         ArrayList<int> idarc_naddr = new ArrayList<int>();
