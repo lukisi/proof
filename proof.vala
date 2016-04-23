@@ -175,7 +175,7 @@ namespace ProofOfConcept
         Fingerprint my_fp = new Fingerprint(_elderships.to_array());
         QspnManager qspn_mgr = new QspnManager.create_net(my_naddr,
             my_fp,
-            new QspnStubFactory());
+            new QspnStubFactory(nodeid_index));
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
         nodeids[nodeid_index].my_naddr = my_naddr;
         nodeids[nodeid_index].my_fp = my_fp;
@@ -581,6 +581,7 @@ Command list:
         {
             this.nodeid = nodeid;
             ready = false;
+            my_arcs = new ArrayList<QspnArc>((a, b) => a.i_qspn_equals(b));
         }
 
         public NodeID nodeid;
@@ -588,6 +589,7 @@ Command list:
         public Fingerprint my_fp;
         public bool ready;
         public AddressManagerForIdentity addr_man;
+        public ArrayList<QspnArc> my_arcs;
     }
 
     class NeighborhoodIPRouteManager : Object, INeighborhoodIPRouteManager
@@ -959,24 +961,34 @@ Command list:
 
     class NeighborhoodMissingArcHandler : Object, INeighborhoodMissingArcHandler
     {
-        public NeighborhoodMissingArcHandler.from_qspn(IQspnMissingArcHandler qspn_missing)
+        public NeighborhoodMissingArcHandler.from_qspn(IQspnMissingArcHandler qspn_missing, int nodeid_index)
         {
             this.qspn_missing = qspn_missing;
+            this.nodeid_index = nodeid_index;
         }
         private IQspnMissingArcHandler? qspn_missing;
+        private int nodeid_index;
 
         public void missing(INeighborhoodArc arc)
         {
             if (qspn_missing != null)
             {
-                error("TODO NeighborhoodMissingArcHandler.from_qspn: from a INeighborhoodArc get a list of IQspnArc.");
-                // qspn_missing.i_qspn_missing(arc/*TODO*/);
+                // from a INeighborhoodArc get a list of QspnArc
+                foreach (QspnArc qspn_arc in nodeids[nodeid_index].my_arcs)
+                    if (qspn_arc.arc.neighborhood_arc == arc)
+                        qspn_missing.i_qspn_missing(qspn_arc);
             }
         }
     }
 
     class QspnStubFactory : Object, IQspnStubFactory
     {
+        public QspnStubFactory(int nodeid_index)
+        {
+            this.nodeid_index = nodeid_index;
+        }
+        private int nodeid_index;
+
         /* This "holder" class is needed because the QspnManagerRemote class provided by
          * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
          */
@@ -1030,7 +1042,7 @@ Command list:
             INeighborhoodMissingArcHandler? n_missing_handler = null;
             if (missing_handler != null)
             {
-                n_missing_handler = new NeighborhoodMissingArcHandler.from_qspn(missing_handler);
+                n_missing_handler = new NeighborhoodMissingArcHandler.from_qspn(missing_handler, nodeid_index);
             }
             IAddressManagerStub addrstub = 
                 neighborhood_mgr.get_stub_identity_aware_broadcast(
@@ -1532,7 +1544,7 @@ Command list:
         string my_naddr_str = naddr_repr(my_naddr);
         string my_elderships_str = fp_elderships_repr(my_fp);
         print(@"new identity will be $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
-        ArrayList<IQspnArc> my_arcs = new ArrayList<IQspnArc>();
+        ArrayList<IQspnArc> my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
         assert(idarc_index_set.size == idarc_address_set.size);
         for (int i = 0; i < idarc_index_set.size; i++)
         {
@@ -1554,7 +1566,7 @@ Command list:
         QspnManager qspn_mgr = new QspnManager.enter_net(my_naddr,
             my_arcs,
             my_fp,
-            new QspnStubFactory(),
+            new QspnStubFactory(new_nodeid_index),
             hooking_gnode_level,
             into_gnode_level,
             previous_id_mgr);
@@ -1563,6 +1575,7 @@ Command list:
         nodeids[new_nodeid_index].my_fp = my_fp;
         nodeids[new_nodeid_index].ready = true;
         nodeids[new_nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
+        nodeids[new_nodeid_index].my_arcs.add_all(my_arcs);
     }
 
     void add_qspnarc(int nodeid_index, int idarc_index, string idarc_address)
@@ -1581,6 +1594,7 @@ Command list:
         Arc _arc = __arc.arc;
         QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr);
         id_mgr.arc_add(arc);
+        nodeids[nodeid_index].my_arcs.add(arc);
     }
 }
 
