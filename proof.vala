@@ -1329,6 +1329,7 @@ Command list:
 
     void identity_arc_added(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
+        print("An identity-arc has been added.\n");
         IdentityArc ia = new IdentityArc();
         ia.arc = arc;
         ia.id = id;
@@ -1337,17 +1338,75 @@ Command list:
         identityarcs[identityarc_index] = ia;
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
         print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
+        string peer_ll = id_arc.get_peer_linklocal();
+        string ns = identity_mgr.get_namespace(id);
+        string pseudodev = identity_mgr.get_pseudodev(id, arc.get_dev());
+        print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
     }
 
     void identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
-        print(@"identity_arc_changed: on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
-        print(@"                      id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
+        print("An identity-arc has been changed.\n");
+        int identityarc_index = -1;
+        foreach (int i in identityarcs.keys)
+        {
+            IdentityArc ia = identityarcs[i];
+            if (ia.arc == arc)
+            {
+                if (ia.id.equals(id))
+                {
+                    if (ia.id_arc.get_peer_nodeid().equals(id_arc.get_peer_nodeid()))
+                    {
+                        identityarc_index = i;
+                        break;
+                    }
+                }
+            }
+        }
+        if (identityarc_index == -1)
+        {
+            print("I couldn't find it in memory.\n");
+            return;
+        }
+        IdentityArc ia = identityarcs[identityarc_index];
+        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
+        print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
+        string peer_ll = id_arc.get_peer_linklocal();
+        string ns = identity_mgr.get_namespace(id);
+        string pseudodev = identity_mgr.get_pseudodev(id, arc.get_dev());
+        print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
+        // I shouldn't need to change anything in 'IdentityArc ia', cause it's the same instance.
+        assert(ia.id_arc == id_arc);
     }
 
     void identity_arc_removed(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
     {
-        error("not implemented yet");
+        print("An identity-arc has been removed.\n");
+        int identityarc_index = -1;
+        foreach (int i in identityarcs.keys)
+        {
+            IdentityArc ia = identityarcs[i];
+            if (ia.arc == arc)
+            {
+                if (ia.id.equals(id))
+                {
+                    if (ia.id_arc.get_peer_nodeid().equals(peer_nodeid))
+                    {
+                        identityarc_index = i;
+                        break;
+                    }
+                }
+            }
+        }
+        if (identityarc_index == -1)
+        {
+            print("I couldn't find it in memory.\n");
+            return;
+        }
+        identityarcs.unset(identityarc_index);
+        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
+        print(@"                  id-id: from $(id.id) to $(peer_nodeid.id).\n");
+        // TODO: Remove qspn arcs if any.
     }
 
     void nic_address_set(string my_dev, string my_addr)
