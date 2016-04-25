@@ -1445,6 +1445,17 @@ Command list:
         print(@"arc_removed for $(arc.neighbour_nic_addr)\n");
         string k = @"$(arc.nic.mac)-$(arc.neighbour_mac)";
         neighborhood_arcs.unset(k);
+        // Had this arc been added to 'nodearcs'?
+        foreach (int nodearc_index in nodearcs.keys)
+        {
+            Arc node_arc = nodearcs[nodearc_index];
+            if (arc == node_arc.neighborhood_arc)
+            {
+                nodearcs.unset(nodearc_index);
+                identity_mgr.remove_arc(node_arc.idmgmt_arc);
+                break;
+            }
+        }
     }
 
     string naddr_repr(Naddr my_naddr)
@@ -1503,6 +1514,16 @@ Command list:
 
     void add_node_arc(INeighborhoodArc _arc, int cost)
     {
+        // Had this arc been already added to 'nodearcs'?
+        foreach (int nodearc_index in nodearcs.keys)
+        {
+            Arc node_arc = nodearcs[nodearc_index];
+            if (_arc == node_arc.neighborhood_arc)
+            {
+                print("Already there.\n");
+                return;
+            }
+        }
         Arc arc = new Arc();
         arc.cost = cost;
         arc.neighborhood_arc = _arc;
