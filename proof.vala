@@ -1487,7 +1487,8 @@ Command list:
         {
             NodeID nodeid = nodeids[i].nodeid;
             bool nodeid_ready = nodeids[i].ready;
-            print(@"nodeids: #$(i): $(nodeid.id), $(nodeid_ready ? "" : "not ")ready.\n");
+            bool main = identity_mgr.get_main_id().equals(nodeid);
+            print(@"nodeids: #$(i): $(nodeid.id), $(nodeid_ready ? "" : "not ")ready.$(main ? " [main]" : "")\n");
         }
     }
 
