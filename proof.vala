@@ -214,7 +214,11 @@ namespace ProofOfConcept
         //  is a weak reference.
         // Beware also that since we destroy the object, we won't receive
         //  any more signal from it, such as nic_address_unset for all the
-        //  linklocal addresses that will be removed from the NICs.
+        //  linklocal addresses that will be removed from the NICs or
+        //  arc_removed.
+        //  So, before doing this we need to remove all arcs.
+        foreach (INeighborhoodArc arc in neighborhood_mgr.current_arcs())
+            neighborhood_mgr.remove_my_arc(arc);
         neighborhood_mgr = null;
 
         foreach (ITaskletHandle t_udp in t_udp_list) t_udp.kill();
