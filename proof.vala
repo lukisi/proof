@@ -173,6 +173,9 @@ namespace ProofOfConcept
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
         Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
         Fingerprint my_fp = new Fingerprint(_elderships.to_array());
+        string my_naddr_str = naddr_repr(my_naddr);
+        string my_elderships_str = fp_elderships_repr(my_fp);
+        print(@"First identity is $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
         QspnManager qspn_mgr = new QspnManager.create_net(my_naddr,
             my_fp,
             new QspnStubFactory(nodeid_index));
@@ -181,6 +184,18 @@ namespace ProofOfConcept
         nodeids[nodeid_index].my_fp = my_fp;
         nodeids[nodeid_index].ready = true;
         nodeids[nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
+        qspn_mgr.arc_removed.connect(nodeids[nodeid_index].arc_removed);
+        qspn_mgr.changed_fp.connect(nodeids[nodeid_index].changed_fp);
+        qspn_mgr.changed_nodes_inside.connect(nodeids[nodeid_index].changed_nodes_inside);
+        qspn_mgr.destination_added.connect(nodeids[nodeid_index].destination_added);
+        qspn_mgr.destination_removed.connect(nodeids[nodeid_index].destination_removed);
+        qspn_mgr.gnode_splitted.connect(nodeids[nodeid_index].gnode_splitted);
+        qspn_mgr.path_added.connect(nodeids[nodeid_index].path_added);
+        qspn_mgr.path_changed.connect(nodeids[nodeid_index].path_changed);
+        qspn_mgr.path_removed.connect(nodeids[nodeid_index].path_removed);
+        qspn_mgr.presence_notified.connect(nodeids[nodeid_index].presence_notified);
+        qspn_mgr.qspn_bootstrap_complete.connect(nodeids[nodeid_index].qspn_bootstrap_complete);
+        qspn_mgr.remove_identity.connect(nodeids[nodeid_index].remove_identity);
 
         // end startup
 
@@ -594,6 +609,80 @@ Command list:
         public bool ready;
         public AddressManagerForIdentity addr_man;
         public ArrayList<QspnArc> my_arcs;
+
+        public void arc_removed(IQspnArc arc, bool bad_link)
+        {
+            // TODO
+            // we should remove paths via this gateway
+            error("not implemented yet");
+        }
+
+        public void changed_fp(int l)
+        {
+            // TODO
+        }
+
+        public void changed_nodes_inside(int l)
+        {
+            // TODO
+        }
+
+        public void destination_added(HCoord h)
+        {
+            // TODO
+            // we should add best path to 'h'
+            error("not implemented yet");
+        }
+
+        public void destination_removed(HCoord h)
+        {
+            // TODO
+            // we should remove any path to 'h'
+            error("not implemented yet");
+        }
+
+        public void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
+        {
+            // TODO
+            // we should do something of course
+            error("not implemented yet");
+        }
+
+        public void path_added(IQspnNodePath p)
+        {
+            // TODO
+            // we should check current best path to 'h'
+            error("not implemented yet");
+        }
+
+        public void path_changed(IQspnNodePath p)
+        {
+            // TODO
+            // we should check current best path to 'h'
+            error("not implemented yet");
+        }
+
+        public void path_removed(IQspnNodePath p)
+        {
+            // TODO
+            // we should check current best path to 'h'
+            error("not implemented yet");
+        }
+
+        public void presence_notified()
+        {
+            // TODO
+        }
+
+        public void qspn_bootstrap_complete()
+        {
+            // TODO
+        }
+
+        public void remove_identity()
+        {
+            // TODO
+        }
     }
 
     class NeighborhoodIPRouteManager : Object, INeighborhoodIPRouteManager
@@ -1647,7 +1736,6 @@ Command list:
             QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr);
             my_arcs.add(arc);
         }
-
         QspnManager qspn_mgr = new QspnManager.enter_net(my_naddr,
             my_arcs,
             my_fp,
@@ -1661,6 +1749,18 @@ Command list:
         nodeids[new_nodeid_index].ready = true;
         nodeids[new_nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
         nodeids[new_nodeid_index].my_arcs.add_all(my_arcs);
+        qspn_mgr.arc_removed.connect(nodeids[new_nodeid_index].arc_removed);
+        qspn_mgr.changed_fp.connect(nodeids[new_nodeid_index].changed_fp);
+        qspn_mgr.changed_nodes_inside.connect(nodeids[new_nodeid_index].changed_nodes_inside);
+        qspn_mgr.destination_added.connect(nodeids[new_nodeid_index].destination_added);
+        qspn_mgr.destination_removed.connect(nodeids[new_nodeid_index].destination_removed);
+        qspn_mgr.gnode_splitted.connect(nodeids[new_nodeid_index].gnode_splitted);
+        qspn_mgr.path_added.connect(nodeids[new_nodeid_index].path_added);
+        qspn_mgr.path_changed.connect(nodeids[new_nodeid_index].path_changed);
+        qspn_mgr.path_removed.connect(nodeids[new_nodeid_index].path_removed);
+        qspn_mgr.presence_notified.connect(nodeids[new_nodeid_index].presence_notified);
+        qspn_mgr.qspn_bootstrap_complete.connect(nodeids[new_nodeid_index].qspn_bootstrap_complete);
+        qspn_mgr.remove_identity.connect(nodeids[new_nodeid_index].remove_identity);
     }
 
     void add_qspnarc(int nodeid_index, int idarc_index, string idarc_address)
