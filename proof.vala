@@ -630,14 +630,14 @@ Command list:
         public void destination_added(HCoord h)
         {
             // TODO
-            // we should add best path to 'h'
+            // we should add a path to 'h' that says 'unreachable'.
             error("not implemented yet");
         }
 
         public void destination_removed(HCoord h)
         {
             // TODO
-            // we should remove any path to 'h'
+            // we should remove any path to 'h'.
             error("not implemented yet");
         }
 
@@ -651,21 +651,21 @@ Command list:
         public void path_added(IQspnNodePath p)
         {
             // TODO
-            // we should check current best path to 'h'
+            // we should change the route. place current best path to 'h'.
             error("not implemented yet");
         }
 
         public void path_changed(IQspnNodePath p)
         {
             // TODO
-            // we should check current best path to 'h'
+            // we should change the route. place current best path to 'h'.
             error("not implemented yet");
         }
 
         public void path_removed(IQspnNodePath p)
         {
             // TODO
-            // we should check current best path to 'h'
+            // we should change the route. place current best path to 'h'. if none, then change the path to 'unreachable'.
             error("not implemented yet");
         }
 
@@ -938,7 +938,7 @@ Command list:
                         INeighborhoodArc? neighborhood_arc = neighborhood_mgr.get_node_arc(sourceid, dev);
                         if (neighborhood_arc == null)
                         {
-                            // TODO print something?
+                            // some warning message?
                             return null;
                         }
                         foreach (int i in nodearcs.keys)
@@ -1499,7 +1499,7 @@ Command list:
         identityarcs.unset(identityarc_index);
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
         print(@"                  id-id: from $(id.id) to $(peer_nodeid.id).\n");
-        // TODO: Remove qspn arcs if any.
+        // TODO: Remove qspn arc if present.
     }
 
     void nic_address_set(string my_dev, string my_addr)
@@ -1551,6 +1551,121 @@ Command list:
         }
     }
 
+    string ip_global_node(int l, Gee.List<int> g_exp, Gee.List<int> naddr)
+    {
+        int32 ip = 0;
+        for (int c = l-1; c >= 0; c--)
+        {
+            ip <<= g_exp[c];
+            ip += naddr[c];
+        }
+        int i0 = ip & 255;
+        ip >>= 8;
+        int i1 = ip & 255;
+        ip >>= 8;
+        int i2 = ip;
+        string ret = @"10.$(i2).$(i1).$(i0)";
+        return ret;
+    }
+
+    string ip_global_gnode(int l, Gee.List<int> g_exp, Gee.List<int> gaddr, int i)
+    {
+        int32 ip = 0;
+        for (int c = l-1; c >= 0; c--)
+        {
+            ip <<= g_exp[c];
+            if (c >= i) ip += gaddr[c];
+        }
+        int i0 = ip & 255;
+        ip >>= 8;
+        int i1 = ip & 255;
+        ip >>= 8;
+        int i2 = ip;
+        int sum = 0;
+        for (int k = 0; k <= i-1; k++) sum += g_exp[k];
+        int prefix = 32 - sum;
+        string ret = @"10.$(i2).$(i1).$(i0)/$(prefix)";
+        return ret;
+    }
+
+    string ip_internal_node(int l, Gee.List<int> g_exp, Gee.List<int> naddr, int inside_l)
+    {
+        int32 ip = 1;
+        for (int c = l-1; c >= 0; c--)
+        {
+            ip <<= g_exp[c];
+            if (c == l-1) ip += inside_l;
+            else if (c >= inside_l) {}
+            else ip += naddr[c];
+        }
+        int i0 = ip & 255;
+        ip >>= 8;
+        int i1 = ip & 255;
+        ip >>= 8;
+        int i2 = ip;
+        string ret = @"10.$(i2).$(i1).$(i0)";
+        return ret;
+    }
+
+    string ip_internal_gnode(int l, Gee.List<int> g_exp, Gee.List<int> gaddr, int i)
+    {
+        int32 ip = 1;
+        for (int c = l-1; c >= 0; c--)
+        {
+            ip <<= g_exp[c];
+            if (c == l-1) ip += i+1;
+            else if (c != i) {}
+            else ip += gaddr[c];
+        }
+        int i0 = ip & 255;
+        ip >>= 8;
+        int i1 = ip & 255;
+        ip >>= 8;
+        int i2 = ip;
+        int sum = 0;
+        for (int k = 0; k <= i-1; k++) sum += g_exp[k];
+        int prefix = 32 - sum;
+        string ret = @"10.$(i2).$(i1).$(i0)/$(prefix)";
+        return ret;
+    }
+
+    string ip_anonymizing_node(int l, Gee.List<int> g_exp, Gee.List<int> naddr)
+    {
+        int32 ip = 2;
+        for (int c = l-1; c >= 0; c--)
+        {
+            ip <<= g_exp[c];
+            ip += naddr[c];
+        }
+        int i0 = ip & 255;
+        ip >>= 8;
+        int i1 = ip & 255;
+        ip >>= 8;
+        int i2 = ip;
+        string ret = @"10.$(i2).$(i1).$(i0)";
+        return ret;
+    }
+
+    string ip_anonymizing_gnode(int l, Gee.List<int> g_exp, Gee.List<int> gaddr, int i)
+    {
+        int32 ip = 2;
+        for (int c = l-1; c >= 0; c--)
+        {
+            ip <<= g_exp[c];
+            if (c >= i) ip += gaddr[c];
+        }
+        int i0 = ip & 255;
+        ip >>= 8;
+        int i1 = ip & 255;
+        ip >>= 8;
+        int i2 = ip;
+        int sum = 0;
+        for (int k = 0; k <= i-1; k++) sum += g_exp[k];
+        int prefix = 32 - sum;
+        string ret = @"10.$(i2).$(i1).$(i0)/$(prefix)";
+        return ret;
+    }
+
     string naddr_repr(Naddr my_naddr)
     {
         string my_naddr_str = "";
@@ -1558,7 +1673,7 @@ Command list:
         for (int i = 0; i < levels; i++)
         {
             my_naddr_str = @"$(my_naddr.i_qspn_get_pos(i))$(sep)$(my_naddr_str)";
-            sep = ".";
+            sep = "·";
         }
         return my_naddr_str;
     }
@@ -1571,7 +1686,7 @@ Command list:
         for (int i = 0; i < levels; i++)
         {
             my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
-            sep = ".";
+            sep = "·";
         }
         return my_elderships_str;
     }
