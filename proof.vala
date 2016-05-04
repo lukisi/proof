@@ -160,7 +160,7 @@ namespace ProofOfConcept
         neighborhood_mgr.arc_added.connect(arc_added);
         neighborhood_mgr.arc_changed.connect(arc_changed);
         neighborhood_mgr.arc_removed.connect(arc_removed);
-        foreach (string dev in _devs) manage_nic(dev);
+        foreach (string dev in _devs) manage_real_nic(dev);
         Gee.List<string> if_list_dev = new ArrayList<string>();
         Gee.List<string> if_list_mac = new ArrayList<string>();
         Gee.List<string> if_list_linklocal = new ArrayList<string>();
@@ -288,7 +288,7 @@ namespace ProofOfConcept
         do_me_exit = true;
     }
 
-    void manage_nic(string dev)
+    void manage_real_nic(string dev)
     {
         real_nics.add(dev);
         prepare_nic(dev);
