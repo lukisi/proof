@@ -35,62 +35,18 @@ namespace ProofOfConcept
         private string ns;
         private HashMap<string, DispatchableTasklet> my_destinations_dispatchers;
 
-        public void add_destination(string dest)
+        /* Handle change of network namespace
+        **
+        */
+
+        public void change_namespace(string network_namespace)
         {
-            if (! my_destinations_dispatchers.has_key(dest))
-            {
-                my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
-            }
-            DispatchableTasklet dt = my_destinations_dispatchers[dest];
-            AddDestinationTasklet ts = new AddDestinationTasklet();
-            ts.t = this;
-            ts.dest = dest;
-            dt.dispatch(ts);
-        }
-        private void tasklet_add_destination(string dest)
-        {
-            // TODO add dest unreachable
-        }
-        class AddDestinationTasklet : Object, ITaskletSpawnable
-        {
-            public LinuxRoute t;
-            public string dest;
-            public void * func()
-            {
-                t.tasklet_add_destination(dest);
-                return null;
-            }
+            error("not implemented yet");
         }
 
-        public void remove_destination(string dest)
-        {
-            if (! my_destinations_dispatchers.has_key(dest))
-            {
-                my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
-            }
-            DispatchableTasklet dt = my_destinations_dispatchers[dest];
-            RemoveDestinationTasklet ts = new RemoveDestinationTasklet();
-            ts.t = this;
-            ts.dest = dest;
-            dt.dispatch(ts, true);
-            if (dt.is_empty()) my_destinations_dispatchers.unset(dest);
-        }
-        private void tasklet_remove_destination(string dest)
-        {
-            // TODO remove dest
-        }
-        class RemoveDestinationTasklet : Object, ITaskletSpawnable
-        {
-            public LinuxRoute t;
-            public string dest;
-            public void * func()
-            {
-                t.tasklet_remove_destination(dest);
-                return null;
-            }
-        }
-
-
+        /* Route table management
+        ** 
+        */
 
         private const string RT_TABLES = "/etc/iproute2/rt_tables";
 
@@ -188,7 +144,7 @@ namespace ProofOfConcept
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
         }
 
         /** Remove (once emptied) a table <tablename>.
@@ -217,7 +173,7 @@ namespace ProofOfConcept
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
             // remove record $(line) from file
             string rt_tables_content;
             {
@@ -281,7 +237,7 @@ namespace ProofOfConcept
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
                 pres = com_ret.stdout;
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
             if (@" lookup $(tablename) " in pres) error(@"rule_coming_from_macaddr: rule for $(tablename) was already there");
             try {
                 string cmd = @"iptables -t mangle -A PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
@@ -289,14 +245,14 @@ namespace ProofOfConcept
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
             try {
                 string cmd = @"ip rule add fwmark $(num) table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
         }
 
         /** Remove rule that a packet which is coming from <macaddr> and has to be forwarded
@@ -326,14 +282,14 @@ namespace ProofOfConcept
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
             try {
                 string cmd = @"ip rule del fwmark $(num) table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
         }
 
         /** Rule that a packet by default (in egress)
@@ -364,7 +320,7 @@ namespace ProofOfConcept
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
                 pres = com_ret.stdout;
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
             if (@" lookup $(tablename) " in pres) error(@"rule_default: rule for $(tablename) was already there");
             try {
                 string cmd = @"ip rule add table $(tablename)";
@@ -372,7 +328,7 @@ namespace ProofOfConcept
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
         }
 
         /** Remove rule that a packet by default (in egress)
@@ -401,11 +357,85 @@ namespace ProofOfConcept
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
-            } catch (SpawnError e) {error("Unable to spawn a command");}
+            } catch (Error e) {error("Unable to spawn a command");}
         }
 
-        // TODO         // remove route to neighbor.
+        /* Routes management
+        **
+        */
 
+        public void add_destination(string dest)
+        {
+            if (! my_destinations_dispatchers.has_key(dest))
+            {
+                my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
+            }
+            DispatchableTasklet dt = my_destinations_dispatchers[dest];
+            AddDestinationTasklet ts = new AddDestinationTasklet();
+            ts.t = this;
+            ts.dest = dest;
+            dt.dispatch(ts);
+        }
+        private void tasklet_add_destination(string dest)
+        {
+            // TODO add dest unreachable
+        }
+        class AddDestinationTasklet : Object, ITaskletSpawnable
+        {
+            public LinuxRoute t;
+            public string dest;
+            public void * func()
+            {
+                t.tasklet_add_destination(dest);
+                return null;
+            }
+        }
+
+        public void remove_destination(string dest)
+        {
+            if (! my_destinations_dispatchers.has_key(dest))
+            {
+                my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
+            }
+            DispatchableTasklet dt = my_destinations_dispatchers[dest];
+            RemoveDestinationTasklet ts = new RemoveDestinationTasklet();
+            ts.t = this;
+            ts.dest = dest;
+            dt.dispatch(ts, true);
+            if (dt.is_empty()) my_destinations_dispatchers.unset(dest);
+        }
+        private void tasklet_remove_destination(string dest)
+        {
+            // TODO remove dest
+        }
+        class RemoveDestinationTasklet : Object, ITaskletSpawnable
+        {
+            public LinuxRoute t;
+            public string dest;
+            public void * func()
+            {
+                t.tasklet_remove_destination(dest);
+                return null;
+            }
+        }
+
+        // TODO         // change route to dest.
+
+        /* Own address management
+        **
+        */
+
+        public void add_address(string address, string dev)
+        {
+            string cmd = @"ip address add $(address) dev $(dev)";
+            if (ns != "") cmd = @"ip netns exec $(ns) $(cmd)";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error("Unable to spawn a command");}
+        }
     }
 }
 
