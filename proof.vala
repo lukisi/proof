@@ -40,9 +40,11 @@ namespace ProofOfConcept
 
     ITasklet tasklet;
     ArrayList<int> _gsizes;
+    ArrayList<int> _g_exp;
     int levels;
     NeighborhoodManager? neighborhood_mgr;
     IdentityManager? identity_mgr;
+    ArrayList<string> real_nics;
     int linklocal_nextindex;
     HashMap<int, HandledNic> linklocals;
     HashMap<string, HandledNic> current_nics;
@@ -84,10 +86,23 @@ namespace ProofOfConcept
         naddr = args[2];
         ArrayList<int> _naddr = new ArrayList<int>();
         _gsizes = new ArrayList<int>();
+        _g_exp = new ArrayList<int>();
         ArrayList<int> _elderships = new ArrayList<int>();
         ArrayList<string> _devs = new ArrayList<string>();
         foreach (string s_piece in naddr.split(".")) _naddr.insert(0, int.parse(s_piece));
-        foreach (string s_piece in gsizes.split(".")) _gsizes.insert(0, int.parse(s_piece));
+        foreach (string s_piece in gsizes.split("."))
+        {
+            int gsize = int.parse(s_piece);
+            if (gsize < 2) error(@"Bad gsize $(gsize).");
+            int gexp = 0;
+            for (int k = 1; k < 17; k++)
+            {
+                if (gsize == (1 << k)) gexp = k;
+            }
+            if (gexp == 0) error(@"Bad gsize $(gsize): must be power of 2 up to 2^16.");
+            _g_exp.insert(0, gexp);
+            _gsizes.insert(0, gsize);
+        }
         for (int i = 0; i < _gsizes.size; i++) _elderships.add(0);
         foreach (string dev in interfaces) _devs.add(dev);
         if (_naddr.size != _gsizes.size) error("You have to use same number of levels");
@@ -117,6 +132,7 @@ namespace ProofOfConcept
         // start listen TCP
         t_tcp = tcp_listen(dlg, err, ntkd_port);
 
+        real_nics = new ArrayList<string>();
         linklocal_nextindex = 0;
         linklocals = new HashMap<int, HandledNic>();
         current_nics = new HashMap<string, HandledNic>();
@@ -184,6 +200,25 @@ namespace ProofOfConcept
         nodeids[nodeid_index].my_fp = my_fp;
         nodeids[nodeid_index].ready = true;
         nodeids[nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
+
+        string ns = identity_mgr.get_namespace(nodeid);
+        ArrayList<string> pseudodevs = new ArrayList<string>();
+        foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(nodeid, real_nic));
+        LinuxRoute route = new LinuxRoute(ns);
+        nodeids[nodeid_index].route = route;
+        string address = ip_global_node(levels, _g_exp, _naddr);
+        foreach (string dev in pseudodevs) route.add_address(address, dev);
+        if (accept_anonymous_requests)
+        {
+            address = ip_anonymizing_node(levels, _g_exp, _naddr);
+            foreach (string dev in pseudodevs) route.add_address(address, dev);
+        }
+        for (int j = 0; j <= levels-2; j++)
+        {
+            address = ip_internal_node(levels, _g_exp, _naddr, j+1);
+            foreach (string dev in pseudodevs) route.add_address(address, dev);
+        }
+
         qspn_mgr.arc_removed.connect(nodeids[nodeid_index].arc_removed);
         qspn_mgr.changed_fp.connect(nodeids[nodeid_index].changed_fp);
         qspn_mgr.changed_nodes_inside.connect(nodeids[nodeid_index].changed_nodes_inside);
@@ -255,6 +290,7 @@ namespace ProofOfConcept
 
     void manage_nic(string dev)
     {
+        real_nics.add(dev);
         prepare_nic(dev);
         // Start listen UDP on dev
         t_udp_list.add(udp_listen(dlg, err, ntkd_port, dev));
@@ -609,6 +645,7 @@ Command list:
         public bool ready;
         public AddressManagerForIdentity addr_man;
         public ArrayList<QspnArc> my_arcs;
+        public LinuxRoute route;
 
         public void arc_removed(IQspnArc arc, bool bad_link)
         {
@@ -1864,6 +1901,41 @@ Command list:
         nodeids[new_nodeid_index].ready = true;
         nodeids[new_nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
         nodeids[new_nodeid_index].my_arcs.add_all(my_arcs);
+
+        string ns = identity_mgr.get_namespace(new_id);
+        ArrayList<string> pseudodevs = new ArrayList<string>();
+        foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(new_id, real_nic));
+        LinuxRoute route = new LinuxRoute(ns);
+        nodeids[new_nodeid_index].route = route;
+        if (/* Is this the main ID? */ ns == "")
+        {
+            // Do I have a *real* Netsukuku address?
+            int real_up_to = -1;
+            while (real_up_to < levels-1)
+            {
+                int pos = _naddr[real_up_to+1];
+                int gexp = _g_exp[real_up_to+1];
+                int gsize = 1 << gexp;
+                if (pos >= gsize) break;
+                real_up_to++;
+            }
+            if (real_up_to == levels-1)
+            {
+                string address = ip_global_node(levels, _g_exp, _naddr);
+                foreach (string dev in pseudodevs) route.add_address(address, dev);
+                if (accept_anonymous_requests)
+                {
+                    address = ip_anonymizing_node(levels, _g_exp, _naddr);
+                    foreach (string dev in pseudodevs) route.add_address(address, dev);
+                }
+            }
+            for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
+            {
+                string address = ip_internal_node(levels, _g_exp, _naddr, j+1);
+                foreach (string dev in pseudodevs) route.add_address(address, dev);
+            }
+        }
+
         qspn_mgr.arc_removed.connect(nodeids[new_nodeid_index].arc_removed);
         qspn_mgr.changed_fp.connect(nodeids[new_nodeid_index].changed_fp);
         qspn_mgr.changed_nodes_inside.connect(nodeids[new_nodeid_index].changed_nodes_inside);
