@@ -31,9 +31,11 @@ namespace ProofOfConcept
         {
             ns = network_namespace;
             my_destinations_dispatchers = new HashMap<string, DispatchableTasklet>();
+            local_addresses = new ArrayList<string>();
         }
         private string ns;
         private HashMap<string, DispatchableTasklet> my_destinations_dispatchers;
+        ArrayList<string> local_addresses;
 
         /* Handle change of network namespace
         **
@@ -427,6 +429,9 @@ namespace ProofOfConcept
 
         public void add_address(string address, string dev)
         {
+            string local_address = @"$(address)/32 dev $(dev)";
+            assert(!(local_address in local_addresses));
+            local_addresses.add(local_address);
             string cmd = @"ip address add $(address) dev $(dev)";
             if (ns != "") cmd = @"ip netns exec $(ns) $(cmd)";
             print(@"$(cmd)\n");
@@ -435,6 +440,21 @@ namespace ProofOfConcept
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error("Unable to spawn a command");}
+        }
+
+        public void remove_addresses()
+        {
+            assert(ns == "");
+            foreach (string local_address in local_addresses)
+            {
+                string cmd = @"ip address del $(local_address)";
+                print(@"$(cmd)\n");
+                try {
+                    TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                    if (com_ret.exit_status != 0)
+                        error(@"$(com_ret.stderr)\n");
+                } catch (Error e) {error("Unable to spawn a command");}
+            }
         }
     }
 }

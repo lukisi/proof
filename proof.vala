@@ -258,6 +258,18 @@ namespace ProofOfConcept
             identity_mgr.remove_identity(_id);
         }
 
+        // Cleanup addresses and routes that were added previously in order to
+        //  obey to the qspn_mgr which is now in default network namespace.
+        foreach (int i in nodeids.keys)
+        {
+            IdentityData identity_data = nodeids[i];
+            if (identity_data.nodeid.equals(_main_id))
+            {
+                LinuxRoute main_linux_route = identity_data.route;
+                main_linux_route.remove_addresses();
+            }
+        }
+
         // This will destroy the object NeighborhoodManager and hence call
         //  its stop_monitor_all.
         // Beware that node_skeleton.neighborhood_mgr
