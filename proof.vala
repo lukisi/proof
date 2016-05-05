@@ -1710,7 +1710,7 @@ Command list:
         for (int i = 0; i < levels; i++)
         {
             my_naddr_str = @"$(my_naddr.i_qspn_get_pos(i))$(sep)$(my_naddr_str)";
-            sep = "·";
+            sep = ":";
         }
         return my_naddr_str;
     }
@@ -1723,7 +1723,7 @@ Command list:
         for (int i = 0; i < levels; i++)
         {
             my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
-            sep = "·";
+            sep = ":";
         }
         return my_elderships_str;
     }
