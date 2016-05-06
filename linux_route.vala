@@ -33,6 +33,7 @@ namespace ProofOfConcept
             my_destinations_dispatchers = new HashMap<string, DispatchableTasklet>();
             local_addresses = new ArrayList<string>();
         }
+
         private string ns;
         private HashMap<string, DispatchableTasklet> my_destinations_dispatchers;
         ArrayList<string> local_addresses;
@@ -41,9 +42,11 @@ namespace ProofOfConcept
         **
         */
 
-        public void change_namespace(string network_namespace)
+        public void change_namespace(string new_ns)
         {
-            error("not implemented yet");
+            remove_addresses();
+            ns = new_ns;
+            // TODO more things?
         }
 
         /* Route table management
@@ -444,10 +447,10 @@ namespace ProofOfConcept
 
         public void remove_addresses()
         {
-            assert(ns == "");
             foreach (string local_address in local_addresses)
             {
                 string cmd = @"ip address del $(local_address)";
+                if (ns != "") cmd = @"ip netns exec $(ns) $(cmd)";
                 print(@"$(cmd)\n");
                 try {
                     TaskletCommandResult com_ret = tasklet.exec_command(cmd);
@@ -455,6 +458,7 @@ namespace ProofOfConcept
                         error(@"$(com_ret.stderr)\n");
                 } catch (Error e) {error("Unable to spawn a command");}
             }
+            local_addresses.clear();
         }
     }
 }

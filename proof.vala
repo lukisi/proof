@@ -1858,6 +1858,7 @@ Command list:
         QspnManager previous_id_mgr = (QspnManager)identity_mgr.get_identity_module(previous_id, "qspn");
         Naddr previous_id_my_naddr = nodeids[previous_nodeid_index].my_naddr;
         Fingerprint previous_id_my_fp = nodeids[previous_nodeid_index].my_fp;
+        LinuxRoute previous_id_route = nodeids[previous_nodeid_index].route;
 
         ArrayList<int> _naddr = new ArrayList<int>();
         ArrayList<int> _elderships = new ArrayList<int>();
@@ -1914,12 +1915,14 @@ Command list:
         nodeids[new_nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
         nodeids[new_nodeid_index].my_arcs.add_all(my_arcs);
 
-        string ns = identity_mgr.get_namespace(new_id);
+        string ns_for_new_id = identity_mgr.get_namespace(new_id);
         ArrayList<string> pseudodevs = new ArrayList<string>();
         foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(new_id, real_nic));
-        LinuxRoute route = new LinuxRoute(ns);
+        LinuxRoute route = new LinuxRoute(ns_for_new_id);
         nodeids[new_nodeid_index].route = route;
-        if (/* Is this the main ID? */ ns == "")
+        string new_ns_for_previous_id = identity_mgr.get_namespace(previous_id);
+        previous_id_route.change_namespace(new_ns_for_previous_id);
+        if (/* Is this the main ID? */ ns_for_new_id == "")
         {
             // Do I have a *real* Netsukuku address?
             int real_up_to = -1;
