@@ -825,6 +825,12 @@ Command list:
 
     class IdmgmtNetnsManager : Object, IIdmgmtNetnsManager
     {
+        private HashMap<string, string> pseudo_macs;
+        public IdmgmtNetnsManager()
+        {
+            pseudo_macs = new HashMap<string, string>();
+        }
+
         public void create_namespace(string ns)
         {
             assert(ns != "");
@@ -839,6 +845,8 @@ Command list:
 
         public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
         {
+            assert(! pseudo_macs.has_key(pseudo_dev));
+            pseudo_macs[pseudo_dev] = pseudo_mac;
             assert(ns != "");
             try {
                 string cmd = @"ip link add dev $(pseudo_dev) link $(dev) type macvlan";
@@ -871,6 +879,13 @@ Command list:
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            HandledNic n = new HandledNic();
+            n.dev = pseudo_dev;
+            n.mac = pseudo_macs[pseudo_dev];
+            n.linklocal = linklocal;
+            int linklocal_index = linklocal_nextindex++;
+            linklocals[linklocal_index] = n;
+            print(@"linklocals: #$(linklocal_index): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
         }
 
         public void add_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
@@ -913,6 +928,7 @@ Command list:
 
         public void delete_pseudodev(string ns, string pseudo_dev)
         {
+            if (pseudo_macs.has_key(pseudo_dev)) pseudo_macs.unset(pseudo_dev);
             assert(ns != "");
             try {
                 string cmd = @"ip netns exec $(ns) ip link delete $(pseudo_dev) type macvlan";
@@ -1560,8 +1576,8 @@ Command list:
         n.linklocal = my_addr;
         int linklocal_index = linklocal_nextindex++;
         linklocals[linklocal_index] = n;
-        current_nics[n.dev] = n;
         print(@"linklocals: #$(linklocal_index): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
+        current_nics[n.dev] = n;
         if (identity_mgr != null)
         {
             identity_mgr.add_handled_nic(n.dev, n.mac, n.linklocal);
