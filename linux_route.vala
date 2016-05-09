@@ -458,7 +458,24 @@ namespace ProofOfConcept
         }
         private void tasklet_remove_destination(string dest)
         {
-            // TODO remove dest
+            // remove dest
+            string cmd = @"$(cmd_prefix)ip route del $(dest) table $(maintable)";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error("Unable to spawn a command");}
+            foreach (string neighbour_mac in neighbour_macs)
+            {
+                cmd = @"$(cmd_prefix)ip route del $(dest) table $(maintable)_from_$(neighbour_mac)";
+                print(@"$(cmd)\n");
+                try {
+                    TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                    if (com_ret.exit_status != 0)
+                        error(@"$(com_ret.stderr)\n");
+                } catch (Error e) {error("Unable to spawn a command");}
+            }
         }
         class RemoveDestinationTasklet : Object, ITaskletSpawnable
         {
@@ -471,7 +488,62 @@ namespace ProofOfConcept
             }
         }
 
-        // TODO         // change route to dest.
+        /* Update best path to `dest`.
+        ** `neighbour_mac` is null if this is the main best-path.
+        ** `dev` and `gw` are null if this path is unreachable.
+        ** `src` is null if this path doesn't have a src IP.
+        */
+        public void change_best_path(string dest, string? dev, string? gw, string? src, string? neighbour_mac)
+        {
+            if (! my_destinations_dispatchers.has_key(dest))
+            {
+                my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
+            }
+            DispatchableTasklet dt = my_destinations_dispatchers[dest];
+            ChangeBestPathTasklet ts = new ChangeBestPathTasklet();
+            ts.t = this;
+            ts.dest = dest;
+            ts.dev = dev;
+            ts.gw = gw;
+            ts.src = src;
+            ts.neighbour_mac = neighbour_mac;
+            dt.dispatch(ts);
+        }
+        private void tasklet_change_best_path(string dest, string? dev, string? gw, string? src, string? neighbour_mac)
+        {
+            // change route to dest.
+            string table = maintable;
+            if (neighbour_mac != null) table = @"$(maintable)_from_$(neighbour_mac)";
+            string route_solution = @"unreachable $(dest) table $(table)";
+            if (gw != null)
+            {
+                assert(dev != null);
+                route_solution = @"$(dest) table $(table) via $(gw) dev $(dev)";
+                if (src != null) route_solution = @"$(route_solution) src $(src)";
+            }
+            string cmd = @"$(cmd_prefix)ip route change $(route_solution)";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error("Unable to spawn a command");}
+        }
+        class ChangeBestPathTasklet : Object, ITaskletSpawnable
+        {
+            public LinuxRoute t;
+            public string dest;
+            public string? dev;
+            public string? gw;
+            public string? src;
+            public string? neighbour_mac;
+            public void * func()
+            {
+                t.tasklet_change_best_path(dest, dev, gw, src, neighbour_mac);
+                return null;
+            }
+        }
+        
 
         /* Own address management
         **
