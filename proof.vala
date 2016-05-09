@@ -1856,6 +1856,15 @@ Command list:
         NodeID new_id = identity_mgr.add_identity(migration_id, old_id);
         int nodeid_index = nodeid_nextindex++;
         nodeids[nodeid_index] = new IdentityData(new_id);
+
+        string new_ns = identity_mgr.get_namespace(old_id);
+        LinuxRoute new_route = new LinuxRoute(new_ns);
+        LinuxRoute old_route = nodeids[old_nodeid_index].route;
+        old_route.flush_routes();
+        old_route.remove_addresses();
+        nodeids[old_nodeid_index].route = new_route;
+        nodeids[nodeid_index].route = old_route;
+
         print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
     }
 
@@ -1874,7 +1883,7 @@ Command list:
         QspnManager previous_id_mgr = (QspnManager)identity_mgr.get_identity_module(previous_id, "qspn");
         Naddr previous_id_my_naddr = nodeids[previous_nodeid_index].my_naddr;
         Fingerprint previous_id_my_fp = nodeids[previous_nodeid_index].my_fp;
-        LinuxRoute previous_id_route = nodeids[previous_nodeid_index].route;
+        LinuxRoute new_id_route = nodeids[new_nodeid_index].route;
 
         ArrayList<int> _naddr = new ArrayList<int>();
         ArrayList<int> _elderships = new ArrayList<int>();
@@ -1934,10 +1943,7 @@ Command list:
         string ns_for_new_id = identity_mgr.get_namespace(new_id);
         ArrayList<string> pseudodevs = new ArrayList<string>();
         foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(new_id, real_nic));
-        LinuxRoute route = new LinuxRoute(ns_for_new_id);
-        nodeids[new_nodeid_index].route = route;
         string new_ns_for_previous_id = identity_mgr.get_namespace(previous_id);
-        previous_id_route.change_namespace(new_ns_for_previous_id);
         if (/* Is this the main ID? */ ns_for_new_id == "")
         {
             // Do I have a *real* Netsukuku address?
@@ -1953,17 +1959,17 @@ Command list:
             if (real_up_to == levels-1)
             {
                 string address = ip_global_node(levels, _g_exp, _naddr);
-                foreach (string dev in pseudodevs) route.add_address(address, dev);
+                foreach (string dev in pseudodevs) new_id_route.add_address(address, dev);
                 if (accept_anonymous_requests)
                 {
                     address = ip_anonymizing_node(levels, _g_exp, _naddr);
-                    foreach (string dev in pseudodevs) route.add_address(address, dev);
+                    foreach (string dev in pseudodevs) new_id_route.add_address(address, dev);
                 }
             }
             for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
             {
                 string address = ip_internal_node(levels, _g_exp, _naddr, j+1);
-                foreach (string dev in pseudodevs) route.add_address(address, dev);
+                foreach (string dev in pseudodevs) new_id_route.add_address(address, dev);
             }
         }
 

@@ -38,17 +38,6 @@ namespace ProofOfConcept
         private HashMap<string, DispatchableTasklet> my_destinations_dispatchers;
         ArrayList<string> local_addresses;
 
-        /* Handle change of network namespace
-        **
-        */
-
-        public void change_namespace(string new_ns)
-        {
-            remove_addresses();
-            ns = new_ns;
-            // TODO more things?
-        }
-
         /* Route table management
         ** 
         */
@@ -459,6 +448,11 @@ namespace ProofOfConcept
                 } catch (Error e) {error("Unable to spawn a command");}
             }
             local_addresses.clear();
+        }
+
+        public void flush_routes()
+        {
+            error("not implemented yet");
         }
     }
 }
