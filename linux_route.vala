@@ -30,13 +30,54 @@ namespace ProofOfConcept
         public LinuxRoute(string network_namespace)
         {
             ns = network_namespace;
+            cmd_prefix = "";
+            if (ns != "") cmd_prefix = @"ip netns exec $(ns) ";
             my_destinations_dispatchers = new HashMap<string, DispatchableTasklet>();
             local_addresses = new ArrayList<string>();
+            start_management();
         }
 
         private string ns;
+        private string cmd_prefix;
         private HashMap<string, DispatchableTasklet> my_destinations_dispatchers;
         ArrayList<string> local_addresses;
+        ArrayList<string> neighbour_macs;
+
+        const string maintable = "ntk";
+
+        private void start_management()
+        {
+            create_table(maintable);
+            rule_default(maintable);
+        }
+
+        public void add_neighbour(string neighbour_mac)
+        {
+            assert(! (neighbour_mac in neighbour_macs));
+            neighbour_macs.add(neighbour_mac);
+            create_table(@"$(maintable)_from_$(neighbour_mac)");
+            rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
+        }
+
+        public void remove_neighbour(string neighbour_mac)
+        {
+            assert(neighbour_mac in neighbour_macs);
+            neighbour_macs.remove(neighbour_mac);
+            remove_rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
+            remove_table(@"$(maintable)_from_$(neighbour_mac)");
+        }
+
+        private void stop_management()
+        {
+            remove_rule_default(maintable);
+            remove_table(maintable);
+        }
+
+        ~LinuxRoute()
+        {
+            print(@"~LinuxRoute for $(ns).\n");
+            stop_management();
+        }
 
         /* Route table management
         ** 
@@ -133,7 +174,7 @@ namespace ProofOfConcept
             }
             // emtpy the table
             try {
-                string cmd = @"ip route flush table $(tablename)";
+                string cmd = @"$(cmd_prefix)ip route flush table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
@@ -162,7 +203,7 @@ namespace ProofOfConcept
             }
             // emtpy the table
             try {
-                string cmd = @"ip route flush table $(tablename)";
+                string cmd = @"$(cmd_prefix)ip route flush table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
@@ -225,7 +266,7 @@ namespace ProofOfConcept
             }
             string pres;
             try {
-                string cmd = @"ip rule list";
+                string cmd = @"$(cmd_prefix)ip rule list";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
@@ -234,14 +275,14 @@ namespace ProofOfConcept
             } catch (Error e) {error("Unable to spawn a command");}
             if (@" lookup $(tablename) " in pres) error(@"rule_coming_from_macaddr: rule for $(tablename) was already there");
             try {
-                string cmd = @"iptables -t mangle -A PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
+                string cmd = @"$(cmd_prefix)iptables -t mangle -A PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error("Unable to spawn a command");}
             try {
-                string cmd = @"ip rule add fwmark $(num) table $(tablename)";
+                string cmd = @"$(cmd_prefix)ip rule add fwmark $(num) table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
@@ -271,14 +312,14 @@ namespace ProofOfConcept
                 error(@"rule_coming_from_macaddr: table $(tablename) not present");
             }
             try {
-                string cmd = @"iptables -t mangle -D PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
+                string cmd = @"$(cmd_prefix)iptables -t mangle -D PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error("Unable to spawn a command");}
             try {
-                string cmd = @"ip rule del fwmark $(num) table $(tablename)";
+                string cmd = @"$(cmd_prefix)ip rule del fwmark $(num) table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
@@ -308,7 +349,7 @@ namespace ProofOfConcept
             }
             string pres;
             try {
-                string cmd = @"ip rule list";
+                string cmd = @"$(cmd_prefix)ip rule list";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
@@ -317,7 +358,7 @@ namespace ProofOfConcept
             } catch (Error e) {error("Unable to spawn a command");}
             if (@" lookup $(tablename) " in pres) error(@"rule_default: rule for $(tablename) was already there");
             try {
-                string cmd = @"ip rule add table $(tablename)";
+                string cmd = @"$(cmd_prefix)ip rule add table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
@@ -346,7 +387,7 @@ namespace ProofOfConcept
                 error(@"remove_rule_default: table $(tablename) not present");
             }
             try {
-                string cmd = @"ip rule del table $(tablename)";
+                string cmd = @"$(cmd_prefix)ip rule del table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
@@ -372,7 +413,24 @@ namespace ProofOfConcept
         }
         private void tasklet_add_destination(string dest)
         {
-            // TODO add dest unreachable
+            // add dest unreachable
+            string cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error("Unable to spawn a command");}
+            foreach (string neighbour_mac in neighbour_macs)
+            {
+                cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)_from_$(neighbour_mac)";
+                print(@"$(cmd)\n");
+                try {
+                    TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                    if (com_ret.exit_status != 0)
+                        error(@"$(com_ret.stderr)\n");
+                } catch (Error e) {error("Unable to spawn a command");}
+            }
         }
         class AddDestinationTasklet : Object, ITaskletSpawnable
         {
@@ -424,8 +482,7 @@ namespace ProofOfConcept
             string local_address = @"$(address)/32 dev $(dev)";
             assert(!(local_address in local_addresses));
             local_addresses.add(local_address);
-            string cmd = @"ip address add $(address) dev $(dev)";
-            if (ns != "") cmd = @"ip netns exec $(ns) $(cmd)";
+            string cmd = @"$(cmd_prefix)ip address add $(address) dev $(dev)";
             print(@"$(cmd)\n");
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
@@ -438,8 +495,7 @@ namespace ProofOfConcept
         {
             foreach (string local_address in local_addresses)
             {
-                string cmd = @"ip address del $(local_address)";
-                if (ns != "") cmd = @"ip netns exec $(ns) $(cmd)";
+                string cmd = @"$(cmd_prefix)ip address del $(local_address)";
                 print(@"$(cmd)\n");
                 try {
                     TaskletCommandResult com_ret = tasklet.exec_command(cmd);
