@@ -34,6 +34,7 @@ namespace ProofOfConcept
             if (ns != "") cmd_prefix = @"ip netns exec $(ns) ";
             my_destinations_dispatchers = new HashMap<string, DispatchableTasklet>();
             local_addresses = new ArrayList<string>();
+            neighbour_macs = new ArrayList<string>();
             start_management();
         }
 
@@ -67,16 +68,17 @@ namespace ProofOfConcept
             remove_table(@"$(maintable)_from_$(neighbour_mac)");
         }
 
-        private void stop_management()
+        public void stop_management()
         {
+            // to be called only for the default network namespace
+            assert(ns == "");
+            while (! neighbour_macs.is_empty)
+            {
+                remove_neighbour(neighbour_macs[0]);
+            }
             remove_rule_default(maintable);
             remove_table(maintable);
-        }
-
-        ~LinuxRoute()
-        {
-            print(@"~LinuxRoute for $(ns).\n");
-            stop_management();
+            remove_addresses();
         }
 
         /* Route table management
@@ -327,7 +329,7 @@ namespace ProofOfConcept
             } catch (Error e) {error("Unable to spawn a command");}
         }
 
-        /** Rule that a packet by default (in egress)
+        /** Rule that a packet by default (without any condition)
           * will search for its route in <tablename>.
           *
           * Check the list of tables in /etc/iproute2/rt_tables.
@@ -366,7 +368,7 @@ namespace ProofOfConcept
             } catch (Error e) {error("Unable to spawn a command");}
         }
 
-        /** Remove rule that a packet by default (in egress)
+        /** Remove rule that a packet by default (without any condition)
           * will search for its route in <tablename>.
           *
           * Check the list of tables in /etc/iproute2/rt_tables.
@@ -580,7 +582,24 @@ namespace ProofOfConcept
 
         public void flush_routes()
         {
-            error("not implemented yet");
+            // flush managed tables
+            string cmd = @"$(cmd_prefix)ip route flush table $(maintable)";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error("Unable to spawn a command");}
+            foreach (string neighbour_mac in neighbour_macs)
+            {
+                cmd = @"$(cmd_prefix)ip route flush table $(maintable)_from_$(neighbour_mac)";
+                print(@"$(cmd)\n");
+                try {
+                    TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                    if (com_ret.exit_status != 0)
+                        error(@"$(com_ret.stderr)\n");
+                } catch (Error e) {error("Unable to spawn a command");}
+            }
         }
     }
 }

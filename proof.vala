@@ -268,9 +268,10 @@ namespace ProofOfConcept
             if (identity_data.nodeid.equals(_main_id))
             {
                 LinuxRoute main_linux_route = identity_data.route;
-                main_linux_route.remove_addresses();
+                main_linux_route.stop_management();
             }
         }
+        nodeids.clear();
 
         // This will destroy the object NeighborhoodManager and hence call
         //  its stop_monitor_all.
@@ -782,8 +783,8 @@ Command list:
 
             // Operations now are based on type of my_naddr:
             // Is this the main ID? Do I have a *real* Netsukuku addrss?
-            int real_up_to = my_naddr.real_up_to;
-            int virtual_up_to = my_naddr.virtual_up_to;
+            int real_up_to = my_naddr.get_real_up_to();
+            int virtual_up_to = my_naddr.get_virtual_up_to();
             if (main_id)
             {
                 if (real_up_to == levels-1)
@@ -2416,6 +2417,7 @@ Command list:
             Arc _arc = __arc.arc;
             QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr);
             my_arcs.add(arc);
+            new_id_route.add_neighbour(ia.id_arc.get_peer_mac());
         }
         QspnManager qspn_mgr = new QspnManager.enter_net(my_naddr,
             my_arcs,
@@ -2436,7 +2438,7 @@ Command list:
         if (/* Is this the main ID? */ nodeids[new_nodeid_index].main_id)
         {
             // Do I have a *real* Netsukuku address?
-            int real_up_to = my_naddr.real_up_to;
+            int real_up_to = my_naddr.get_real_up_to();
             if (real_up_to == levels-1)
             {
                 nodeids[new_nodeid_index].ip_global = ip_global_node(levels, _g_exp, _naddr);
@@ -2486,6 +2488,7 @@ Command list:
         QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr);
         id_mgr.arc_add(arc);
         nodeids[nodeid_index].my_arcs.add(arc);
+        nodeids[nodeid_index].route.add_neighbour(ia.id_arc.get_peer_mac());
     }
 }
 

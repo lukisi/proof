@@ -35,30 +35,28 @@ namespace ProofOfConcept
             this.sizes.add_all_array(sizes);
         }
 
-        public int real_up_to {
-            get {
-                int levels = sizes.size;
-                int real_up_to = -1;
-                while (real_up_to < levels-1)
-                {
-                    if (pos[real_up_to+1] >= sizes[real_up_to+1]) break;
-                    real_up_to++;
-                }
-                return real_up_to;
+        public int get_real_up_to()
+        {
+            int levels = sizes.size;
+            int real_up_to = -1;
+            while (real_up_to < levels-1)
+            {
+                if (pos[real_up_to+1] >= sizes[real_up_to+1]) break;
+                real_up_to++;
             }
+            return real_up_to;
         }
 
-        public int virtual_up_to {
-            get {
-                int levels = sizes.size;
-                int virtual_up_to = levels-1;
-                while (virtual_up_to >= 0)
-                {
-                    if (pos[virtual_up_to] >= sizes[virtual_up_to]) break;
-                    virtual_up_to--;
-                }
-                return virtual_up_to;
+        public int get_virtual_up_to()
+        {
+            int levels = sizes.size;
+            int virtual_up_to = levels-1;
+            while (virtual_up_to >= 0)
+            {
+                if (pos[virtual_up_to] >= sizes[virtual_up_to]) break;
+                virtual_up_to--;
             }
+            return virtual_up_to;
         }
 
         public bool deserialize_property
