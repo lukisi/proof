@@ -184,6 +184,7 @@ namespace ProofOfConcept
         NodeID nodeid = identity_mgr.get_main_id();
         int nodeid_index = nodeid_nextindex++;
         nodeids[nodeid_index] = new IdentityData(nodeid);
+        nodeids[nodeid_index].main_id = true;
         print(@"nodeids: #$(nodeid_index): $(nodeid.id).\n");
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
@@ -206,17 +207,18 @@ namespace ProofOfConcept
         foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(nodeid, real_nic));
         LinuxRoute route = new LinuxRoute(ns);
         nodeids[nodeid_index].route = route;
-        string address = ip_global_node(levels, _g_exp, _naddr);
-        foreach (string dev in pseudodevs) route.add_address(address, dev);
+        nodeids[nodeid_index].ip_global = ip_global_node(levels, _g_exp, _naddr);
+        foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_global, dev);
         if (accept_anonymous_requests)
         {
-            address = ip_anonymizing_node(levels, _g_exp, _naddr);
-            foreach (string dev in pseudodevs) route.add_address(address, dev);
+            nodeids[nodeid_index].ip_anonymizing = ip_anonymizing_node(levels, _g_exp, _naddr);
+            foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_anonymizing, dev);
         }
+        nodeids[nodeid_index].ip_internal = new ArrayList<string>();
         for (int j = 0; j <= levels-2; j++)
         {
-            address = ip_internal_node(levels, _g_exp, _naddr, j+1);
-            foreach (string dev in pseudodevs) route.add_address(address, dev);
+            nodeids[nodeid_index].ip_internal.add(ip_internal_node(levels, _g_exp, _naddr, j+1));
+            foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_internal[j], dev);
         }
 
         qspn_mgr.arc_removed.connect(nodeids[nodeid_index].arc_removed);
@@ -642,6 +644,18 @@ Command list:
         public IIdmgmtIdentityArc id_arc;
     }
 
+    class NeighborData : Object
+    {
+        public string mac;
+        public HCoord h;
+    }
+
+    class BestRoute : Object
+    {
+        public string gw;
+        public string dev;
+    }
+
     class IdentityData : Object
     {
         public IdentityData(NodeID nodeid)
@@ -658,6 +672,10 @@ Command list:
         public AddressManagerForIdentity addr_man;
         public ArrayList<QspnArc> my_arcs;
         public LinuxRoute route;
+        public bool main_id;
+        public string ip_global;
+        public string ip_anonymizing;
+        public ArrayList<string> ip_internal;
 
         public void arc_removed(IQspnArc arc, bool bad_link)
         {
@@ -678,16 +696,40 @@ Command list:
 
         public void destination_added(HCoord h)
         {
-            // TODO
-            // we should add a path to 'h' that says 'unreachable'.
-            error("not implemented yet");
+            if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
+            // add a path to 'h' that says 'unreachable'.
+            ArrayList<int> g_addr = new ArrayList<int>();
+            g_addr.add_all(my_naddr.pos);
+            g_addr[h.lvl] = h.pos;
+            for (int i = 0; i < h.lvl; i++) g_addr[i] = 0;
+            string dest_global = ip_global_gnode(levels, _g_exp, g_addr, h.lvl);
+            route.add_destination(dest_global);
+            string dest_anonymizing = ip_anonymizing_gnode(levels, _g_exp, g_addr, h.lvl);
+            route.add_destination(dest_anonymizing);
+            if (h.lvl < levels - 1)
+            {
+                string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
+                route.add_destination(dest_internal);
+            }
         }
 
         public void destination_removed(HCoord h)
         {
-            // TODO
-            // we should remove any path to 'h'.
-            error("not implemented yet");
+            if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
+            // remove any path to 'h'.
+            ArrayList<int> g_addr = new ArrayList<int>();
+            g_addr.add_all(my_naddr.pos);
+            g_addr[h.lvl] = h.pos;
+            for (int i = 0; i < h.lvl; i++) g_addr[i] = 0;
+            string dest_global = ip_global_gnode(levels, _g_exp, g_addr, h.lvl);
+            route.remove_destination(dest_global);
+            string dest_anonymizing = ip_anonymizing_gnode(levels, _g_exp, g_addr, h.lvl);
+            route.remove_destination(dest_anonymizing);
+            if (h.lvl < levels - 1)
+            {
+                string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
+                route.remove_destination(dest_internal);
+            }
         }
 
         public void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
@@ -699,23 +741,182 @@ Command list:
 
         public void path_added(IQspnNodePath p)
         {
-            // TODO
-            // we should change the route. place current best path to 'h'.
-            error("not implemented yet");
+            update_best_path(p);
         }
 
         public void path_changed(IQspnNodePath p)
         {
-            // TODO
-            // we should change the route. place current best path to 'h'.
-            error("not implemented yet");
+            update_best_path(p);
         }
 
         public void path_removed(IQspnNodePath p)
         {
-            // TODO
-            // we should change the route. place current best path to 'h'. if none, then change the path to 'unreachable'.
-            error("not implemented yet");
+            update_best_path(p);
+        }
+
+        private void update_best_path(IQspnNodePath p)
+        {
+            HCoord h = p.i_qspn_get_hops().last().i_qspn_get_hcoord();
+            if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
+            // change the route. place current best path to `h`. if none, then change the path to 'unreachable'.
+
+            // Compute Netsukuku address of `h`.
+            ArrayList<int> g_addr = new ArrayList<int>();
+            g_addr.add_all(my_naddr.pos);
+            g_addr[h.lvl] = h.pos;
+            for (int i = 0; i < h.lvl; i++) g_addr[i] = 0;
+
+            // Compute list of neighbors. TODO this might be done only once at start; the list should
+            //  be reevaluated only when `my_arcs` changes or when `my_naddr` changes.
+            ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
+            foreach (QspnArc qspn_arc in my_arcs)
+            {
+                Arc arc = qspn_arc.arc;
+                Naddr neighbour_naddr = qspn_arc.neighbour_naddr;
+                INeighborhoodArc neighborhood_arc = arc.neighborhood_arc;
+                NeighborData neighbor = new NeighborData();
+                neighbor.mac = neighborhood_arc.neighbour_mac;
+                neighbor.h = my_naddr.i_qspn_get_coord_by_address(neighbour_naddr);
+                neighbors.add(neighbor);
+            }
+
+            // Operations now are based on type of my_naddr:
+            // Is this the main ID? Do I have a *real* Netsukuku addrss?
+            int real_up_to = my_naddr.real_up_to;
+            int virtual_up_to = my_naddr.virtual_up_to;
+            if (main_id)
+            {
+                if (real_up_to == levels-1)
+                {
+                    QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+                    HashMap<string, BestRoute> best_routes;
+                    try {
+                        best_routes = find_best_routes(qspn_mgr, neighbors, h);
+                    } catch (QspnBootstrapInProgressError e) {
+                        // not available yet
+                        print("update_best_path: bootstrap not completed yet\n");
+                        return;
+                    }
+                    assert(best_routes.has_key("main"));
+
+                    string dest_global = ip_global_gnode(levels, _g_exp, g_addr, h.lvl);
+                    route.change_best_path(dest_global, best_routes["main"].dev, best_routes["main"].gw, ip_global, null);
+                    foreach (NeighborData neighbor in neighbors)
+                    {
+                        if (best_routes.has_key(neighbor.mac))
+                        {
+                            route.change_best_path(dest_global,
+                                best_routes[neighbor.mac].dev,
+                                best_routes[neighbor.mac].gw,
+                                ip_global,
+                                neighbor.mac);
+                        }
+                        else
+                        {
+                            // set unreachable
+                            route.change_best_path(dest_global, null, null, null, neighbor.mac);
+                        }
+                    }
+
+                    string dest_anonymizing = ip_anonymizing_gnode(levels, _g_exp, g_addr, h.lvl);
+                    route.change_best_path(dest_anonymizing, best_routes["main"].dev, best_routes["main"].gw, ip_global, null);
+                    foreach (NeighborData neighbor in neighbors)
+                    {
+                        if (best_routes.has_key(neighbor.mac))
+                        {
+                            route.change_best_path(dest_anonymizing,
+                                best_routes[neighbor.mac].dev,
+                                best_routes[neighbor.mac].gw,
+                                ip_global,
+                                neighbor.mac);
+                        }
+                        else
+                        {
+                            // set unreachable
+                            route.change_best_path(dest_anonymizing, null, null, null, neighbor.mac);
+                        }
+                    }
+
+                    if (h.lvl < levels - 1)
+                    {
+                        string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
+                        route.change_best_path(dest_internal, best_routes["main"].dev, best_routes["main"].gw, ip_internal[h.lvl], null);
+                        foreach (NeighborData neighbor in neighbors)
+                        {
+                            if (best_routes.has_key(neighbor.mac))
+                            {
+                                route.change_best_path(dest_internal,
+                                    best_routes[neighbor.mac].dev,
+                                    best_routes[neighbor.mac].gw,
+                                    ip_internal[h.lvl],
+                                    neighbor.mac);
+                            }
+                            else
+                            {
+                                // set unreachable
+                                route.change_best_path(dest_internal, null, null, null, neighbor.mac);
+                            }
+                        }
+                    }
+
+                }
+                else
+                {
+                    error("not implemented yet");
+                }
+            }
+            else
+            {
+                error("not implemented yet");
+            }
+        }
+        private HashMap<string, BestRoute> find_best_routes(
+         QspnManager qspn_mgr,
+         ArrayList<NeighborData> neighbors,
+         HCoord h)
+        throws QspnBootstrapInProgressError
+        {
+            Gee.List<IQspnNodePath> paths = qspn_mgr.get_paths_to(h);
+            HashMap<string, BestRoute> best_routes = new HashMap<string, BestRoute>();
+            foreach (IQspnNodePath path in paths)
+            {
+                QspnArc path_arc = (QspnArc)path.i_qspn_get_arc();
+                string path_dev = path_arc.arc.neighborhood_arc.nic.dev;
+                string gw = path_arc.arc.neighborhood_arc.neighbour_mac;
+                if (best_routes.is_empty)
+                {
+                    string k = "main";
+                    // absolute best.
+                    BestRoute r = new BestRoute();
+                    r.gw = gw;
+                    r.dev = path_dev;
+                    best_routes[k] = r;
+                }
+                bool completed = true;
+                foreach (NeighborData neighbor in neighbors)
+                {
+                    // is it best without neighbor?
+                    string k = neighbor.mac;
+                    // best_routes contains k?
+                    if (best_routes.has_key(k)) continue;
+                    // path contains neighbor's g-node?
+                    ArrayList<HCoord> searchable_path = new ArrayList<HCoord>((a, b) => a.equals(b));
+                    foreach (IQspnHop path_h in path.i_qspn_get_hops())
+                        searchable_path.add(path_h.i_qspn_get_hcoord());
+                    if (neighbor.h in searchable_path)
+                    {
+                        completed = false;
+                        continue;
+                    }
+                    // best without neighbor.
+                    BestRoute r = new BestRoute();
+                    r.gw = gw;
+                    r.dev = path_dev;
+                    best_routes[k] = r;
+                }
+                if (completed) break;
+            }
+            return best_routes;
         }
 
         public void presence_notified()
@@ -1856,8 +2057,10 @@ Command list:
         NodeID new_id = identity_mgr.add_identity(migration_id, old_id);
         int nodeid_index = nodeid_nextindex++;
         nodeids[nodeid_index] = new IdentityData(new_id);
+        nodeids[old_nodeid_index].main_id = false;
 
         string new_ns = identity_mgr.get_namespace(old_id);
+        nodeids[nodeid_index].main_id = (new_ns == "");
         LinuxRoute new_route = new LinuxRoute(new_ns);
         LinuxRoute old_route = nodeids[old_nodeid_index].route;
         old_route.flush_routes();
@@ -1944,32 +2147,25 @@ Command list:
         ArrayList<string> pseudodevs = new ArrayList<string>();
         foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(new_id, real_nic));
         string new_ns_for_previous_id = identity_mgr.get_namespace(previous_id);
-        if (/* Is this the main ID? */ ns_for_new_id == "")
+        if (/* Is this the main ID? */ nodeids[new_nodeid_index].main_id)
         {
             // Do I have a *real* Netsukuku address?
-            int real_up_to = -1;
-            while (real_up_to < levels-1)
-            {
-                int pos = _naddr[real_up_to+1];
-                int gexp = _g_exp[real_up_to+1];
-                int gsize = 1 << gexp;
-                if (pos >= gsize) break;
-                real_up_to++;
-            }
+            int real_up_to = my_naddr.real_up_to;
             if (real_up_to == levels-1)
             {
-                string address = ip_global_node(levels, _g_exp, _naddr);
-                foreach (string dev in pseudodevs) new_id_route.add_address(address, dev);
+                nodeids[new_nodeid_index].ip_global = ip_global_node(levels, _g_exp, _naddr);
+                foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_global, dev);
                 if (accept_anonymous_requests)
                 {
-                    address = ip_anonymizing_node(levels, _g_exp, _naddr);
-                    foreach (string dev in pseudodevs) new_id_route.add_address(address, dev);
+                    nodeids[new_nodeid_index].ip_anonymizing = ip_anonymizing_node(levels, _g_exp, _naddr);
+                    foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_anonymizing, dev);
                 }
             }
+            nodeids[new_nodeid_index].ip_internal = new ArrayList<string>();
             for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
             {
-                string address = ip_internal_node(levels, _g_exp, _naddr, j+1);
-                foreach (string dev in pseudodevs) new_id_route.add_address(address, dev);
+                nodeids[new_nodeid_index].ip_internal.add(ip_internal_node(levels, _g_exp, _naddr, j+1));
+                foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_internal[j], dev);
             }
         }
 
