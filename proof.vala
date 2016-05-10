@@ -1171,7 +1171,7 @@ Command list:
             {
                 QspnArc path_arc = (QspnArc)path.i_qspn_get_arc();
                 string path_dev = path_arc.arc.neighborhood_arc.nic.dev;
-                string gw = path_arc.arc.neighborhood_arc.neighbour_mac;
+                string gw = path_arc.arc.neighborhood_arc.neighbour_nic_addr;
                 if (best_routes.is_empty)
                 {
                     string k = "main";
