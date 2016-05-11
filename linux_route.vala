@@ -29,6 +29,7 @@ namespace ProofOfConcept
     {
         public LinuxRoute(string network_namespace)
         {
+            if (! init_done) init();
             ns = network_namespace;
             cmd_prefix = "";
             if (ns != "") cmd_prefix = @"ip netns exec $(ns) ";
@@ -81,17 +82,26 @@ namespace ProofOfConcept
             remove_addresses();
         }
 
-        /* Route table management
+        /* Table-names management
         ** 
         */
 
         private const string RT_TABLES = "/etc/iproute2/rt_tables";
+        private static HashMap<string, int> table_references;
+        private static HashMap<string, int> table_number;
+        private static bool init_done = false;
+        private static void init()
+        {
+            table_references = new HashMap<string, int>();
+            table_number = new HashMap<string, int>();
+            init_done = true;
+        }
 
         /** Check the list of tables in /etc/iproute2/rt_tables.
           * If <tablename> is already there, get its number and line.
           * Otherwise report all busy numbers.
           */
-        public void scan_tables_list(string tablename, out int num, out string line, out ArrayList<int> busy_nums)
+        private void find_tablename(string tablename, out int num, out string line, out ArrayList<int> busy_nums)
         {
             num = -1;
             line = "";
@@ -139,80 +149,37 @@ namespace ProofOfConcept
             }
         }
 
-        /** Create (or empty if it exists) a table <tablename>.
-          *
-          * Check the list of tables in /etc/iproute2/rt_tables.
-          * If <tablename> is already there, get its number.
-          * Otherwise find a free number and write a new record on /etc/iproute2/rt_tables.
-          * Then empty the table (ip r flush table <tablename>).
+        /** Write a new record on /etc/iproute2/rt_tables.
           */
-        public void create_table(string tablename)
+        private void add_tablename(string tablename, int new_num)
         {
-            int num;
-            string line;
-            ArrayList<int> busy_nums;
-            scan_tables_list(tablename, out num, out line, out busy_nums);
-            if (num == -1)
-            {
-                // not present
-                int new_num = 255;
-                while (new_num >= 0)
-                {
-                    if (! (new_num in busy_nums)) break;
-                    new_num--;
-                }
-                if (new_num < 0)
-                {
-                    error("no more free numbers in rt_tables: not implemented yet");
-                }
-                print(@"Adding table $(tablename) as number $(new_num) in file $(RT_TABLES)...\n");
-                string to_add = @"\n$(new_num)\t$(tablename)\n";
-                // a path
-                File fout = File.new_for_path(RT_TABLES);
-                // add "to_add" to file
-                try {
-                    FileOutputStream fos = fout.append_to(FileCreateFlags.NONE);
-                    fos.write(to_add.data);
-                } catch (Error e) {assert_not_reached();}
-                print(@"Added table $(tablename).\n");
-            }
-            // emtpy the table
+            print(@"Adding table $(tablename) as number $(new_num) in file $(RT_TABLES)...\n");
+            string to_add = @"\n$(new_num)\t$(tablename)\n";
+            // a path
+            File fout = File.new_for_path(RT_TABLES);
+            // add "to_add" to file
             try {
-                string cmd = @"$(cmd_prefix)ip route flush table $(tablename)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
-            } catch (Error e) {error("Unable to spawn a command");}
+                FileOutputStream fos = fout.append_to(FileCreateFlags.NONE);
+                fos.write(to_add.data);
+            } catch (Error e) {assert_not_reached();}
+            print(@"Added table $(tablename).\n");
         }
 
-        /** Remove (once emptied) a table <tablename>.
-          *
-          * Check the list of tables in /etc/iproute2/rt_tables.
-          * If <tablename> is already there, get its number.
-          * Otherwise abort.
-          * Then empty the table (ip r flush table <tablename>).
-          * Then remove the record from /etc/iproute2/rt_tables.
+        /** Check the list of tables in /etc/iproute2/rt_tables.
+          * If <tablename> is already there, get its number and line.
+          * Otherwise report all busy numbers.
           */
-        public void remove_table(string tablename)
+        private void remove_tablename(string tablename)
         {
             int num;
             string line;
             ArrayList<int> busy_nums;
-            scan_tables_list(tablename, out num, out line, out busy_nums);
+            find_tablename(tablename, out num, out line, out busy_nums);
             if (num == -1)
             {
                 // not present
-                error(@"remove_table: table $(tablename) not present");
+                error(@"remove_tablename: table $(tablename) not present");
             }
-            // emtpy the table
-            try {
-                string cmd = @"$(cmd_prefix)ip route flush table $(tablename)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
-            } catch (Error e) {error("Unable to spawn a command");}
             // remove record $(line) from file
             print(@"Removing table $(tablename) from file $(RT_TABLES)...\n");
             string rt_tables_content;
@@ -247,11 +214,99 @@ namespace ProofOfConcept
             print(@"Removed table $(tablename).\n");
         }
 
+        /* Route table management
+        ** 
+        */
+
+        /** When this is called, a certain network namespace uses this <tablename>.
+          * Make sure the name <tablename> exists in the common file.
+          * The table has to be cleared.
+          */
+        public void create_table(string tablename)
+        {
+            if (tablename in table_references.keys)
+            {
+                assert(tablename in table_number.keys);
+                // the table should be there.
+                int num;
+                string line;
+                ArrayList<int> busy_nums;
+                find_tablename(tablename, out num, out line, out busy_nums);
+                if (num == -1) error(@"table $(tablename) should be in file.");
+                // with the number we have saved.
+                if (num != table_number[tablename]) error(@"table $(tablename) should have number $(table_number[tablename]).");
+                // increase ref
+                assert(table_references[tablename] > 0);
+                table_references[tablename] = table_references[tablename] + 1;
+            }
+            else
+            {
+                assert(! (tablename in table_number.keys));
+                // the table shouldn't be there.
+                int num;
+                string line;
+                ArrayList<int> busy_nums;
+                find_tablename(tablename, out num, out line, out busy_nums);
+                if (num != -1) error(@"table $(tablename) shouldn't be in file.");
+                int new_num = 255;
+                while (new_num >= 0)
+                {
+                    if (! (new_num in busy_nums)) break;
+                    new_num--;
+                }
+                if (new_num < 0)
+                {
+                    error("no more free numbers in rt_tables: not implemented yet");
+                }
+                add_tablename(tablename, new_num);
+                // save the number.
+                table_number[tablename] = new_num;
+                table_references[tablename] = 1;
+            }
+            // emtpy the table
+            try {
+                string cmd = @"$(cmd_prefix)ip route flush table $(tablename)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error("Unable to spawn a command");}
+            // TODO add unreachable whole_network to the table
+        }
+
+        /** When this is called, a certain network namespace won't use anymore this <tablename>.
+          * Empty the table.
+          * If references to this tablename are terminated, then remove the record from the common file.
+          */
+        public void remove_table(string tablename)
+        {
+            if (! (tablename in table_references.keys)) error(@"table $(tablename) should be in use.");
+
+            // emtpy the table
+            try {
+                string cmd = @"$(cmd_prefix)ip route flush table $(tablename)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error("Unable to spawn a command");}
+
+            assert(tablename in table_number.keys);
+            // decrease ref
+            assert(table_references[tablename] > 0);
+            table_references[tablename] = table_references[tablename] - 1;
+            if (table_references[tablename] == 0)
+            {
+                remove_tablename(tablename);
+                table_number.unset(tablename);
+                table_references.unset(tablename);
+            }
+        }
+
         /** Rule that a packet which is coming from <macaddr> and has to be forwarded
           * will search for its route in <tablename>.
           *
-          * Check the list of tables in /etc/iproute2/rt_tables.
-          * If <tablename> is already there, get its number <number>.
+          * Make sure we have <tablename>, get its number <number>.
           * Otherwise abort.
           * Once we have the number, use "iptables" to set a MARK <number> to the packets
           * coming from this <macaddr>; and use "ip" to rule that those packets
@@ -261,15 +316,9 @@ namespace ProofOfConcept
           */
         public void rule_coming_from_macaddr(string macaddr, string tablename)
         {
-            int num;
-            string line;
-            ArrayList<int> busy_nums;
-            scan_tables_list(tablename, out num, out line, out busy_nums);
-            if (num == -1)
-            {
-                // not present
-                error(@"rule_coming_from_macaddr: table $(tablename) not present");
-            }
+            if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
+            assert(tablename in table_number.keys);
+            int num = table_number[tablename];
             string pres;
             try {
                 string cmd = @"$(cmd_prefix)ip rule list";
@@ -299,8 +348,7 @@ namespace ProofOfConcept
         /** Remove rule that a packet which is coming from <macaddr> and has to be forwarded
           * will search for its route in <tablename>.
           *
-          * Check the list of tables in /etc/iproute2/rt_tables.
-          * If <tablename> is already there, get its number <number>.
+          * Make sure we have <tablename>, get its number <number>.
           * Otherwise abort.
           * Once we have the number, use "iptables" to remove set-mark and use "ip" to remove the rule fwmark.
                 iptables -t mangle -D PREROUTING -m mac --mac-source $macaddr -j MARK --set-mark $number
@@ -308,15 +356,9 @@ namespace ProofOfConcept
           */
         public void remove_rule_coming_from_macaddr(string macaddr, string tablename)
         {
-            int num;
-            string line;
-            ArrayList<int> busy_nums;
-            scan_tables_list(tablename, out num, out line, out busy_nums);
-            if (num == -1)
-            {
-                // not present
-                error(@"rule_coming_from_macaddr: table $(tablename) not present");
-            }
+            if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
+            assert(tablename in table_number.keys);
+            int num = table_number[tablename];
             try {
                 string cmd = @"$(cmd_prefix)iptables -t mangle -D PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
                 print(@"$(cmd)\n");
@@ -336,23 +378,15 @@ namespace ProofOfConcept
         /** Rule that a packet by default (without any condition)
           * will search for its route in <tablename>.
           *
-          * Check the list of tables in /etc/iproute2/rt_tables.
-          * If <tablename> is already there, get its number <number>.
+          * Make sure we have <tablename>.
           * Otherwise abort.
           * Use "ip" to rule that all packets search into table <tablename>
                 ip rule add table $tablename
           */
         public void rule_default(string tablename)
         {
-            int num;
-            string line;
-            ArrayList<int> busy_nums;
-            scan_tables_list(tablename, out num, out line, out busy_nums);
-            if (num == -1)
-            {
-                // not present
-                error(@"rule_default: table $(tablename) not present");
-            }
+            if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
+            assert(tablename in table_number.keys);
             string pres;
             try {
                 string cmd = @"$(cmd_prefix)ip rule list";
@@ -375,23 +409,15 @@ namespace ProofOfConcept
         /** Remove rule that a packet by default (without any condition)
           * will search for its route in <tablename>.
           *
-          * Check the list of tables in /etc/iproute2/rt_tables.
-          * If <tablename> is already there, get its number <number>.
+          * Make sure we have <tablename>.
           * Otherwise abort.
           * Use "ip" to remove rule that all packets search into table <tablename>
                 ip rule del table $tablename
           */
         public void remove_rule_default(string tablename)
         {
-            int num;
-            string line;
-            ArrayList<int> busy_nums;
-            scan_tables_list(tablename, out num, out line, out busy_nums);
-            if (num == -1)
-            {
-                // not present
-                error(@"remove_rule_default: table $(tablename) not present");
-            }
+            if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
+            assert(tablename in table_number.keys);
             try {
                 string cmd = @"$(cmd_prefix)ip rule del table $(tablename)";
                 print(@"$(cmd)\n");
