@@ -205,7 +205,7 @@ namespace ProofOfConcept
         string ns = identity_mgr.get_namespace(nodeid);
         ArrayList<string> pseudodevs = new ArrayList<string>();
         foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(nodeid, real_nic));
-        LinuxRoute route = new LinuxRoute(ns);
+        LinuxRoute route = new LinuxRoute(ns, ip_whole_network(levels, _g_exp));
         nodeids[nodeid_index].route = route;
         nodeids[nodeid_index].ip_global = ip_global_node(levels, _g_exp, _naddr);
         foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_global, dev);
@@ -2226,6 +2226,15 @@ Command list:
         return ret;
     }
 
+    string ip_whole_network(int l, Gee.List<int> g_exp)
+    {
+        int sum = 0;
+        for (int k = 0; k <= l-1; k++) sum += g_exp[k];
+        int prefix = 32 - sum - 2;
+        string ret = @"10.0.0.0/$(prefix)";
+        return ret;
+    }
+
     string naddr_repr(Naddr my_naddr)
     {
         string my_naddr_str = "";
@@ -2359,7 +2368,7 @@ Command list:
 
         string new_ns = identity_mgr.get_namespace(old_id);
         nodeids[nodeid_index].main_id = (new_ns == "");
-        LinuxRoute new_route = new LinuxRoute(new_ns);
+        LinuxRoute new_route = new LinuxRoute(new_ns, ip_whole_network(levels, _g_exp));
         LinuxRoute old_route = nodeids[old_nodeid_index].route;
         old_route.flush_routes();
         old_route.remove_addresses();

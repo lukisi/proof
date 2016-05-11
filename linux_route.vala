@@ -27,12 +27,13 @@ namespace ProofOfConcept
 {
     class LinuxRoute : Object
     {
-        public LinuxRoute(string network_namespace)
+        public LinuxRoute(string network_namespace, string whole_network)
         {
             if (! init_done) init();
             ns = network_namespace;
             cmd_prefix = "";
             if (ns != "") cmd_prefix = @"ip netns exec $(ns) ";
+            this.whole_network = whole_network;
             my_destinations_dispatchers = new HashMap<string, DispatchableTasklet>();
             local_addresses = new ArrayList<string>();
             neighbour_macs = new ArrayList<string>();
@@ -41,6 +42,7 @@ namespace ProofOfConcept
 
         private string ns;
         private string cmd_prefix;
+        private string whole_network;
         private HashMap<string, DispatchableTasklet> my_destinations_dispatchers;
         ArrayList<string> local_addresses;
         ArrayList<string> neighbour_macs;
@@ -271,7 +273,13 @@ namespace ProofOfConcept
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error("Unable to spawn a command");}
-            // TODO add unreachable whole_network to the table
+            try {
+                string cmd = @"$(cmd_prefix)ip route add unreachable $(whole_network) table $(tablename)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.stderr)\n");
+            } catch (Error e) {error("Unable to spawn a command");}
         }
 
         /** When this is called, a certain network namespace won't use anymore this <tablename>.
