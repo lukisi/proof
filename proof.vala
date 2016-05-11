@@ -1986,9 +1986,9 @@ Command list:
         identityarcs[identityarc_index] = ia;
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
         print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
-        string peer_ll = id_arc.get_peer_linklocal();
-        string ns = identity_mgr.get_namespace(id);
-        string pseudodev = identity_mgr.get_pseudodev(id, arc.get_dev());
+        string peer_ll = ia.id_arc.get_peer_linklocal();
+        string ns = identity_mgr.get_namespace(ia.id);
+        string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
         print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
     }
 
@@ -2019,9 +2019,9 @@ Command list:
         IdentityArc ia = identityarcs[identityarc_index];
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
         print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
-        string peer_ll = id_arc.get_peer_linklocal();
-        string ns = identity_mgr.get_namespace(id);
-        string pseudodev = identity_mgr.get_pseudodev(id, arc.get_dev());
+        string peer_ll = ia.id_arc.get_peer_linklocal();
+        string ns = identity_mgr.get_namespace(ia.id);
+        string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
         print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
         // I shouldn't need to change anything in 'IdentityArc ia', cause it's the same instance.
         assert(ia.id_arc == id_arc);
@@ -2051,9 +2051,14 @@ Command list:
             print("I couldn't find it in memory.\n");
             return;
         }
-        identityarcs.unset(identityarc_index);
+        IdentityArc ia = identityarcs[identityarc_index];
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
         print(@"                  id-id: from $(id.id) to $(peer_nodeid.id).\n");
+        string peer_ll = ia.id_arc.get_peer_linklocal();
+        string ns = identity_mgr.get_namespace(ia.id);
+        string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
+        print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
+        identityarcs.unset(identityarc_index);
         // TODO: Remove qspn arc if present.
     }
 
@@ -2322,6 +2327,10 @@ Command list:
             IIdmgmtIdentityArc id_arc = ia.id_arc;
             print(@"identityarcs: #$(i): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
             print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
+            string peer_ll = ia.id_arc.get_peer_linklocal();
+            string ns = identity_mgr.get_namespace(ia.id);
+            string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
+            print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
         }
     }
 
