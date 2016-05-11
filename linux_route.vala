@@ -165,6 +165,7 @@ namespace ProofOfConcept
                 {
                     error("no more free numbers in rt_tables: not implemented yet");
                 }
+                print(@"Adding table $(tablename) as number $(new_num) in file $(RT_TABLES)...\n");
                 string to_add = @"\n$(new_num)\t$(tablename)\n";
                 // a path
                 File fout = File.new_for_path(RT_TABLES);
@@ -173,6 +174,7 @@ namespace ProofOfConcept
                     FileOutputStream fos = fout.append_to(FileCreateFlags.NONE);
                     fos.write(to_add.data);
                 } catch (Error e) {assert_not_reached();}
+                print(@"Added table $(tablename).\n");
             }
             // emtpy the table
             try {
@@ -212,6 +214,7 @@ namespace ProofOfConcept
                     error(@"$(com_ret.stderr)\n");
             } catch (Error e) {error("Unable to spawn a command");}
             // remove record $(line) from file
+            print(@"Removing table $(tablename) from file $(RT_TABLES)...\n");
             string rt_tables_content;
             {
                 // a path
@@ -241,6 +244,7 @@ namespace ProofOfConcept
                     fout.replace_contents(new_cont.data, null, false, FileCreateFlags.NONE, null);
                 } catch (Error e) {assert_not_reached();}
             }
+            print(@"Removed table $(tablename).\n");
         }
 
         /** Rule that a packet which is coming from <macaddr> and has to be forwarded
