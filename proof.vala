@@ -2367,7 +2367,8 @@ Command list:
         nodeids[old_nodeid_index].main_id = false;
 
         string new_ns = identity_mgr.get_namespace(old_id);
-        nodeids[nodeid_index].main_id = (new_ns == "");
+        string old_ns = identity_mgr.get_namespace(new_id);
+        nodeids[nodeid_index].main_id = (old_ns == "");
         LinuxRoute new_route = new LinuxRoute(new_ns, ip_whole_network(levels, _g_exp));
         LinuxRoute old_route = nodeids[old_nodeid_index].route;
         old_route.flush_routes();
