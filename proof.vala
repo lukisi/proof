@@ -747,24 +747,23 @@ Command list:
 
         public void path_added(IQspnNodePath p)
         {
-            update_best_path(p);
+            update_best_path(p.i_qspn_get_hops().last().i_qspn_get_hcoord());
         }
 
         public void path_changed(IQspnNodePath p)
         {
-            update_best_path(p);
+            update_best_path(p.i_qspn_get_hops().last().i_qspn_get_hcoord());
         }
 
         public void path_removed(IQspnNodePath p)
         {
-            update_best_path(p);
+            update_best_path(p.i_qspn_get_hops().last().i_qspn_get_hcoord());
         }
 
-        private void update_best_path(IQspnNodePath p)
+        private void update_best_path(HCoord h)
         {
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
             if (! qspn_mgr.is_bootstrap_complete()) return; // not ready yet.
-            HCoord h = p.i_qspn_get_hops().last().i_qspn_get_hcoord();
             if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
             print(@"Identity #$(nodeid_index): update_best_path for h ($(h.lvl), $(h.pos)): started.\n");
             // change the route. place current best path to `h`. if none, then change the path to 'unreachable'.
@@ -1205,8 +1204,15 @@ Command list:
 
         public void qspn_bootstrap_complete()
         {
-            // TODO
-            
+            QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+            try {
+                foreach (HCoord h in qspn_mgr.get_known_destinations())
+                {
+                    update_best_path(h);
+                }
+            } catch (QspnBootstrapInProgressError e) {
+                assert_not_reached();
+            }
         }
 
         public void remove_identity()
