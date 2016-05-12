@@ -34,7 +34,7 @@ namespace ProofOfConcept
             cmd_prefix = "";
             if (ns != "") cmd_prefix = @"ip netns exec $(ns) ";
             this.whole_network = whole_network;
-            my_destinations_dispatchers = new HashMap<string, DispatchableTasklet>();
+            command_dispatcher = tasklet.create_dispatchable_tasklet();
             local_addresses = new ArrayList<string>();
             neighbour_macs = new ArrayList<string>();
             start_management();
@@ -43,7 +43,7 @@ namespace ProofOfConcept
         private string ns;
         private string cmd_prefix;
         private string whole_network;
-        private HashMap<string, DispatchableTasklet> my_destinations_dispatchers;
+        private DispatchableTasklet command_dispatcher;
         ArrayList<string> local_addresses;
         ArrayList<string> neighbour_macs;
 
@@ -82,6 +82,13 @@ namespace ProofOfConcept
             remove_rule_default(maintable);
             remove_table(maintable);
             remove_addresses();
+        }
+
+        public void removing_namespace()
+        {
+            // to be called only for the non-default network namespaces
+            assert(ns != "");
+            while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
         }
 
         /* Table-names management
@@ -441,15 +448,10 @@ namespace ProofOfConcept
 
         public void add_destination(string dest)
         {
-            if (! my_destinations_dispatchers.has_key(dest))
-            {
-                my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
-            }
-            DispatchableTasklet dt = my_destinations_dispatchers[dest];
             AddDestinationTasklet ts = new AddDestinationTasklet();
             ts.t = this;
             ts.dest = dest;
-            dt.dispatch(ts);
+            command_dispatcher.dispatch(ts);
         }
         private void tasklet_add_destination(string dest)
         {
@@ -485,16 +487,10 @@ namespace ProofOfConcept
 
         public void remove_destination(string dest)
         {
-            if (! my_destinations_dispatchers.has_key(dest))
-            {
-                my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
-            }
-            DispatchableTasklet dt = my_destinations_dispatchers[dest];
             RemoveDestinationTasklet ts = new RemoveDestinationTasklet();
             ts.t = this;
             ts.dest = dest;
-            dt.dispatch(ts, true);
-            if (dt.is_empty()) my_destinations_dispatchers.unset(dest);
+            command_dispatcher.dispatch(ts, true);
         }
         private void tasklet_remove_destination(string dest)
         {
@@ -535,11 +531,6 @@ namespace ProofOfConcept
         */
         public void change_best_path(string dest, string? dev, string? gw, string? src, string? neighbour_mac)
         {
-            if (! my_destinations_dispatchers.has_key(dest))
-            {
-                my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
-            }
-            DispatchableTasklet dt = my_destinations_dispatchers[dest];
             ChangeBestPathTasklet ts = new ChangeBestPathTasklet();
             ts.t = this;
             ts.dest = dest;
@@ -547,7 +538,7 @@ namespace ProofOfConcept
             ts.gw = gw;
             ts.src = src;
             ts.neighbour_mac = neighbour_mac;
-            dt.dispatch(ts);
+            command_dispatcher.dispatch(ts);
         }
         private void tasklet_change_best_path(string dest, string? dev, string? gw, string? src, string? neighbour_mac)
         {
