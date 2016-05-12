@@ -254,11 +254,14 @@ namespace ProofOfConcept
         // TODO cleanup
 
         // Remove identities and their network namespaces and linklocal addresses.
-        NodeID _main_id = identity_mgr.get_main_id();
-        foreach (NodeID _id in identity_mgr.get_id_list())
+        foreach (int i in nodeids.keys)
         {
-            if (_id.equals(_main_id)) continue;
-            identity_mgr.remove_identity(_id);
+            IdentityData identity_data = nodeids[i];
+            if (! identity_data.main_id)
+            {
+                identity_data.route.removing_namespace();
+                identity_mgr.remove_identity(identity_data.nodeid);
+            }
         }
 
         // Cleanup addresses and routes that were added previously in order to
@@ -266,7 +269,7 @@ namespace ProofOfConcept
         foreach (int i in nodeids.keys)
         {
             IdentityData identity_data = nodeids[i];
-            if (identity_data.nodeid.equals(_main_id))
+            if (identity_data.main_id)
             {
                 LinuxRoute main_linux_route = identity_data.route;
                 main_linux_route.stop_management();
@@ -1208,6 +1211,11 @@ Command list:
 
         public void remove_identity()
         {
+            // The qspn manager wants to remove this identity. We have to remove
+            //  identity from identity_manager. This will have IIdmgmtNetnsManager
+            //  to remove pseudodevs and the network namespace. Beforehand, the LinuxRoute
+            //  instance has to be notified.
+            route.removing_namespace();
             // TODO
         }
     }
