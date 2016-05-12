@@ -184,6 +184,7 @@ namespace ProofOfConcept
         NodeID nodeid = identity_mgr.get_main_id();
         int nodeid_index = nodeid_nextindex++;
         nodeids[nodeid_index] = new IdentityData(nodeid);
+        nodeids[nodeid_index].nodeid_index = nodeid_index;
         nodeids[nodeid_index].main_id = true;
         print(@"nodeids: #$(nodeid_index): $(nodeid.id).\n");
         // First qspn manager
@@ -667,6 +668,7 @@ Command list:
         }
 
         public NodeID nodeid;
+        public int nodeid_index;
         public Naddr my_naddr;
         public Fingerprint my_fp;
         public bool ready;
@@ -757,8 +759,11 @@ Command list:
 
         private void update_best_path(IQspnNodePath p)
         {
+            QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+            if (! qspn_mgr.is_bootstrap_complete()) return; // not ready yet.
             HCoord h = p.i_qspn_get_hops().last().i_qspn_get_hcoord();
             if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
+            print(@"Identity #$(nodeid_index): update_best_path for h ($(h.lvl), $(h.pos)): started.\n");
             // change the route. place current best path to `h`. if none, then change the path to 'unreachable'.
 
             // Compute Netsukuku address of `h`.
@@ -789,14 +794,11 @@ Command list:
             {
                 if (real_up_to == levels-1)
                 {
-                    QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
                     HashMap<string, BestRoute> best_routes;
                     try {
                         best_routes = find_best_routes(qspn_mgr, neighbors, h);
                     } catch (QspnBootstrapInProgressError e) {
-                        // not available yet
-                        print("update_best_path: bootstrap not completed yet\n");
-                        return;
+                        assert_not_reached();
                     }
                     assert(best_routes.has_key("main"));
 
@@ -877,14 +879,11 @@ Command list:
                 {
                     if (h.lvl <= real_up_to)
                     {
-                        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
                         HashMap<string, BestRoute> best_routes;
                         try {
                             best_routes = find_best_routes(qspn_mgr, neighbors, h);
                         } catch (QspnBootstrapInProgressError e) {
-                            // not available yet
-                            print("update_best_path: bootstrap not completed yet\n");
-                            return;
+                            assert_not_reached();
                         }
                         assert(best_routes.has_key("main"));
 
@@ -913,14 +912,11 @@ Command list:
                     }
                     else if (h.lvl < virtual_up_to)
                     {
-                        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
                         HashMap<string, BestRoute> best_routes;
                         try {
                             best_routes = find_best_routes(qspn_mgr, neighbors, h);
                         } catch (QspnBootstrapInProgressError e) {
-                            // not available yet
-                            print("update_best_path: bootstrap not completed yet\n");
-                            return;
+                            assert_not_reached();
                         }
                         assert(best_routes.has_key("main"));
 
@@ -949,14 +945,11 @@ Command list:
                     }
                     else
                     {
-                        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
                         HashMap<string, BestRoute> best_routes;
                         try {
                             best_routes = find_best_routes(qspn_mgr, neighbors, h);
                         } catch (QspnBootstrapInProgressError e) {
-                            // not available yet
-                            print("update_best_path: bootstrap not completed yet\n");
-                            return;
+                            assert_not_reached();
                         }
                         assert(best_routes.has_key("main"));
 
@@ -1038,14 +1031,11 @@ Command list:
             {
                 if (h.lvl < virtual_up_to)
                 {
-                    QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
                     HashMap<string, BestRoute> best_routes;
                     try {
                         best_routes = find_best_routes(qspn_mgr, neighbors, h);
                     } catch (QspnBootstrapInProgressError e) {
-                        // not available yet
-                        print("update_best_path: bootstrap not completed yet\n");
-                        return;
+                        assert_not_reached();
                     }
                     assert(best_routes.has_key("main"));
 
@@ -1074,14 +1064,11 @@ Command list:
                 }
                 else
                 {
-                    QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
                     HashMap<string, BestRoute> best_routes;
                     try {
                         best_routes = find_best_routes(qspn_mgr, neighbors, h);
                     } catch (QspnBootstrapInProgressError e) {
-                        // not available yet
-                        print("update_best_path: bootstrap not completed yet\n");
-                        return;
+                        assert_not_reached();
                     }
                     assert(best_routes.has_key("main"));
 
@@ -1216,6 +1203,7 @@ Command list:
         public void qspn_bootstrap_complete()
         {
             // TODO
+            
         }
 
         public void remove_identity()
@@ -2364,6 +2352,7 @@ Command list:
         NodeID new_id = identity_mgr.add_identity(migration_id, old_id);
         int nodeid_index = nodeid_nextindex++;
         nodeids[nodeid_index] = new IdentityData(new_id);
+        nodeids[nodeid_index].nodeid_index = nodeid_index;
         nodeids[old_nodeid_index].main_id = false;
 
         string new_ns = identity_mgr.get_namespace(old_id);
