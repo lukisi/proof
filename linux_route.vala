@@ -303,6 +303,7 @@ namespace ProofOfConcept
           */
         public void remove_table(string tablename)
         {
+            while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
             if (! (tablename in table_references.keys)) error(@"table $(tablename) should be in use.");
 
             // emtpy the table
@@ -604,6 +605,7 @@ namespace ProofOfConcept
 
         public void remove_addresses()
         {
+            while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
             foreach (string local_address in local_addresses)
             {
                 string cmd = @"$(cmd_prefix)ip address del $(local_address)";
@@ -619,6 +621,7 @@ namespace ProofOfConcept
 
         public void flush_routes()
         {
+            while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
             // flush managed tables
             string cmd = @"$(cmd_prefix)ip route flush table $(maintable)";
             print(@"$(cmd)\n");
