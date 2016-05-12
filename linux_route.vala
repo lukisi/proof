@@ -73,8 +73,9 @@ namespace ProofOfConcept
 
         public void stop_management()
         {
-            // to be called only for the default network namespace
+            // To be called only for the default network namespace
             assert(ns == "");
+            while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
             while (! neighbour_macs.is_empty)
             {
                 remove_neighbour(neighbour_macs[0]);
@@ -86,9 +87,16 @@ namespace ProofOfConcept
 
         public void removing_namespace()
         {
-            // to be called only for the non-default network namespaces
+            // To be called only for the non-default network namespaces
             assert(ns != "");
             while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
+            // Remove tables: although the namespace is going to be removed
+            //  and hence the deletion of tables could be superfluous, with
+            //  these calls we ensure the removal of tablename in the common
+            //  file when needed.
+            foreach (string neighbour_mac in neighbour_macs)
+                remove_table(@"$(maintable)_from_$(neighbour_mac)");
+            remove_table(maintable);
         }
 
         /* Table-names management
