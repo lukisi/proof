@@ -964,6 +964,19 @@ Command list:
             print(@"Identity #$(nodeid_index): update_best_path for h ($(h.lvl), $(h.pos)): started.\n");
             // change the route. place current best path to `h`. if none, then change the path to 'unreachable'.
 
+            // Retrieve all routes towards `h`.
+            Gee.List<IQspnNodePath> paths;
+            try {
+                paths = qspn_mgr.get_paths_to(h);
+            } catch (QspnBootstrapInProgressError e) {
+                assert_not_reached();
+            }
+            // If we come from a signal `path_removed`, this could be the last path
+            //  towards `h` that is gone, so we might have no paths at all.
+            // In this case we can just do nothing right now; in just a moment we'll
+            //  also get the signal `destination_removed` which will take care.
+            if (paths.is_empty) return;
+
             // Compute Netsukuku address of `h`.
             ArrayList<int> h_addr = new ArrayList<int>();
             h_addr.add_all(my_naddr.pos);
@@ -984,6 +997,10 @@ Command list:
                 neighbors.add(neighbor);
             }
 
+            // Find best routes towards `h` for table 'ntk' and for tables 'ntk_from_<MAC>'
+            HashMap<string, BestRoute> best_routes = find_best_routes(paths, neighbors);
+            assert(best_routes.has_key("main"));
+
             // Operations now are based on type of my_naddr:
             // Is this the main ID? Do I have a *real* Netsukuku address?
             int real_up_to = my_naddr.get_real_up_to();
@@ -992,71 +1009,38 @@ Command list:
             {
                 if (real_up_to == levels-1)
                 {
-                    HashMap<string, BestRoute> best_routes;
-                    try {
-                        best_routes = find_best_routes(qspn_mgr, neighbors, h);
-                    } catch (QspnBootstrapInProgressError e) {
-                        assert_not_reached();
-                    }
-                    assert(best_routes.has_key("main"));
-
-                    string dest_global = ip_global_gnode(h_addr, h.lvl);
-                    // For packets in egress:
-                    route.change_best_path(dest_global, best_routes["main"].dev, best_routes["main"].gw, ip_global, null);
-                    // For packets in forward, received from a known MAC:
-                    foreach (NeighborData neighbor in neighbors)
+                    // Compute IP dest addresses and src addresses.
+                    ArrayList<string> ip_dest_set = new ArrayList<string>();
+                    ArrayList<string> ip_src_set = new ArrayList<string>();
+                    // Global.
+                    ip_dest_set.add(ip_global_gnode(h_addr, h.lvl));
+                    ip_src_set.add(ip_global);
+                    // Anonymizing.
+                    ip_dest_set.add(ip_anonymizing_gnode(h_addr, h.lvl));
+                    ip_src_set.add(ip_global);
+                    // Internals. In this case they are guaranteed to be valid.
+                    for (int t = h.lvl + 1; t <= levels - 1; t++)
                     {
-                        if (best_routes.has_key(neighbor.mac))
-                        {
-                            route.change_best_path(dest_global,
-                                best_routes[neighbor.mac].dev,
-                                best_routes[neighbor.mac].gw,
-                                null,
-                                neighbor.mac);
-                        }
-                        else
-                        {
-                            // set unreachable
-                            route.change_best_path(dest_global, null, null, null, neighbor.mac);
-                        }
+                        ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
+                        ip_src_set.add(ip_internal[t-1]);
                     }
-                    // For packets in forward, received from a unknown MAC:
-                    /* No need because the system uses the same as per packets in egress */
 
-                    string dest_anonymizing = ip_anonymizing_gnode(h_addr, h.lvl);
-                    // For packets in egress:
-                    route.change_best_path(dest_anonymizing, best_routes["main"].dev, best_routes["main"].gw, ip_global, null);
-                    // For packets in forward, received from a known MAC:
-                    foreach (NeighborData neighbor in neighbors)
+                    for (int i = 0; i < ip_dest_set.size; i++)
                     {
-                        if (best_routes.has_key(neighbor.mac))
-                        {
-                            route.change_best_path(dest_anonymizing,
-                                best_routes[neighbor.mac].dev,
-                                best_routes[neighbor.mac].gw,
-                                null,
-                                neighbor.mac);
-                        }
-                        else
-                        {
-                            // set unreachable
-                            route.change_best_path(dest_anonymizing, null, null, null, neighbor.mac);
-                        }
-                    }
-                    // For packets in forward, received from a unknown MAC:
-                    /* No need because the system uses the same as per packets in egress */
-
-                    if (h.lvl < levels - 1)
-                    {
-                        string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
+                        string d_x = ip_dest_set[i];
+                        string n_x = ip_src_set[i];
                         // For packets in egress:
-                        route.change_best_path(dest_internal, best_routes["main"].dev, best_routes["main"].gw, ip_internal[h.lvl], null);
+                        route.change_best_path(d_x,
+                                    best_routes["main"].dev,
+                                    best_routes["main"].gw,
+                                    n_x,
+                                    null);
                         // For packets in forward, received from a known MAC:
                         foreach (NeighborData neighbor in neighbors)
                         {
                             if (best_routes.has_key(neighbor.mac))
                             {
-                                route.change_best_path(dest_internal,
+                                route.change_best_path(d_x,
                                     best_routes[neighbor.mac].dev,
                                     best_routes[neighbor.mac].gw,
                                     null,
@@ -1065,149 +1049,53 @@ Command list:
                             else
                             {
                                 // set unreachable
-                                route.change_best_path(dest_internal, null, null, null, neighbor.mac);
+                                route.change_best_path(d_x, null, null, null, neighbor.mac);
                             }
                         }
                         // For packets in forward, received from a unknown MAC:
                         /* No need because the system uses the same as per packets in egress */
                     }
-
                 }
                 else
                 {
                     if (h.lvl <= real_up_to)
                     {
-                        HashMap<string, BestRoute> best_routes;
-                        try {
-                            best_routes = find_best_routes(qspn_mgr, neighbors, h);
-                        } catch (QspnBootstrapInProgressError e) {
-                            assert_not_reached();
-                        }
-                        assert(best_routes.has_key("main"));
-
-                        string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
-                        // For packets in egress:
-                        route.change_best_path(dest_internal, best_routes["main"].dev, best_routes["main"].gw, ip_internal[h.lvl], null);
-                        // For packets in forward, received from a known MAC:
-                        foreach (NeighborData neighbor in neighbors)
+                        // Compute IP dest addresses and src addresses.
+                        ArrayList<string> ip_dest_set = new ArrayList<string>();
+                        ArrayList<string> ip_src_set = new ArrayList<string>();
+                        // Internals. In this case they MUST be checked.
+                        bool invalid_found = false;
+                        for (int t = h.lvl + 1; t <= levels - 1; t++)
                         {
-                            if (best_routes.has_key(neighbor.mac))
+                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
                             {
-                                route.change_best_path(dest_internal,
-                                    best_routes[neighbor.mac].dev,
-                                    best_routes[neighbor.mac].gw,
-                                    null,
-                                    neighbor.mac);
+                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                                {
+                                    invalid_found = true;
+                                    break;
+                                }
                             }
-                            else
-                            {
-                                // set unreachable
-                                route.change_best_path(dest_internal, null, null, null, neighbor.mac);
-                            }
+                            if (invalid_found) break; // The higher levels will be invalid too.
+                            ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
+                            ip_src_set.add(ip_internal[t-1]);
                         }
-                        // For packets in forward, received from a unknown MAC:
-                        /* No need because the system uses the same as per packets in egress */
-                    }
-                    else if (h.lvl < virtual_up_to)
-                    {
-                        HashMap<string, BestRoute> best_routes;
-                        try {
-                            best_routes = find_best_routes(qspn_mgr, neighbors, h);
-                        } catch (QspnBootstrapInProgressError e) {
-                            assert_not_reached();
-                        }
-                        assert(best_routes.has_key("main"));
 
-                        string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
-                        // For packets in egress:
-                        /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
-                        // For packets in forward, received from a known MAC:
-                        foreach (NeighborData neighbor in neighbors)
+                        for (int i = 0; i < ip_dest_set.size; i++)
                         {
-                            if (best_routes.has_key(neighbor.mac))
-                            {
-                                route.change_best_path(dest_internal,
-                                    best_routes[neighbor.mac].dev,
-                                    best_routes[neighbor.mac].gw,
-                                    null,
-                                    neighbor.mac);
-                            }
-                            else
-                            {
-                                // set unreachable
-                                route.change_best_path(dest_internal, null, null, null, neighbor.mac);
-                            }
-                        }
-                        // For packets in forward, received from a unknown MAC:
-                        route.change_best_path(dest_internal, best_routes["main"].dev, best_routes["main"].gw, null, null);
-                    }
-                    else
-                    {
-                        HashMap<string, BestRoute> best_routes;
-                        try {
-                            best_routes = find_best_routes(qspn_mgr, neighbors, h);
-                        } catch (QspnBootstrapInProgressError e) {
-                            assert_not_reached();
-                        }
-                        assert(best_routes.has_key("main"));
-
-                        string dest_global = ip_global_gnode(h_addr, h.lvl);
-                        // For packets in egress:
-                        /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
-                        // For packets in forward, received from a known MAC:
-                        foreach (NeighborData neighbor in neighbors)
-                        {
-                            if (best_routes.has_key(neighbor.mac))
-                            {
-                                route.change_best_path(dest_global,
-                                    best_routes[neighbor.mac].dev,
-                                    best_routes[neighbor.mac].gw,
-                                    null,
-                                    neighbor.mac);
-                            }
-                            else
-                            {
-                                // set unreachable
-                                route.change_best_path(dest_global, null, null, null, neighbor.mac);
-                            }
-                        }
-                        // For packets in forward, received from a unknown MAC:
-                        route.change_best_path(dest_global, best_routes["main"].dev, best_routes["main"].gw, null, null);
-
-                        string dest_anonymizing = ip_anonymizing_gnode(h_addr, h.lvl);
-                        // For packets in egress:
-                        /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
-                        // For packets in forward, received from a known MAC:
-                        foreach (NeighborData neighbor in neighbors)
-                        {
-                            if (best_routes.has_key(neighbor.mac))
-                            {
-                                route.change_best_path(dest_anonymizing,
-                                    best_routes[neighbor.mac].dev,
-                                    best_routes[neighbor.mac].gw,
-                                    null,
-                                    neighbor.mac);
-                            }
-                            else
-                            {
-                                // set unreachable
-                                route.change_best_path(dest_anonymizing, null, null, null, neighbor.mac);
-                            }
-                        }
-                        // For packets in forward, received from a unknown MAC:
-                        route.change_best_path(dest_anonymizing, best_routes["main"].dev, best_routes["main"].gw, null, null);
-
-                        if (h.lvl < levels - 1)
-                        {
-                            string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
+                            string d_x = ip_dest_set[i];
+                            string n_x = ip_src_set[i];
                             // For packets in egress:
-                            /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
+                            route.change_best_path(d_x,
+                                        best_routes["main"].dev,
+                                        best_routes["main"].gw,
+                                        n_x,
+                                        null);
                             // For packets in forward, received from a known MAC:
                             foreach (NeighborData neighbor in neighbors)
                             {
                                 if (best_routes.has_key(neighbor.mac))
                                 {
-                                    route.change_best_path(dest_internal,
+                                    route.change_best_path(d_x,
                                         best_routes[neighbor.mac].dev,
                                         best_routes[neighbor.mac].gw,
                                         null,
@@ -1216,117 +1104,145 @@ Command list:
                                 else
                                 {
                                     // set unreachable
-                                    route.change_best_path(dest_internal, null, null, null, neighbor.mac);
+                                    route.change_best_path(d_x, null, null, null, neighbor.mac);
                                 }
                             }
                             // For packets in forward, received from a unknown MAC:
-                            route.change_best_path(dest_internal, best_routes["main"].dev, best_routes["main"].gw, null, null);
+                            /* No need because the system uses the same as per packets in egress */
                         }
-                    } 
+                    }
+                    else if (h.lvl < virtual_up_to)
+                    {
+                        // Compute IP dest addresses (in this case no src addresses).
+                        ArrayList<string> ip_dest_set = new ArrayList<string>();
+                        // Internals. In this case they MUST be checked.
+                        bool invalid_found = false;
+                        for (int t = h.lvl + 1; t <= levels - 1; t++)
+                        {
+                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
+                            {
+                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                                {
+                                    invalid_found = true;
+                                    break;
+                                }
+                            }
+                            if (invalid_found) break; // The higher levels will be invalid too.
+                            ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
+                        }
+
+                        for (int i = 0; i < ip_dest_set.size; i++)
+                        {
+                            string d_x = ip_dest_set[i];
+
+                            // For packets in egress:
+                            /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
+                            // For packets in forward, received from a known MAC:
+                            foreach (NeighborData neighbor in neighbors)
+                            {
+                                if (best_routes.has_key(neighbor.mac))
+                                {
+                                    route.change_best_path(d_x,
+                                        best_routes[neighbor.mac].dev,
+                                        best_routes[neighbor.mac].gw,
+                                        null,
+                                        neighbor.mac);
+                                }
+                                else
+                                {
+                                    // set unreachable
+                                    route.change_best_path(d_x, null, null, null, neighbor.mac);
+                                }
+                            }
+                            // For packets in forward, received from a unknown MAC:
+                            route.change_best_path(d_x,
+                                        best_routes["main"].dev,
+                                        best_routes["main"].gw,
+                                        null,
+                                        null);
+                        }
+                    }
+                    else
+                    {
+                        // Compute IP dest addresses (in this case no src addresses).
+                        ArrayList<string> ip_dest_set = new ArrayList<string>();
+                        // Global.
+                        ip_dest_set.add(ip_global_gnode(h_addr, h.lvl));
+                        // Anonymizing.
+                        ip_dest_set.add(ip_anonymizing_gnode(h_addr, h.lvl));
+                        // Internals. In this case they are guaranteed to be valid.
+                        for (int t = h.lvl + 1; t <= levels - 1; t++)
+                        {
+                            ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
+                        }
+
+                        for (int i = 0; i < ip_dest_set.size; i++)
+                        {
+                            string d_x = ip_dest_set[i];
+
+                            // For packets in egress:
+                            /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
+                            // For packets in forward, received from a known MAC:
+                            foreach (NeighborData neighbor in neighbors)
+                            {
+                                if (best_routes.has_key(neighbor.mac))
+                                {
+                                    route.change_best_path(d_x,
+                                        best_routes[neighbor.mac].dev,
+                                        best_routes[neighbor.mac].gw,
+                                        null,
+                                        neighbor.mac);
+                                }
+                                else
+                                {
+                                    // set unreachable
+                                    route.change_best_path(d_x, null, null, null, neighbor.mac);
+                                }
+                            }
+                            // For packets in forward, received from a unknown MAC:
+                            route.change_best_path(d_x,
+                                        best_routes["main"].dev,
+                                        best_routes["main"].gw,
+                                        null,
+                                        null);
+                        }
+                    }
                 }
             }
             else
             {
                 if (h.lvl < virtual_up_to)
                 {
-                    HashMap<string, BestRoute> best_routes;
-                    try {
-                        best_routes = find_best_routes(qspn_mgr, neighbors, h);
-                    } catch (QspnBootstrapInProgressError e) {
-                        assert_not_reached();
-                    }
-                    assert(best_routes.has_key("main"));
-
-                    string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
-                    // For packets in egress:
-                    /* Nothing: We are the not main identity. */
-                    // For packets in forward, received from a known MAC:
-                    foreach (NeighborData neighbor in neighbors)
+                    // Compute IP dest addresses (in this case no src addresses).
+                    ArrayList<string> ip_dest_set = new ArrayList<string>();
+                    // Internals. In this case they MUST be checked.
+                    bool invalid_found = false;
+                    for (int t = h.lvl + 1; t <= levels - 1; t++)
                     {
-                        if (best_routes.has_key(neighbor.mac))
+                        for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
                         {
-                            route.change_best_path(dest_internal,
-                                best_routes[neighbor.mac].dev,
-                                best_routes[neighbor.mac].gw,
-                                null,
-                                neighbor.mac);
+                            if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                            {
+                                invalid_found = true;
+                                break;
+                            }
                         }
-                        else
-                        {
-                            // set unreachable
-                            route.change_best_path(dest_internal, null, null, null, neighbor.mac);
-                        }
+                        if (invalid_found) break; // The higher levels will be invalid too.
+                        ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
                     }
-                    // For packets in forward, received from a unknown MAC:
-                    route.change_best_path(dest_internal, best_routes["main"].dev, best_routes["main"].gw, null, null);
-                }
-                else
-                {
-                    HashMap<string, BestRoute> best_routes;
-                    try {
-                        best_routes = find_best_routes(qspn_mgr, neighbors, h);
-                    } catch (QspnBootstrapInProgressError e) {
-                        assert_not_reached();
-                    }
-                    assert(best_routes.has_key("main"));
 
-                    string dest_global = ip_global_gnode(h_addr, h.lvl);
-                    // For packets in egress:
-                    /* Nothing: We are the not main identity. */
-                    // For packets in forward, received from a known MAC:
-                    foreach (NeighborData neighbor in neighbors)
+                    for (int i = 0; i < ip_dest_set.size; i++)
                     {
-                        if (best_routes.has_key(neighbor.mac))
-                        {
-                            route.change_best_path(dest_global,
-                                best_routes[neighbor.mac].dev,
-                                best_routes[neighbor.mac].gw,
-                                null,
-                                neighbor.mac);
-                        }
-                        else
-                        {
-                            // set unreachable
-                            route.change_best_path(dest_global, null, null, null, neighbor.mac);
-                        }
-                    }
-                    // For packets in forward, received from a unknown MAC:
-                    route.change_best_path(dest_global, best_routes["main"].dev, best_routes["main"].gw, null, null);
+                        string d_x = ip_dest_set[i];
 
-                    string dest_anonymizing = ip_anonymizing_gnode(h_addr, h.lvl);
-                    // For packets in egress:
-                    /* Nothing: We are not the main identity. */
-                    // For packets in forward, received from a known MAC:
-                    foreach (NeighborData neighbor in neighbors)
-                    {
-                        if (best_routes.has_key(neighbor.mac))
-                        {
-                            route.change_best_path(dest_anonymizing,
-                                best_routes[neighbor.mac].dev,
-                                best_routes[neighbor.mac].gw,
-                                null,
-                                neighbor.mac);
-                        }
-                        else
-                        {
-                            // set unreachable
-                            route.change_best_path(dest_anonymizing, null, null, null, neighbor.mac);
-                        }
-                    }
-                    // For packets in forward, received from a unknown MAC:
-                    route.change_best_path(dest_anonymizing, best_routes["main"].dev, best_routes["main"].gw, null, null);
-
-                    if (h.lvl < levels - 1)
-                    {
-                        string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
                         // For packets in egress:
-                        /* Nothing: We are not the main identity. */
+                        /* Nothing: We are the not main identity. */
                         // For packets in forward, received from a known MAC:
                         foreach (NeighborData neighbor in neighbors)
                         {
                             if (best_routes.has_key(neighbor.mac))
                             {
-                                route.change_best_path(dest_internal,
+                                route.change_best_path(d_x,
                                     best_routes[neighbor.mac].dev,
                                     best_routes[neighbor.mac].gw,
                                     null,
@@ -1335,22 +1251,68 @@ Command list:
                             else
                             {
                                 // set unreachable
-                                route.change_best_path(dest_internal, null, null, null, neighbor.mac);
+                                route.change_best_path(d_x, null, null, null, neighbor.mac);
                             }
                         }
                         // For packets in forward, received from a unknown MAC:
-                        route.change_best_path(dest_internal, best_routes["main"].dev, best_routes["main"].gw, null, null);
+                        route.change_best_path(d_x,
+                                    best_routes["main"].dev,
+                                    best_routes["main"].gw,
+                                    null,
+                                    null);
                     }
-                } 
+                }
+                else
+                {
+                    // Compute IP dest addresses (in this case no src addresses).
+                    ArrayList<string> ip_dest_set = new ArrayList<string>();
+                    // Global.
+                    ip_dest_set.add(ip_global_gnode(h_addr, h.lvl));
+                    // Anonymizing.
+                    ip_dest_set.add(ip_anonymizing_gnode(h_addr, h.lvl));
+                    // Internals. In this case they are guaranteed to be valid.
+                    for (int t = h.lvl + 1; t <= levels - 1; t++)
+                    {
+                        ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
+                    }
+
+                    for (int i = 0; i < ip_dest_set.size; i++)
+                    {
+                        string d_x = ip_dest_set[i];
+
+                        // For packets in egress:
+                        /* Nothing: We are the not main identity. */
+                        // For packets in forward, received from a known MAC:
+                        foreach (NeighborData neighbor in neighbors)
+                        {
+                            if (best_routes.has_key(neighbor.mac))
+                            {
+                                route.change_best_path(d_x,
+                                    best_routes[neighbor.mac].dev,
+                                    best_routes[neighbor.mac].gw,
+                                    null,
+                                    neighbor.mac);
+                            }
+                            else
+                            {
+                                // set unreachable
+                                route.change_best_path(d_x, null, null, null, neighbor.mac);
+                            }
+                        }
+                        // For packets in forward, received from a unknown MAC:
+                        route.change_best_path(d_x,
+                                    best_routes["main"].dev,
+                                    best_routes["main"].gw,
+                                    null,
+                                    null);
+                    }
+                }
             }
         }
         private HashMap<string, BestRoute> find_best_routes(
-         QspnManager qspn_mgr,
-         ArrayList<NeighborData> neighbors,
-         HCoord h)
-        throws QspnBootstrapInProgressError
+         Gee.List<IQspnNodePath> paths,
+         ArrayList<NeighborData> neighbors)
         {
-            Gee.List<IQspnNodePath> paths = qspn_mgr.get_paths_to(h);
             HashMap<string, BestRoute> best_routes = new HashMap<string, BestRoute>();
             foreach (IQspnNodePath path in paths)
             {
