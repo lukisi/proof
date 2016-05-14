@@ -206,19 +206,19 @@ namespace ProofOfConcept
         string ns = identity_mgr.get_namespace(nodeid);
         ArrayList<string> pseudodevs = new ArrayList<string>();
         foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(nodeid, real_nic));
-        LinuxRoute route = new LinuxRoute(ns, ip_whole_network(levels, _g_exp));
+        LinuxRoute route = new LinuxRoute(ns, ip_whole_network());
         nodeids[nodeid_index].route = route;
-        nodeids[nodeid_index].ip_global = ip_global_node(levels, _g_exp, _naddr);
+        nodeids[nodeid_index].ip_global = ip_global_node(_naddr);
         foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_global, dev);
         if (accept_anonymous_requests)
         {
-            nodeids[nodeid_index].ip_anonymizing = ip_anonymizing_node(levels, _g_exp, _naddr);
+            nodeids[nodeid_index].ip_anonymizing = ip_anonymizing_node(_naddr);
             foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_anonymizing, dev);
         }
         nodeids[nodeid_index].ip_internal = new ArrayList<string>();
         for (int j = 0; j <= levels-2; j++)
         {
-            nodeids[nodeid_index].ip_internal.add(ip_internal_node(levels, _g_exp, _naddr, j+1));
+            nodeids[nodeid_index].ip_internal.add(ip_internal_node(_naddr, j+1));
             foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_internal[j], dev);
         }
 
@@ -704,18 +704,116 @@ Command list:
         {
             if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
             // add a path to 'h' that says 'unreachable'.
-            ArrayList<int> g_addr = new ArrayList<int>();
-            g_addr.add_all(my_naddr.pos);
-            g_addr[h.lvl] = h.pos;
-            for (int i = 0; i < h.lvl; i++) g_addr[i] = 0;
-            string dest_global = ip_global_gnode(levels, _g_exp, g_addr, h.lvl);
-            route.add_destination(dest_global);
-            string dest_anonymizing = ip_anonymizing_gnode(levels, _g_exp, g_addr, h.lvl);
-            route.add_destination(dest_anonymizing);
-            if (h.lvl < levels - 1)
+
+            // Compute Netsukuku address of `h`.
+            ArrayList<int> h_addr = new ArrayList<int>();
+            h_addr.add_all(my_naddr.pos);
+            h_addr[h.lvl] = h.pos;
+            for (int i = 0; i < h.lvl; i++) h_addr[i] = -1;
+
+            // Operations now are based on type of my_naddr:
+            // Is this the main ID? Do I have a *real* Netsukuku address?
+            int real_up_to = my_naddr.get_real_up_to();
+            int virtual_up_to = my_naddr.get_virtual_up_to();
+            if (main_id)
             {
-                string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
-                route.add_destination(dest_internal);
+                if (real_up_to == levels-1)
+                {
+                    // Global.
+                    route.add_destination(ip_global_gnode(h_addr, h.lvl));
+                    // Anonymizing.
+                    route.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                    // Internals. In this case they are guaranteed to be valid.
+                    for (int t = h.lvl + 1; t <= levels - 1; t++)
+                    {
+                        route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                    }
+                }
+                else
+                {
+                    if (h.lvl <= real_up_to)
+                    {
+                        // Internals. In this case they MUST be checked.
+                        bool invalid_found = false;
+                        for (int t = h.lvl + 1; t <= levels - 1; t++)
+                        {
+                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
+                            {
+                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                                {
+                                    invalid_found = true;
+                                    break;
+                                }
+                            }
+                            if (invalid_found) break; // The higher levels will be invalid too.
+                            route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        }
+                    }
+                    else if (h.lvl < virtual_up_to)
+                    {
+
+                        // Internals. In this case they MUST be checked.
+                        bool invalid_found = false;
+                        for (int t = h.lvl + 1; t <= levels - 1; t++)
+                        {
+                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
+                            {
+                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                                {
+                                    invalid_found = true;
+                                    break;
+                                }
+                            }
+                            if (invalid_found) break; // The higher levels will be invalid too.
+                            route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        }
+                    }
+                    else
+                    {
+                        // Global.
+                        route.add_destination(ip_global_gnode(h_addr, h.lvl));
+                        // Anonymizing.
+                        route.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                        // Internals. In this case they are guaranteed to be valid.
+                        for (int t = h.lvl + 1; t <= levels - 1; t++)
+                        {
+                            route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        }
+                    } 
+                }
+            }
+            else
+            {
+                if (h.lvl < virtual_up_to)
+                {
+                    // Internals. In this case they MUST be checked.
+                    bool invalid_found = false;
+                    for (int t = h.lvl + 1; t <= levels - 1; t++)
+                    {
+                        for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
+                        {
+                            if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                            {
+                                invalid_found = true;
+                                break;
+                            }
+                        }
+                        if (invalid_found) break; // The higher levels will be invalid too.
+                        route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                    }
+                }
+                else
+                {
+                    // Global.
+                    route.add_destination(ip_global_gnode(h_addr, h.lvl));
+                    // Anonymizing.
+                    route.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                    // Internals. In this case they are guaranteed to be valid.
+                    for (int t = h.lvl + 1; t <= levels - 1; t++)
+                    {
+                        route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                    }
+                } 
             }
         }
 
@@ -723,18 +821,116 @@ Command list:
         {
             if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
             // remove any path to 'h'.
-            ArrayList<int> g_addr = new ArrayList<int>();
-            g_addr.add_all(my_naddr.pos);
-            g_addr[h.lvl] = h.pos;
-            for (int i = 0; i < h.lvl; i++) g_addr[i] = 0;
-            string dest_global = ip_global_gnode(levels, _g_exp, g_addr, h.lvl);
-            route.remove_destination(dest_global);
-            string dest_anonymizing = ip_anonymizing_gnode(levels, _g_exp, g_addr, h.lvl);
-            route.remove_destination(dest_anonymizing);
-            if (h.lvl < levels - 1)
+
+            // Compute Netsukuku address of `h`.
+            ArrayList<int> h_addr = new ArrayList<int>();
+            h_addr.add_all(my_naddr.pos);
+            h_addr[h.lvl] = h.pos;
+            for (int i = 0; i < h.lvl; i++) h_addr[i] = -1;
+
+            // Operations now are based on type of my_naddr:
+            // Is this the main ID? Do I have a *real* Netsukuku address?
+            int real_up_to = my_naddr.get_real_up_to();
+            int virtual_up_to = my_naddr.get_virtual_up_to();
+            if (main_id)
             {
-                string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
-                route.remove_destination(dest_internal);
+                if (real_up_to == levels-1)
+                {
+                    // Global.
+                    route.remove_destination(ip_global_gnode(h_addr, h.lvl));
+                    // Anonymizing.
+                    route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                    // Internals. In this case they are guaranteed to be valid.
+                    for (int t = h.lvl + 1; t <= levels - 1; t++)
+                    {
+                        route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                    }
+                }
+                else
+                {
+                    if (h.lvl <= real_up_to)
+                    {
+                        // Internals. In this case they MUST be checked.
+                        bool invalid_found = false;
+                        for (int t = h.lvl + 1; t <= levels - 1; t++)
+                        {
+                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
+                            {
+                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                                {
+                                    invalid_found = true;
+                                    break;
+                                }
+                            }
+                            if (invalid_found) break; // The higher levels will be invalid too.
+                            route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        }
+                    }
+                    else if (h.lvl < virtual_up_to)
+                    {
+
+                        // Internals. In this case they MUST be checked.
+                        bool invalid_found = false;
+                        for (int t = h.lvl + 1; t <= levels - 1; t++)
+                        {
+                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
+                            {
+                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                                {
+                                    invalid_found = true;
+                                    break;
+                                }
+                            }
+                            if (invalid_found) break; // The higher levels will be invalid too.
+                            route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        }
+                    }
+                    else
+                    {
+                        // Global.
+                        route.remove_destination(ip_global_gnode(h_addr, h.lvl));
+                        // Anonymizing.
+                        route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                        // Internals. In this case they are guaranteed to be valid.
+                        for (int t = h.lvl + 1; t <= levels - 1; t++)
+                        {
+                            route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        }
+                    } 
+                }
+            }
+            else
+            {
+                if (h.lvl < virtual_up_to)
+                {
+                    // Internals. In this case they MUST be checked.
+                    bool invalid_found = false;
+                    for (int t = h.lvl + 1; t <= levels - 1; t++)
+                    {
+                        for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
+                        {
+                            if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                            {
+                                invalid_found = true;
+                                break;
+                            }
+                        }
+                        if (invalid_found) break; // The higher levels will be invalid too.
+                        route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                    }
+                }
+                else
+                {
+                    // Global.
+                    route.remove_destination(ip_global_gnode(h_addr, h.lvl));
+                    // Anonymizing.
+                    route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                    // Internals. In this case they are guaranteed to be valid.
+                    for (int t = h.lvl + 1; t <= levels - 1; t++)
+                    {
+                        route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                    }
+                } 
             }
         }
 
@@ -769,10 +965,10 @@ Command list:
             // change the route. place current best path to `h`. if none, then change the path to 'unreachable'.
 
             // Compute Netsukuku address of `h`.
-            ArrayList<int> g_addr = new ArrayList<int>();
-            g_addr.add_all(my_naddr.pos);
-            g_addr[h.lvl] = h.pos;
-            for (int i = 0; i < h.lvl; i++) g_addr[i] = 0;
+            ArrayList<int> h_addr = new ArrayList<int>();
+            h_addr.add_all(my_naddr.pos);
+            h_addr[h.lvl] = h.pos;
+            for (int i = 0; i < h.lvl; i++) h_addr[i] = -1;
 
             // Compute list of neighbors. TODO this might be done only once at start; the list should
             //  be reevaluated only when `my_arcs` changes or when `my_naddr` changes.
@@ -789,7 +985,7 @@ Command list:
             }
 
             // Operations now are based on type of my_naddr:
-            // Is this the main ID? Do I have a *real* Netsukuku addrss?
+            // Is this the main ID? Do I have a *real* Netsukuku address?
             int real_up_to = my_naddr.get_real_up_to();
             int virtual_up_to = my_naddr.get_virtual_up_to();
             if (main_id)
@@ -804,7 +1000,7 @@ Command list:
                     }
                     assert(best_routes.has_key("main"));
 
-                    string dest_global = ip_global_gnode(levels, _g_exp, g_addr, h.lvl);
+                    string dest_global = ip_global_gnode(h_addr, h.lvl);
                     // For packets in egress:
                     route.change_best_path(dest_global, best_routes["main"].dev, best_routes["main"].gw, ip_global, null);
                     // For packets in forward, received from a known MAC:
@@ -827,7 +1023,7 @@ Command list:
                     // For packets in forward, received from a unknown MAC:
                     /* No need because the system uses the same as per packets in egress */
 
-                    string dest_anonymizing = ip_anonymizing_gnode(levels, _g_exp, g_addr, h.lvl);
+                    string dest_anonymizing = ip_anonymizing_gnode(h_addr, h.lvl);
                     // For packets in egress:
                     route.change_best_path(dest_anonymizing, best_routes["main"].dev, best_routes["main"].gw, ip_global, null);
                     // For packets in forward, received from a known MAC:
@@ -852,7 +1048,7 @@ Command list:
 
                     if (h.lvl < levels - 1)
                     {
-                        string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
+                        string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
                         // For packets in egress:
                         route.change_best_path(dest_internal, best_routes["main"].dev, best_routes["main"].gw, ip_internal[h.lvl], null);
                         // For packets in forward, received from a known MAC:
@@ -889,7 +1085,7 @@ Command list:
                         }
                         assert(best_routes.has_key("main"));
 
-                        string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
+                        string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
                         // For packets in egress:
                         route.change_best_path(dest_internal, best_routes["main"].dev, best_routes["main"].gw, ip_internal[h.lvl], null);
                         // For packets in forward, received from a known MAC:
@@ -922,7 +1118,7 @@ Command list:
                         }
                         assert(best_routes.has_key("main"));
 
-                        string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
+                        string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
                         // For packets in egress:
                         /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
                         // For packets in forward, received from a known MAC:
@@ -955,7 +1151,7 @@ Command list:
                         }
                         assert(best_routes.has_key("main"));
 
-                        string dest_global = ip_global_gnode(levels, _g_exp, g_addr, h.lvl);
+                        string dest_global = ip_global_gnode(h_addr, h.lvl);
                         // For packets in egress:
                         /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
                         // For packets in forward, received from a known MAC:
@@ -978,7 +1174,7 @@ Command list:
                         // For packets in forward, received from a unknown MAC:
                         route.change_best_path(dest_global, best_routes["main"].dev, best_routes["main"].gw, null, null);
 
-                        string dest_anonymizing = ip_anonymizing_gnode(levels, _g_exp, g_addr, h.lvl);
+                        string dest_anonymizing = ip_anonymizing_gnode(h_addr, h.lvl);
                         // For packets in egress:
                         /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
                         // For packets in forward, received from a known MAC:
@@ -1003,7 +1199,7 @@ Command list:
 
                         if (h.lvl < levels - 1)
                         {
-                            string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
+                            string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
                             // For packets in egress:
                             /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
                             // For packets in forward, received from a known MAC:
@@ -1041,7 +1237,7 @@ Command list:
                     }
                     assert(best_routes.has_key("main"));
 
-                    string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
+                    string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
                     // For packets in egress:
                     /* Nothing: We are the not main identity. */
                     // For packets in forward, received from a known MAC:
@@ -1074,7 +1270,7 @@ Command list:
                     }
                     assert(best_routes.has_key("main"));
 
-                    string dest_global = ip_global_gnode(levels, _g_exp, g_addr, h.lvl);
+                    string dest_global = ip_global_gnode(h_addr, h.lvl);
                     // For packets in egress:
                     /* Nothing: We are the not main identity. */
                     // For packets in forward, received from a known MAC:
@@ -1097,7 +1293,7 @@ Command list:
                     // For packets in forward, received from a unknown MAC:
                     route.change_best_path(dest_global, best_routes["main"].dev, best_routes["main"].gw, null, null);
 
-                    string dest_anonymizing = ip_anonymizing_gnode(levels, _g_exp, g_addr, h.lvl);
+                    string dest_anonymizing = ip_anonymizing_gnode(h_addr, h.lvl);
                     // For packets in egress:
                     /* Nothing: We are not the main identity. */
                     // For packets in forward, received from a known MAC:
@@ -1122,7 +1318,7 @@ Command list:
 
                     if (h.lvl < levels - 1)
                     {
-                        string dest_internal = ip_internal_gnode(levels, _g_exp, g_addr, h.lvl);
+                        string dest_internal = ip_internal_gnode(levels, _g_exp, h_addr, h.lvl);
                         // For packets in egress:
                         /* Nothing: We are not the main identity. */
                         // For packets in forward, received from a known MAC:
@@ -2113,13 +2309,21 @@ Command list:
         }
     }
 
-    string ip_global_node(int l, Gee.List<int> g_exp, Gee.List<int> naddr)
+    string ip_global_node(Gee.List<int> n_addr)
     {
+        // 1·2·3·4·5 in public-range
+        // Used in order to set its own address. Or to compute address to return from andna_resolv.
+        assert(n_addr.size == levels);
+        for (int l = 0; l < levels; l++)
+        {
+            assert(n_addr[l] < _gsizes[l]);
+            assert(n_addr[l] >= 0);
+        }
         int32 ip = 0;
-        for (int c = l-1; c >= 0; c--)
+        for (int c = levels - 1; c >= 0; c--)
         {
-            ip <<= g_exp[c];
-            ip += naddr[c];
+            ip <<= _g_exp[c];
+            ip += n_addr[c];
         }
         int i0 = ip & 255;
         ip >>= 8;
@@ -2130,13 +2334,48 @@ Command list:
         return ret;
     }
 
-    string ip_global_gnode(int l, Gee.List<int> g_exp, Gee.List<int> gaddr, int i)
+    string ip_anonymizing_node(Gee.List<int> n_addr)
     {
+        // 1·2·3·4·5 in anon-range
+        // Used in order to set its own address. Or to compute address to return from andna_resolv.
+        assert(n_addr.size == levels);
+        for (int l = 0; l < levels; l++)
+        {
+            assert(n_addr[l] < _gsizes[l]);
+            assert(n_addr[l] >= 0);
+        }
+        int32 ip = 2;
+        for (int c = levels - 1; c >= 0; c--)
+        {
+            ip <<= _g_exp[c];
+            ip += n_addr[c];
+        }
+        int i0 = ip & 255;
+        ip >>= 8;
+        int i1 = ip & 255;
+        ip >>= 8;
+        int i2 = ip;
+        string ret = @"10.$(i2).$(i1).$(i0)";
+        return ret;
+    }
+
+    string ip_global_gnode(Gee.List<int> n_addr, int n_level)
+    {
+        // 1·2·3·* in public-range
+        // Used to set a route to a destination.
+        assert(n_addr.size == levels);
+        for (int l = 0; l < levels; l++)
+        {
+            assert(n_addr[l] < _gsizes[l]);
+            assert(n_addr[l] >= 0);
+        }
+        assert(n_level >= 0);
+        assert(n_level < levels);
         int32 ip = 0;
-        for (int c = l-1; c >= 0; c--)
+        for (int c = levels - 1; c >= 0; c--)
         {
-            ip <<= g_exp[c];
-            if (c >= i) ip += gaddr[c];
+            ip <<= _g_exp[c];
+            if (c >= n_level) ip += n_addr[c];
         }
         int i0 = ip & 255;
         ip >>= 8;
@@ -2144,21 +2383,61 @@ Command list:
         ip >>= 8;
         int i2 = ip;
         int sum = 0;
-        for (int k = 0; k <= i-1; k++) sum += g_exp[k];
+        for (int k = 0; k <= n_level - 1; k++) sum += _g_exp[k];
         int prefix = 32 - sum;
         string ret = @"10.$(i2).$(i1).$(i0)/$(prefix)";
         return ret;
     }
 
-    string ip_internal_node(int l, Gee.List<int> g_exp, Gee.List<int> naddr, int inside_l)
+    string ip_anonymizing_gnode(Gee.List<int> n_addr, int n_level)
     {
-        int32 ip = 1;
-        for (int c = l-1; c >= 0; c--)
+        // 1·2·3·* in anon-range
+        // Used to set a route to a destination.
+        assert(n_addr.size == levels);
+        for (int l = 0; l < levels; l++)
         {
-            ip <<= g_exp[c];
-            if (c == l-1) ip += inside_l;
-            else if (c >= inside_l) {}
-            else ip += naddr[c];
+            assert(n_addr[l] < _gsizes[l]);
+            assert(n_addr[l] >= 0);
+        }
+        assert(n_level >= 0);
+        assert(n_level < levels);
+        int32 ip = 2;
+        for (int c = levels - 1; c >= 0; c--)
+        {
+            ip <<= _g_exp[c];
+            if (c >= n_level) ip += n_addr[c];
+        }
+        int i0 = ip & 255;
+        ip >>= 8;
+        int i1 = ip & 255;
+        ip >>= 8;
+        int i2 = ip;
+        int sum = 0;
+        for (int k = 0; k <= n_level - 1; k++) sum += _g_exp[k];
+        int prefix = 32 - sum;
+        string ret = @"10.$(i2).$(i1).$(i0)/$(prefix)";
+        return ret;
+    }
+
+    string ip_internal_node(Gee.List<int> n_addr, int inside_level)
+    {
+        // *·3·4·5 in public-range
+        // Used in order to set its own address. Or to compute address to return from andna_resolv.
+        assert(n_addr.size == levels);
+        for (int l = 0; l < levels; l++)
+        {
+            assert(n_addr[l] < _gsizes[l]);
+            assert(n_addr[l] >= 0);
+        }
+        assert(inside_level >= 1);
+        assert(inside_level < levels);
+        int32 ip = 1;
+        for (int c = levels - 1; c >= 0; c--)
+        {
+            ip <<= _g_exp[c];
+            if (c == levels - 1) ip += inside_level;
+            else if (c >= inside_level) {}
+            else ip += n_addr[c];
         }
         int i0 = ip & 255;
         ip >>= 8;
@@ -2169,15 +2448,28 @@ Command list:
         return ret;
     }
 
-    string ip_internal_gnode(int l, Gee.List<int> g_exp, Gee.List<int> gaddr, int i)
+    string ip_internal_gnode(Gee.List<int> n_addr, int n_level, int inside_level)
     {
+        // *·3·* in public-range
+        // Used to set a route to a destination.
+        assert(n_addr.size == levels);
+        for (int l = 0; l < levels; l++)
+        {
+            assert(n_addr[l] < _gsizes[l]);
+            assert(n_addr[l] >= 0);
+        }
+        assert(n_level >= 0);
+        assert(n_level < levels);
+        assert(inside_level > n_level);
+        assert(inside_level < levels);
         int32 ip = 1;
-        for (int c = l-1; c >= 0; c--)
+        for (int c = levels - 1; c >= 0; c--)
         {
-            ip <<= g_exp[c];
-            if (c == l-1) ip += i+1;
-            else if (c != i) {}
-            else ip += gaddr[c];
+            ip <<= _g_exp[c];
+            if (c == levels - 1) ip += inside_level;
+            else if (c >= inside_level) {}
+            else if (c < n_level) {}
+            else ip += n_addr[c];
         }
         int i0 = ip & 255;
         ip >>= 8;
@@ -2185,53 +2477,16 @@ Command list:
         ip >>= 8;
         int i2 = ip;
         int sum = 0;
-        for (int k = 0; k <= i-1; k++) sum += g_exp[k];
+        for (int k = 0; k <= n_level - 1; k++) sum += _g_exp[k];
         int prefix = 32 - sum;
         string ret = @"10.$(i2).$(i1).$(i0)/$(prefix)";
         return ret;
     }
 
-    string ip_anonymizing_node(int l, Gee.List<int> g_exp, Gee.List<int> naddr)
-    {
-        int32 ip = 2;
-        for (int c = l-1; c >= 0; c--)
-        {
-            ip <<= g_exp[c];
-            ip += naddr[c];
-        }
-        int i0 = ip & 255;
-        ip >>= 8;
-        int i1 = ip & 255;
-        ip >>= 8;
-        int i2 = ip;
-        string ret = @"10.$(i2).$(i1).$(i0)";
-        return ret;
-    }
-
-    string ip_anonymizing_gnode(int l, Gee.List<int> g_exp, Gee.List<int> gaddr, int i)
-    {
-        int32 ip = 2;
-        for (int c = l-1; c >= 0; c--)
-        {
-            ip <<= g_exp[c];
-            if (c >= i) ip += gaddr[c];
-        }
-        int i0 = ip & 255;
-        ip >>= 8;
-        int i1 = ip & 255;
-        ip >>= 8;
-        int i2 = ip;
-        int sum = 0;
-        for (int k = 0; k <= i-1; k++) sum += g_exp[k];
-        int prefix = 32 - sum;
-        string ret = @"10.$(i2).$(i1).$(i0)/$(prefix)";
-        return ret;
-    }
-
-    string ip_whole_network(int l, Gee.List<int> g_exp)
+    string ip_whole_network()
     {
         int sum = 0;
-        for (int k = 0; k <= l-1; k++) sum += g_exp[k];
+        for (int k = 0; k <= levels - 1; k++) sum += _g_exp[k];
         int prefix = 32 - sum - 2;
         string ret = @"10.0.0.0/$(prefix)";
         return ret;
@@ -2372,7 +2627,7 @@ Command list:
         string new_ns = identity_mgr.get_namespace(old_id);
         string old_ns = identity_mgr.get_namespace(new_id);
         nodeids[nodeid_index].main_id = (old_ns == "");
-        LinuxRoute new_route = new LinuxRoute(new_ns, ip_whole_network(levels, _g_exp));
+        LinuxRoute new_route = new LinuxRoute(new_ns, ip_whole_network());
         LinuxRoute old_route = nodeids[old_nodeid_index].route;
         old_route.flush_routes();
         old_route.remove_addresses();
@@ -2463,18 +2718,18 @@ Command list:
             int real_up_to = my_naddr.get_real_up_to();
             if (real_up_to == levels-1)
             {
-                nodeids[new_nodeid_index].ip_global = ip_global_node(levels, _g_exp, _naddr);
+                nodeids[new_nodeid_index].ip_global = ip_global_node(_naddr);
                 foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_global, dev);
                 if (accept_anonymous_requests)
                 {
-                    nodeids[new_nodeid_index].ip_anonymizing = ip_anonymizing_node(levels, _g_exp, _naddr);
+                    nodeids[new_nodeid_index].ip_anonymizing = ip_anonymizing_node(_naddr);
                     foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_anonymizing, dev);
                 }
             }
             nodeids[new_nodeid_index].ip_internal = new ArrayList<string>();
             for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
             {
-                nodeids[new_nodeid_index].ip_internal.add(ip_internal_node(levels, _g_exp, _naddr, j+1));
+                nodeids[new_nodeid_index].ip_internal.add(ip_internal_node(_naddr, j+1));
                 foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_internal[j], dev);
             }
         }
