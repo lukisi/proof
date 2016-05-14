@@ -2326,7 +2326,7 @@ Command list:
         // 1·2·3·* in public-range
         // Used to set a route to a destination.
         assert(n_addr.size == levels);
-        for (int l = 0; l < levels; l++)
+        for (int l = n_level; l < levels; l++)
         {
             assert(n_addr[l] < _gsizes[l]);
             assert(n_addr[l] >= 0);
@@ -2356,7 +2356,7 @@ Command list:
         // 1·2·3·* in anon-range
         // Used to set a route to a destination.
         assert(n_addr.size == levels);
-        for (int l = 0; l < levels; l++)
+        for (int l = n_level; l < levels; l++)
         {
             assert(n_addr[l] < _gsizes[l]);
             assert(n_addr[l] >= 0);
@@ -2386,7 +2386,7 @@ Command list:
         // *·3·4·5 in public-range
         // Used in order to set its own address. Or to compute address to return from andna_resolv.
         assert(n_addr.size == levels);
-        for (int l = 0; l < levels; l++)
+        for (int l = 0; l < inside_level; l++)
         {
             assert(n_addr[l] < _gsizes[l]);
             assert(n_addr[l] >= 0);
@@ -2415,7 +2415,7 @@ Command list:
         // *·3·* in public-range
         // Used to set a route to a destination.
         assert(n_addr.size == levels);
-        for (int l = 0; l < levels; l++)
+        for (int l = n_level; l < inside_level; l++)
         {
             assert(n_addr[l] < _gsizes[l]);
             assert(n_addr[l] >= 0);
