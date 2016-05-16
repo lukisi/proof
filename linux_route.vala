@@ -239,7 +239,7 @@ namespace ProofOfConcept
           * Make sure the name <tablename> exists in the common file.
           * The table has to be cleared.
           */
-        public void create_table(string tablename)
+        private void create_table(string tablename)
         {
             if (tablename in table_references.keys)
             {
@@ -301,7 +301,7 @@ namespace ProofOfConcept
           * Empty the table.
           * If references to this tablename are terminated, then remove the record from the common file.
           */
-        public void remove_table(string tablename)
+        private void remove_table(string tablename)
         {
             while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
             if (! (tablename in table_references.keys)) error(@"table $(tablename) should be in use.");
@@ -338,7 +338,7 @@ namespace ProofOfConcept
                 iptables -t mangle -A PREROUTING -m mac --mac-source $macaddr -j MARK --set-mark $number
                 ip rule add fwmark $number table $tablename
           */
-        public void rule_coming_from_macaddr(string macaddr, string tablename)
+        private void rule_coming_from_macaddr(string macaddr, string tablename)
         {
             if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
             assert(tablename in table_number.keys);
@@ -378,7 +378,7 @@ namespace ProofOfConcept
                 iptables -t mangle -D PREROUTING -m mac --mac-source $macaddr -j MARK --set-mark $number
                 ip rule del fwmark $number table $tablename
           */
-        public void remove_rule_coming_from_macaddr(string macaddr, string tablename)
+        private void remove_rule_coming_from_macaddr(string macaddr, string tablename)
         {
             if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
             assert(tablename in table_number.keys);
@@ -407,7 +407,7 @@ namespace ProofOfConcept
           * Use "ip" to rule that all packets search into table <tablename>
                 ip rule add table $tablename
           */
-        public void rule_default(string tablename)
+        private void rule_default(string tablename)
         {
             if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
             assert(tablename in table_number.keys);
@@ -438,7 +438,7 @@ namespace ProofOfConcept
           * Use "ip" to remove rule that all packets search into table <tablename>
                 ip rule del table $tablename
           */
-        public void remove_rule_default(string tablename)
+        private void remove_rule_default(string tablename)
         {
             if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
             assert(tablename in table_number.keys);
