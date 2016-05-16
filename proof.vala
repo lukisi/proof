@@ -2591,8 +2591,6 @@ Command list:
         nodeids[nodeid_index].main_id = (old_ns == "");
         LinuxRoute new_route = new LinuxRoute(new_ns, ip_whole_network());
         LinuxRoute old_route = nodeids[old_nodeid_index].route;
-        old_route.flush_routes();
-        old_route.remove_addresses();
         nodeids[old_nodeid_index].route = new_route;
         nodeids[nodeid_index].route = old_route;
 
@@ -2615,6 +2613,11 @@ Command list:
         Naddr previous_id_my_naddr = nodeids[previous_nodeid_index].my_naddr;
         Fingerprint previous_id_my_fp = nodeids[previous_nodeid_index].my_fp;
         LinuxRoute new_id_route = nodeids[new_nodeid_index].route;
+        // TODO Remove routes towards global IPs. Then, remove routes towards internal IPs
+        //  only inside lvl > hooking_gnode_level.
+        new_id_route.flush_routes();
+        // TODO Remove my global IP. Then, remove my internal IPs only inside lvl > into_gnode_level-1.
+        new_id_route.remove_addresses();
 
         ArrayList<int> _naddr = new ArrayList<int>();
         ArrayList<int> _elderships = new ArrayList<int>();
