@@ -2615,8 +2615,12 @@ Command list:
         LinuxRoute new_id_route = nodeids[new_nodeid_index].route;
         // TODO Remove routes towards global IPs. Then, remove routes towards internal IPs
         //  only inside lvl > hooking_gnode_level.
+        //  For this, use several call to remove_destination instead of just one call to flush_routes.
+        //  Retrieve needed data from previous_id_mgr.
         new_id_route.flush_routes();
         // TODO Remove my global IP. Then, remove my internal IPs only inside lvl > into_gnode_level-1.
+        //  For this, use several call to remove_address instead of just one call to remove_addresses.
+        //  Retrieve needed data from previous_id_my_naddr.
         new_id_route.remove_addresses();
 
         ArrayList<int> _naddr = new ArrayList<int>();
