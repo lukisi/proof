@@ -208,17 +208,17 @@ namespace ProofOfConcept
         foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(nodeid, real_nic));
         LinuxRoute route = new LinuxRoute(ns, ip_whole_network());
         nodeids[nodeid_index].route = route;
-        nodeids[nodeid_index].ip_global = ip_global_node(_naddr);
+        nodeids[nodeid_index].ip_global = ip_global_node(my_naddr.pos);
         foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_global, dev);
         if (accept_anonymous_requests)
         {
-            nodeids[nodeid_index].ip_anonymizing = ip_anonymizing_node(_naddr);
+            nodeids[nodeid_index].ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
             foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_anonymizing, dev);
         }
         nodeids[nodeid_index].ip_internal = new ArrayList<string>();
         for (int j = 0; j <= levels-2; j++)
         {
-            nodeids[nodeid_index].ip_internal.add(ip_internal_node(_naddr, j+1));
+            nodeids[nodeid_index].ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
             foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_internal[j], dev);
         }
 
@@ -273,6 +273,27 @@ namespace ProofOfConcept
             {
                 LinuxRoute main_linux_route = identity_data.route;
                 main_linux_route.stop_management();
+                // Do I have a *real* Netsukuku address?
+                int real_up_to = identity_data.my_naddr.get_real_up_to();
+                if (real_up_to == levels-1)
+                {
+                    identity_data.ip_global = ip_global_node(identity_data.my_naddr.pos);
+                    foreach (string dev in real_nics)
+                        main_linux_route.remove_address(identity_data.ip_global, dev);
+                    if (accept_anonymous_requests)
+                    {
+                        identity_data.ip_anonymizing = ip_anonymizing_node(identity_data.my_naddr.pos);
+                        foreach (string dev in real_nics)
+                            main_linux_route.remove_address(identity_data.ip_anonymizing, dev);
+                    }
+                }
+                identity_data.ip_internal = new ArrayList<string>();
+                for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
+                {
+                    identity_data.ip_internal.add(ip_internal_node(identity_data.my_naddr.pos, j+1));
+                    foreach (string dev in real_nics)
+                        main_linux_route.remove_address(identity_data.ip_internal[j], dev);
+                }
             }
         }
         nodeids.clear();
@@ -2687,18 +2708,18 @@ Command list:
             int real_up_to = my_naddr.get_real_up_to();
             if (real_up_to == levels-1)
             {
-                nodeids[new_nodeid_index].ip_global = ip_global_node(_naddr);
+                nodeids[new_nodeid_index].ip_global = ip_global_node(my_naddr.pos);
                 foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_global, dev);
                 if (accept_anonymous_requests)
                 {
-                    nodeids[new_nodeid_index].ip_anonymizing = ip_anonymizing_node(_naddr);
+                    nodeids[new_nodeid_index].ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
                     foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_anonymizing, dev);
                 }
             }
             nodeids[new_nodeid_index].ip_internal = new ArrayList<string>();
             for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
             {
-                nodeids[new_nodeid_index].ip_internal.add(ip_internal_node(_naddr, j+1));
+                nodeids[new_nodeid_index].ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
                 foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_internal[j], dev);
             }
         }

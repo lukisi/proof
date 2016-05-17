@@ -82,7 +82,6 @@ namespace ProofOfConcept
             }
             remove_rule_default(maintable);
             remove_table(maintable);
-            remove_addresses();
         }
 
         public void removing_namespace()
