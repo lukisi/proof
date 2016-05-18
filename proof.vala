@@ -2628,12 +2628,14 @@ Command list:
      Gee.List<int> idarc_index_set,
      Gee.List<string> idarc_address_set)
     {
-        NodeID new_id = nodeids[new_nodeid_index].nodeid;
-        NodeID previous_id = nodeids[previous_nodeid_index].nodeid;
+        IdentityData previous_identity = nodeids[previous_nodeid_index];
+        IdentityData new_identity = nodeids[new_nodeid_index];
+        NodeID new_id = new_identity.nodeid;
+        NodeID previous_id = previous_identity.nodeid;
         QspnManager previous_id_mgr = (QspnManager)identity_mgr.get_identity_module(previous_id, "qspn");
-        Naddr previous_id_my_naddr = nodeids[previous_nodeid_index].my_naddr;
-        Fingerprint previous_id_my_fp = nodeids[previous_nodeid_index].my_fp;
-        LinuxRoute new_id_route = nodeids[new_nodeid_index].route;
+        Naddr previous_id_my_naddr = previous_identity.my_naddr;
+        Fingerprint previous_id_my_fp = previous_identity.my_fp;
+        LinuxRoute new_id_route = new_identity.route;
         // TODO Remove routes towards global IPs. Then, remove routes towards internal IPs
         //  only inside lvl > hooking_gnode_level.
         //  For this, use several call to remove_destination instead of just one call to flush_routes.
@@ -2694,48 +2696,48 @@ Command list:
             into_gnode_level,
             previous_id_mgr);
         identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
-        nodeids[new_nodeid_index].my_naddr = my_naddr;
-        nodeids[new_nodeid_index].my_fp = my_fp;
-        nodeids[new_nodeid_index].ready = true;
-        nodeids[new_nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
-        nodeids[new_nodeid_index].my_arcs.add_all(my_arcs);
+        new_identity.my_naddr = my_naddr;
+        new_identity.my_fp = my_fp;
+        new_identity.ready = true;
+        new_identity.addr_man = new AddressManagerForIdentity(qspn_mgr);
+        new_identity.my_arcs.add_all(my_arcs);
 
         ArrayList<string> pseudodevs = new ArrayList<string>();
         foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(new_id, real_nic));
-        if (/* Is this the main ID? */ nodeids[new_nodeid_index].main_id)
+        if (/* Is this the main ID? */ new_identity.main_id)
         {
             // Do I have a *real* Netsukuku address?
             int real_up_to = my_naddr.get_real_up_to();
             if (real_up_to == levels-1)
             {
-                nodeids[new_nodeid_index].ip_global = ip_global_node(my_naddr.pos);
-                foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_global, dev);
+                new_identity.ip_global = ip_global_node(my_naddr.pos);
+                foreach (string dev in pseudodevs) new_id_route.add_address(new_identity.ip_global, dev);
                 if (accept_anonymous_requests)
                 {
-                    nodeids[new_nodeid_index].ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
-                    foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_anonymizing, dev);
+                    new_identity.ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
+                    foreach (string dev in pseudodevs) new_id_route.add_address(new_identity.ip_anonymizing, dev);
                 }
             }
-            nodeids[new_nodeid_index].ip_internal = new ArrayList<string>();
+            new_identity.ip_internal = new ArrayList<string>();
             for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
             {
-                nodeids[new_nodeid_index].ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
-                foreach (string dev in pseudodevs) new_id_route.add_address(nodeids[new_nodeid_index].ip_internal[j], dev);
+                new_identity.ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
+                foreach (string dev in pseudodevs) new_id_route.add_address(new_identity.ip_internal[j], dev);
             }
         }
 
-        qspn_mgr.arc_removed.connect(nodeids[new_nodeid_index].arc_removed);
-        qspn_mgr.changed_fp.connect(nodeids[new_nodeid_index].changed_fp);
-        qspn_mgr.changed_nodes_inside.connect(nodeids[new_nodeid_index].changed_nodes_inside);
-        qspn_mgr.destination_added.connect(nodeids[new_nodeid_index].destination_added);
-        qspn_mgr.destination_removed.connect(nodeids[new_nodeid_index].destination_removed);
-        qspn_mgr.gnode_splitted.connect(nodeids[new_nodeid_index].gnode_splitted);
-        qspn_mgr.path_added.connect(nodeids[new_nodeid_index].path_added);
-        qspn_mgr.path_changed.connect(nodeids[new_nodeid_index].path_changed);
-        qspn_mgr.path_removed.connect(nodeids[new_nodeid_index].path_removed);
-        qspn_mgr.presence_notified.connect(nodeids[new_nodeid_index].presence_notified);
-        qspn_mgr.qspn_bootstrap_complete.connect(nodeids[new_nodeid_index].qspn_bootstrap_complete);
-        qspn_mgr.remove_identity.connect(nodeids[new_nodeid_index].remove_identity);
+        qspn_mgr.arc_removed.connect(new_identity.arc_removed);
+        qspn_mgr.changed_fp.connect(new_identity.changed_fp);
+        qspn_mgr.changed_nodes_inside.connect(new_identity.changed_nodes_inside);
+        qspn_mgr.destination_added.connect(new_identity.destination_added);
+        qspn_mgr.destination_removed.connect(new_identity.destination_removed);
+        qspn_mgr.gnode_splitted.connect(new_identity.gnode_splitted);
+        qspn_mgr.path_added.connect(new_identity.path_added);
+        qspn_mgr.path_changed.connect(new_identity.path_changed);
+        qspn_mgr.path_removed.connect(new_identity.path_removed);
+        qspn_mgr.presence_notified.connect(new_identity.presence_notified);
+        qspn_mgr.qspn_bootstrap_complete.connect(new_identity.qspn_bootstrap_complete);
+        qspn_mgr.remove_identity.connect(new_identity.remove_identity);
     }
 
     void add_qspnarc(int nodeid_index, int idarc_index, string idarc_address)
