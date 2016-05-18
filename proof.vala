@@ -2655,7 +2655,7 @@ Command list:
 
                 // Remove routes towards global IPs. Then, remove routes towards internal IPs
                 //  only inside lvl > hooking_gnode_level.
-                // Operations now are based on type of previous_identity.my_naddr:
+                // Operations now are based on type of previous_identity:
                 // Is this the main ID? Do I have a *real* Netsukuku address?
                 int real_up_to = previous_identity.my_naddr.get_real_up_to();
                 int virtual_up_to = previous_identity.my_naddr.get_virtual_up_to();
@@ -2668,7 +2668,7 @@ Command list:
                         // Anonymizing.
                         new_id_route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                         // Internals. In this case they are guaranteed to be valid.
-                        for (int t = h.lvl + 1; t <= levels - 1 && t > hooking_gnode_level; t++)
+                        for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
                         {
                             new_id_route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
@@ -2679,7 +2679,7 @@ Command list:
                         {
                             // Internals. In this case they MUST be checked.
                             bool invalid_found = false;
-                            for (int t = h.lvl + 1; t <= levels - 1 && t > hooking_gnode_level; t++)
+                            for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
                             {
                                 for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
                                 {
@@ -2698,7 +2698,7 @@ Command list:
 
                             // Internals. In this case they MUST be checked.
                             bool invalid_found = false;
-                            for (int t = h.lvl + 1; t <= levels - 1 && t > hooking_gnode_level; t++)
+                            for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
                             {
                                 for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
                                 {
@@ -2719,7 +2719,7 @@ Command list:
                             // Anonymizing.
                             new_id_route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                             // Internals. In this case they are guaranteed to be valid.
-                            for (int t = h.lvl + 1; t <= levels - 1 && t > hooking_gnode_level; t++)
+                            for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
                             {
                                 new_id_route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                             }
@@ -2732,7 +2732,7 @@ Command list:
                     {
                         // Internals. In this case they MUST be checked.
                         bool invalid_found = false;
-                        for (int t = h.lvl + 1; t <= levels - 1 && t > hooking_gnode_level; t++)
+                        for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
                         {
                             for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
                             {
@@ -2753,7 +2753,7 @@ Command list:
                         // Anonymizing.
                         new_id_route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                         // Internals. In this case they are guaranteed to be valid.
-                        for (int t = h.lvl + 1; t <= levels - 1 && t > hooking_gnode_level; t++)
+                        for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
                         {
                             new_id_route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
@@ -2762,10 +2762,32 @@ Command list:
             }
         }
 
-        // TODO Remove my global IP. Then, remove my internal IPs only inside lvl > into_gnode_level-1.
-        //  For this, use several call to remove_address instead of just one call to remove_addresses.
-        //  Retrieve needed data from previous_id_my_naddr.
-        new_id_route.remove_addresses();
+        // Remove my global IP. Then, remove my internal IPs only inside lvl > into_gnode_level-1.
+        // Operations now are based on type of previous_identity:
+        // Is this the main ID? Do I have a *real* Netsukuku address?
+        if (previous_identity.main_id)
+        {
+            // Do I have a *real* Netsukuku address?
+            int real_up_to = previous_identity.my_naddr.get_real_up_to();
+            if (real_up_to == levels-1)
+            {
+                string ip_global = ip_global_node(previous_identity.my_naddr.pos);
+                foreach (string dev in real_nics)
+                    new_id_route.remove_address(ip_global, dev);
+                if (accept_anonymous_requests)
+                {
+                    string ip_anonymizing = ip_anonymizing_node(previous_identity.my_naddr.pos);
+                    foreach (string dev in real_nics)
+                        new_id_route.remove_address(ip_anonymizing, dev);
+                }
+            }
+            for (int j = 0; j <= levels-2 && j <= real_up_to; j++) if (j > into_gnode_level-1)
+            {
+                string ip_internal = ip_internal_node(previous_identity.my_naddr.pos, j+1);
+                foreach (string dev in real_nics)
+                    new_id_route.remove_address(ip_internal, dev);
+            }
+        }
 
         ArrayList<int> _naddr = new ArrayList<int>();
         ArrayList<int> _elderships = new ArrayList<int>();
