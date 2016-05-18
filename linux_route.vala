@@ -628,29 +628,6 @@ namespace ProofOfConcept
             }
             local_addresses.clear();
         }
-
-        public void flush_routes()
-        {
-            while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
-            // flush managed tables
-            string cmd = @"$(cmd_prefix)ip route flush table $(maintable)";
-            print(@"$(cmd)\n");
-            try {
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
-            } catch (Error e) {error("Unable to spawn a command");}
-            foreach (string neighbour_mac in neighbour_macs)
-            {
-                cmd = @"$(cmd_prefix)ip route flush table $(maintable)_from_$(neighbour_mac)";
-                print(@"$(cmd)\n");
-                try {
-                    TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                    if (com_ret.exit_status != 0)
-                        error(@"$(com_ret.stderr)\n");
-                } catch (Error e) {error("Unable to spawn a command");}
-            }
-        }
     }
 }
 
