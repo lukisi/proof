@@ -2605,7 +2605,21 @@ Command list:
 
     void change_nodearc(int nodearc_index, int cost)
     {
-        error("not implemented yet");
+        assert(nodearc_index in nodearcs.keys);
+        Arc arc = nodearcs[nodearc_index];
+        arc.cost = cost;
+        foreach (int i in nodeids.keys)
+        {
+            IdentityData identity_data = nodeids[i];
+            foreach (QspnArc qspn_arc in identity_data.my_arcs)
+            {
+                if (arc == qspn_arc.arc)
+                {
+                    QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
+                    qspn_mgr.arc_is_changed(qspn_arc);
+                }
+            }
+        }
     }
 
     void remove_nodearc(int nodearc_index)
