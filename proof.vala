@@ -450,6 +450,37 @@ namespace ProofOfConcept
                         }
                         show_nodearcs();
                     }
+                    else if (_args[0] == "change_nodearc")
+                    {
+                        if (_args.size != 3)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        int nodearc_index = int.parse(_args[1]);
+                        if (! (nodearc_index in nodearcs.keys))
+                        {
+                            print(@"wrong nodearc_index '$(nodearc_index)'\n");
+                            continue;
+                        }
+                        int i_cost = int.parse(_args[2]);
+                        change_nodearc(nodearc_index, i_cost);
+                    }
+                    else if (_args[0] == "remove_nodearc")
+                    {
+                        if (_args.size != 2)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        int nodearc_index = int.parse(_args[1]);
+                        if (! (nodearc_index in nodearcs.keys))
+                        {
+                            print(@"wrong nodearc_index '$(nodearc_index)'\n");
+                            continue;
+                        }
+                        remove_nodearc(nodearc_index);
+                    }
                     else if (_args[0] == "show_identityarcs")
                     {
                         if (_args.size != 1)
@@ -604,6 +635,12 @@ Command list:
 
 > show_nodearcs
   List current accepted arcs.
+
+> change_nodearc <nodearc_index> <cost>
+  Change the cost (in microsecond) for a given arc, which was already accepted.
+
+> remove_nodearc <nodearc_index>
+  Remove a given arc, which was already accepted.
 
 > show_identityarcs
   List current identity-arcs.
@@ -2564,6 +2601,16 @@ Command list:
             string _p_mac = arc.idmgmt_arc.get_peer_mac();
             print(@"nodearcs: #$(i): from $(_dev) to $(_p_ll) ($(_p_mac)).\n");
         }
+    }
+
+    void change_nodearc(int nodearc_index, int cost)
+    {
+        error("not implemented yet");
+    }
+
+    void remove_nodearc(int nodearc_index)
+    {
+        error("not implemented yet");
     }
 
     void show_identityarcs()
