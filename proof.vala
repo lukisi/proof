@@ -205,7 +205,11 @@ namespace ProofOfConcept
 
         string ns = identity_mgr.get_namespace(nodeid);
         ArrayList<string> pseudodevs = new ArrayList<string>();
-        foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(nodeid, real_nic));
+        foreach (string real_nic in real_nics)
+        {
+            string? pseudodev = identity_mgr.get_pseudodev(nodeid, real_nic);
+            if (pseudodev != null) pseudodevs.add(pseudodev);
+        }
         LinuxRoute route = new LinuxRoute(ns, ip_whole_network());
         nodeids[nodeid_index].route = route;
         nodeids[nodeid_index].ip_global = ip_global_node(my_naddr.pos);
@@ -2907,7 +2911,11 @@ Command list:
         new_identity.my_arcs.add_all(my_arcs);
 
         ArrayList<string> pseudodevs = new ArrayList<string>();
-        foreach (string real_nic in real_nics) pseudodevs.add(identity_mgr.get_pseudodev(new_id, real_nic));
+        foreach (string real_nic in real_nics)
+        {
+            string? pseudodev = identity_mgr.get_pseudodev(new_id, real_nic);
+            if (pseudodev != null) pseudodevs.add(pseudodev);
+        }
         if (/* Is this the main ID? */ new_identity.main_id)
         {
             // Do I have a *real* Netsukuku address?
