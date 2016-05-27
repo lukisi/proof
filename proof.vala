@@ -302,17 +302,10 @@ namespace ProofOfConcept
         }
         nodeids.clear();
 
-        // This will destroy the object NeighborhoodManager and hence call
-        //  its stop_monitor_all.
-        // Beware that node_skeleton.neighborhood_mgr
-        //  is a weak reference.
-        // Beware also that since we destroy the object, we won't receive
-        //  any more signal from it, such as nic_address_unset for all the
-        //  linklocal addresses that will be removed from the NICs or
-        //  arc_removed.
-        //  So, before doing this we need to remove all arcs.
-        foreach (INeighborhoodArc arc in neighborhood_mgr.current_arcs())
-            neighborhood_mgr.remove_my_arc(arc);
+        // First, we call stop_monitor_all of NeighborhoodManager.
+        neighborhood_mgr.stop_monitor_all();
+        // Then we destroy the object NeighborhoodManager.
+        // Beware that node_skeleton.neighborhood_mgr is a weak reference.
         neighborhood_mgr = null;
 
         foreach (ITaskletHandle t_udp in t_udp_list) t_udp.kill();
