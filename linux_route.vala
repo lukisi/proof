@@ -35,7 +35,6 @@ namespace ProofOfConcept
             if (ns != "") cmd_prefix = @"ip netns exec $(ns) ";
             this.whole_network = whole_network;
             command_dispatcher = tasklet.create_dispatchable_tasklet();
-            local_addresses = new ArrayList<string>();
             neighbour_macs = new ArrayList<string>();
             start_management();
         }
@@ -44,7 +43,6 @@ namespace ProofOfConcept
         private string cmd_prefix;
         private string whole_network;
         private DispatchableTasklet command_dispatcher;
-        ArrayList<string> local_addresses;
         ArrayList<string> neighbour_macs;
 
         const string maintable = "ntk";
@@ -590,9 +588,6 @@ namespace ProofOfConcept
 
         public void add_address(string address, string dev)
         {
-            string local_address = @"$(address)/32 dev $(dev)";
-            assert(!(local_address in local_addresses));
-            local_addresses.add(local_address);
             string cmd = @"$(cmd_prefix)ip address add $(address) dev $(dev)";
             print(@"$(cmd)\n");
             try {

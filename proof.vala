@@ -287,20 +287,16 @@ namespace ProofOfConcept
                 int real_up_to = identity_data.my_naddr.get_real_up_to();
                 if (real_up_to == levels-1)
                 {
-                    identity_data.ip_global = ip_global_node(identity_data.my_naddr.pos);
                     foreach (string dev in real_nics)
                         main_linux_route.remove_address(identity_data.ip_global, dev);
                     if (accept_anonymous_requests)
                     {
-                        identity_data.ip_anonymizing = ip_anonymizing_node(identity_data.my_naddr.pos);
                         foreach (string dev in real_nics)
                             main_linux_route.remove_address(identity_data.ip_anonymizing, dev);
                     }
                 }
-                identity_data.ip_internal = new ArrayList<string>();
                 for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
                 {
-                    identity_data.ip_internal.add(ip_internal_node(identity_data.my_naddr.pos, j+1));
                     foreach (string dev in real_nics)
                         main_linux_route.remove_address(identity_data.ip_internal[j], dev);
                 }
@@ -540,6 +536,21 @@ namespace ProofOfConcept
                         }
                         add_identity(migration_id, nodeid_index);
                     }
+                    else if (_args[0] == "remove_identity")
+                    {
+                        if (_args.size != 2)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        int nodeid_index = int.parse(_args[1]);
+                        if (! (nodeid_index in nodeids.keys))
+                        {
+                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            continue;
+                        }
+                        remove_identity(nodeid_index);
+                    }
                     else if (_args[0] == "enter_net")
                     {
                         if (_args.size < 9)
@@ -613,6 +624,15 @@ namespace ProofOfConcept
                         string s_naddr_neighbour = _args[3];
                         add_qspnarc(nodeid_index, idarc_index, s_naddr_neighbour);
                     }
+                    else if (_args[0] == "remove_outer_arcs")
+                    {
+                        if (_args.size != 1)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        remove_outer_arcs();
+                    }
                     else if (_args[0] == "help")
                     {
                         if (_args.size != 1)
@@ -657,6 +677,9 @@ Command list:
 > add_identity <migration_id> <nodeid_index>
   Create new identity.
 
+> remove_identity <nodeid_index>
+  Dismiss a connectivity identity (and all its connectivity g-node).
+
 > enter_net <new_nodeid_index>
             <previous_nodeid_index>
             <address_new_gnode>
@@ -669,6 +692,9 @@ Command list:
 
 > add_qspnarc <nodeid_index> <identityarc_index> <identityarc_address>
   Add a QspnArc.
+
+> remove_outer_arcs
+  Remove superfluous arcs of a connectivity identity.
 
 > help
   Show this menu.
@@ -2751,6 +2777,11 @@ Command list:
         print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
     }
 
+    void remove_identity(int old_nodeid_index)
+    {
+        error("not implemented yet");
+    }
+
     void enter_net
     (int new_nodeid_index,
      int previous_nodeid_index,
@@ -2897,28 +2928,26 @@ Command list:
 
         // Remove my global IP. Then, remove my internal IPs only inside lvl > into_gnode_level-1.
         // Operations now are based on type of previous_identity:
-        // Is this the main ID? Do I have a *real* Netsukuku address?
-        if (previous_identity.main_id)
+        // Is the current (that is, was the previous) the main ID?
+        if (new_identity.main_id)
         {
-            // Do I have a *real* Netsukuku address?
+            // Did previous have a *real* Netsukuku address?
             int real_up_to = previous_identity.my_naddr.get_real_up_to();
             if (real_up_to == levels-1)
             {
-                string ip_global = ip_global_node(previous_identity.my_naddr.pos);
                 foreach (string dev in real_nics)
-                    new_id_route.remove_address(ip_global, dev);
+                    new_id_route.remove_address(previous_identity.ip_global, dev);
                 if (accept_anonymous_requests)
                 {
-                    string ip_anonymizing = ip_anonymizing_node(previous_identity.my_naddr.pos);
                     foreach (string dev in real_nics)
-                        new_id_route.remove_address(ip_anonymizing, dev);
+                        new_id_route.remove_address(previous_identity.ip_anonymizing, dev);
                 }
             }
-            for (int j = 0; j <= levels-2 && j <= real_up_to; j++) if (j > into_gnode_level-1)
+            for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
             {
-                string ip_internal = ip_internal_node(previous_identity.my_naddr.pos, j+1);
-                foreach (string dev in real_nics)
-                    new_id_route.remove_address(ip_internal, dev);
+                if (j+1 > into_gnode_level-1)
+                    foreach (string dev in real_nics)
+                        new_id_route.remove_address(previous_identity.ip_internal[j], dev);
             }
         }
 
@@ -3002,7 +3031,9 @@ Command list:
             for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
             {
                 new_identity.ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
-                foreach (string dev in pseudodevs) new_id_route.add_address(new_identity.ip_internal[j], dev);
+                if (j+1 > into_gnode_level-1)
+                    foreach (string dev in pseudodevs)
+                        new_id_route.add_address(new_identity.ip_internal[j], dev);
             }
         }
 
@@ -3038,6 +3069,11 @@ Command list:
         id_mgr.arc_add(arc);
         nodeids[nodeid_index].my_arcs.add(arc);
         nodeids[nodeid_index].route.add_neighbour(ia.id_arc.get_peer_mac());
+    }
+
+    void remove_outer_arcs()
+    {
+        error("not implemented yet");
     }
 }
 
