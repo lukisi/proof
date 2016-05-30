@@ -44,6 +44,7 @@ namespace ProofOfConcept
     int levels;
     NeighborhoodManager? neighborhood_mgr;
     IdentityManager? identity_mgr;
+    ArrayList<int> identity_mgr_arcs;
     ArrayList<string> real_nics;
     int linklocal_nextindex;
     HashMap<int, HandledNic> linklocals;
@@ -159,7 +160,9 @@ namespace ProofOfConcept
         neighborhood_mgr.nic_address_set.connect(nic_address_set);
         neighborhood_mgr.arc_added.connect(arc_added);
         neighborhood_mgr.arc_changed.connect(arc_changed);
+        neighborhood_mgr.arc_removing.connect(arc_removing);
         neighborhood_mgr.arc_removed.connect(arc_removed);
+        neighborhood_mgr.nic_address_set.connect(nic_address_unset);
         foreach (string dev in _devs) manage_real_nic(dev);
         Gee.List<string> if_list_dev = new ArrayList<string>();
         Gee.List<string> if_list_mac = new ArrayList<string>();
@@ -175,10 +178,13 @@ namespace ProofOfConcept
             if_list_dev, if_list_mac, if_list_linklocal,
             new IdmgmtNetnsManager(),
             new IdmgmtStubFactory());
+        identity_mgr_arcs = new ArrayList<int>();
         node_skeleton.identity_mgr = identity_mgr;
         identity_mgr.identity_arc_added.connect(identity_arc_added);
         identity_mgr.identity_arc_changed.connect(identity_arc_changed);
+        identity_mgr.identity_arc_removing.connect(identity_arc_removing);
         identity_mgr.identity_arc_removed.connect(identity_arc_removed);
+        identity_mgr.arc_removed.connect(identity_mgr_arc_removed);
 
         // First identity
         NodeID nodeid = identity_mgr.get_main_id();
@@ -740,9 +746,17 @@ Command list:
 
         public void arc_removed(IQspnArc arc, bool bad_link)
         {
-            // TODO
-            // we should remove paths via this gateway
-            error("not implemented yet");
+            QspnArc _arc = (QspnArc)arc;
+            my_arcs.remove(_arc);
+            if (bad_link)
+            {
+                // Remove arc from neighborhood, because it fails.
+                neighborhood_mgr.remove_my_arc(_arc.arc.neighborhood_arc, false);
+            }
+            else
+            {
+                identity_mgr.remove_identity_arc(_arc.arc.idmgmt_arc, _arc.sourceid, _arc.destid, true);
+            }
         }
 
         public void changed_fp(int l)
@@ -1435,7 +1449,10 @@ Command list:
             //  to remove pseudodevs and the network namespace. Beforehand, the LinuxRoute
             //  instance has to be notified.
             route.removing_namespace();
-            // TODO
+            QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+            qspn_mgr.destroy();
+            identity_mgr.unset_identity_module(nodeid, "qspn");
+            identity_mgr.remove_identity(nodeid);
         }
     }
 
@@ -1686,10 +1703,10 @@ Command list:
                      new_id, old_id_new_mac, old_id_new_linklocal);
             }
 
-            public void notify_identity_removed(IIdentityID id)
+            public void notify_identity_arc_removed(IIdentityID peer_id, IIdentityID my_id)
             throws StubError, DeserializeError
             {
-                addr.identity_manager.notify_identity_removed(id);
+                addr.identity_manager.notify_identity_arc_removed(peer_id, my_id);
             }
         }
 
@@ -2242,6 +2259,30 @@ Command list:
         assert(ia.id_arc == id_arc);
     }
 
+    void identity_arc_removing(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
+    {
+        // Retrieve my identity.
+        foreach (int i in nodeids.keys)
+        {
+            IdentityData _id = nodeids[i];
+            if (_id.nodeid.equals(id))
+            {
+                // Retrieve qspn_arc if still there.
+                foreach (QspnArc qspn_arc in _id.my_arcs)
+                {
+                    if (qspn_arc.arc.idmgmt_arc == arc &&
+                        qspn_arc.sourceid.equals(id) &&
+                        qspn_arc.destid.equals(peer_nodeid))
+                    {
+                        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
+                        qspn_mgr.arc_remove(qspn_arc);
+                    }
+                }
+                break;
+            }
+        }
+    }
+
     void identity_arc_removed(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
     {
         print("An identity-arc has been removed.\n");
@@ -2274,7 +2315,23 @@ Command list:
         string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
         print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
         identityarcs.unset(identityarc_index);
-        // TODO: Remove qspn arc if present.
+    }
+
+    void identity_mgr_arc_removed(IIdmgmtArc arc)
+    {
+        // Find the arc data.
+        foreach (int nodearc_index in nodearcs.keys)
+        {
+            Arc node_arc = nodearcs[nodearc_index];
+            if (node_arc.idmgmt_arc == arc)
+            {
+                // This arc has been removed from identity_mgr. Save this info.
+                identity_mgr_arcs.remove(nodearc_index);
+                // Remove arc from neighborhood, because it fails.
+                neighborhood_mgr.remove_my_arc(node_arc.neighborhood_arc, false);
+                break;
+            }
+        }
     }
 
     void nic_address_set(string my_dev, string my_addr)
@@ -2308,22 +2365,39 @@ Command list:
         print(@"arc_changed (no effect) for $(arc.neighbour_nic_addr)\n");
     }
 
-    void arc_removed(INeighborhoodArc arc)
+    void arc_removing(INeighborhoodArc arc, bool is_still_usable)
     {
-        print(@"arc_removed for $(arc.neighbour_nic_addr)\n");
-        string k = @"$(arc.nic.mac)-$(arc.neighbour_mac)";
-        neighborhood_arcs.unset(k);
         // Had this arc been added to 'nodearcs'?
-        foreach (int nodearc_index in nodearcs.keys)
+        int nodearc_index = -1;
+        foreach (int i in nodearcs.keys)
         {
-            Arc node_arc = nodearcs[nodearc_index];
+            Arc node_arc = nodearcs[i];
             if (arc == node_arc.neighborhood_arc)
             {
-                nodearcs.unset(nodearc_index);
-                identity_mgr.remove_arc(node_arc.idmgmt_arc);
+                nodearc_index = i;
                 break;
             }
         }
+        if (nodearc_index == -1) return;
+        // Has node_arc already been removed from Identities?
+        if (nodearc_index in identity_mgr_arcs)
+        {
+            Arc node_arc = nodearcs[nodearc_index];
+            identity_mgr.remove_arc(node_arc.idmgmt_arc);
+            identity_mgr_arcs.remove(nodearc_index);
+        }
+        // Remove arc from nodearcs.
+        nodearcs.unset(nodearc_index);
+    }
+
+    void arc_removed(INeighborhoodArc arc)
+    {
+        string k = @"$(arc.nic.mac)-$(arc.neighbour_mac)";
+        neighborhood_arcs.unset(k);
+    }
+
+    void nic_address_unset(string my_dev, string my_addr)
+    {
     }
 
     string ip_global_node(Gee.List<int> n_addr)
@@ -2586,6 +2660,7 @@ Command list:
         string _p_mac = arc.idmgmt_arc.get_peer_mac();
         print(@"nodearcs: #$(nodearc_index): from $(_dev) to $(_p_ll) ($(_p_mac)).\n");
         identity_mgr.add_arc(arc.idmgmt_arc);
+        identity_mgr_arcs.add(nodearc_index);
     }
 
     void show_nodearcs()
