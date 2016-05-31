@@ -774,6 +774,7 @@ Command list:
         {
             QspnArc _arc = (QspnArc)arc;
             my_arcs.remove(_arc);
+            route.remove_neighbour(_arc.peer_mac);
             if (bad_link)
             {
                 // Remove arc from neighborhood, because it fails.
@@ -1987,17 +1988,19 @@ Command list:
 
     class QspnArc : Object, IQspnArc
     {
-        public QspnArc(Arc arc, NodeID sourceid, NodeID destid, Naddr neighbour_naddr)
+        public QspnArc(Arc arc, NodeID sourceid, NodeID destid, Naddr neighbour_naddr, string peer_mac)
         {
             this.arc = arc;
             this.sourceid = sourceid;
             this.destid = destid;
             this.neighbour_naddr = neighbour_naddr;
+            this.peer_mac = peer_mac;
         }
         public weak Arc arc;
         public NodeID sourceid;
         public NodeID destid;
         public Naddr neighbour_naddr;
+        public string peer_mac;
 
         public IQspnCost i_qspn_get_cost()
         {
@@ -2302,6 +2305,8 @@ Command list:
                     {
                         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
                         qspn_mgr.arc_remove(qspn_arc);
+                        _id.my_arcs.remove(qspn_arc);
+                        _id.route.remove_neighbour(qspn_arc.peer_mac);
                     }
                 }
                 break;
@@ -2796,16 +2801,16 @@ Command list:
         IdentityData new_identity = nodeids[new_nodeid_index];
         NodeID new_id = new_identity.nodeid;
         NodeID previous_id = previous_identity.nodeid;
-        QspnManager previous_id_mgr = (QspnManager)identity_mgr.get_identity_module(previous_id, "qspn");
+        QspnManager previous_id_qspn_mgr = (QspnManager)identity_mgr.get_identity_module(previous_id, "qspn");
         Naddr previous_id_my_naddr = previous_identity.my_naddr;
         Fingerprint previous_id_my_fp = previous_identity.my_fp;
         LinuxRoute new_id_route = new_identity.route;
 
-        if (previous_id_mgr.is_bootstrap_complete())
+        if (previous_id_qspn_mgr.is_bootstrap_complete())
         {
             Gee.List<HCoord> dests;
             try {
-                dests = previous_id_mgr.get_known_destinations();
+                dests = previous_id_qspn_mgr.get_known_destinations();
             } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
             foreach (HCoord h in dests)
             {
@@ -2989,9 +2994,10 @@ Command list:
             NodeID sourceid = ia.id;
             IdmgmtArc __arc = (IdmgmtArc)ia.arc;
             Arc _arc = __arc.arc;
-            QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr);
+            string peer_mac = ia.id_arc.get_peer_mac();
+            QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr, peer_mac);
             my_arcs.add(arc);
-            new_id_route.add_neighbour(ia.id_arc.get_peer_mac());
+            new_id_route.add_neighbour(peer_mac);
         }
         QspnManager qspn_mgr = new QspnManager.enter_net(my_naddr,
             my_arcs,
@@ -2999,7 +3005,7 @@ Command list:
             new QspnStubFactory(new_nodeid_index),
             hooking_gnode_level,
             into_gnode_level,
-            previous_id_mgr);
+            previous_id_qspn_mgr);
         identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
         new_identity.my_naddr = my_naddr;
         new_identity.my_fp = my_fp;
@@ -3054,7 +3060,7 @@ Command list:
     void add_qspnarc(int nodeid_index, int idarc_index, string idarc_address)
     {
         NodeID id = nodeids[nodeid_index].nodeid;
-        QspnManager id_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
 
         ArrayList<int> idarc_naddr = new ArrayList<int>();
         foreach (string s_piece in idarc_address.split(".")) idarc_naddr.insert(0, int.parse(s_piece));
@@ -3065,10 +3071,11 @@ Command list:
         NodeID sourceid = ia.id;
         IdmgmtArc __arc = (IdmgmtArc)ia.arc;
         Arc _arc = __arc.arc;
-        QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr);
-        id_mgr.arc_add(arc);
+        string peer_mac = ia.id_arc.get_peer_mac();
+        QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr, peer_mac);
+        qspn_mgr.arc_add(arc);
         nodeids[nodeid_index].my_arcs.add(arc);
-        nodeids[nodeid_index].route.add_neighbour(ia.id_arc.get_peer_mac());
+        nodeids[nodeid_index].route.add_neighbour(peer_mac);
     }
 
     void remove_outer_arcs()
