@@ -633,6 +633,25 @@ namespace ProofOfConcept
                         }
                         remove_outer_arcs();
                     }
+                    else if (_args[0] == "make_connectivity")
+                    {
+                        if (_args.size != 6)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        int nodeid_index = int.parse(_args[1]);
+                        if (! (nodeid_index in nodeids.keys))
+                        {
+                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            continue;
+                        }
+                        int virtual_lvl = int.parse(_args[2]);
+                        int virtual_pos = int.parse(_args[3]);
+                        int eldership = int.parse(_args[4]);
+                        int connectivity_to_lvl = int.parse(_args[5]);
+                        make_connectivity(nodeid_index, virtual_lvl, virtual_pos, eldership, connectivity_to_lvl);
+                    }
                     else if (_args[0] == "help")
                     {
                         if (_args.size != 1)
@@ -689,6 +708,9 @@ Command list:
                   <identityarc_index>    -| one or more times
                   <identityarc_address>  -|
   Enter network (migrate) with a newly created identity.
+
+> make_connectivity <nodeid_index> <virtual_lvl> <virtual_pos> <eldership> <connectivity_to_lvl>
+  Make an identity become of connectivity.
 
 > add_qspnarc <nodeid_index> <identityarc_index> <identityarc_address>
   Add a QspnArc.
@@ -755,6 +777,8 @@ Command list:
             this.nodeid = nodeid;
             ready = false;
             my_arcs = new ArrayList<QspnArc>((a, b) => a.i_qspn_equals(b));
+            connectivity_from_level = 0;
+            connectivity_to_level = 0;
         }
 
         public NodeID nodeid;
@@ -764,6 +788,8 @@ Command list:
         public bool ready;
         public AddressManagerForIdentity addr_man;
         public ArrayList<QspnArc> my_arcs;
+        public int connectivity_from_level;
+        public int connectivity_to_level;
         public LinuxRoute route;
         public bool main_id;
         public string ip_global;
@@ -1471,13 +1497,13 @@ Command list:
 
         public void remove_identity()
         {
-            // The qspn manager wants to remove this identity. We have to remove
-            //  identity from identity_manager. This will have IIdmgmtNetnsManager
+            // The qspn manager wants to remove this identity.
+            QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+            qspn_mgr.destroy();
+            // We must remove identity from identity_manager. This will have IIdmgmtNetnsManager
             //  to remove pseudodevs and the network namespace. Beforehand, the LinuxRoute
             //  instance has to be notified.
             route.removing_namespace();
-            QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
-            qspn_mgr.destroy();
             identity_mgr.unset_identity_module(nodeid, "qspn");
             identity_mgr.remove_identity(nodeid);
         }
@@ -2784,7 +2810,24 @@ Command list:
 
     void remove_identity(int old_nodeid_index)
     {
-        error("not implemented yet");
+        // The user wants to remove this identity.
+        IdentityData id = nodeids[old_nodeid_index];
+        NodeID nodeid = id.nodeid;
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+        // It must be a connectivity identity
+        assert(id.connectivity_from_level > 0);
+        if (id.connectivity_from_level > 1)
+        {
+            qspn_mgr.prepare_destroy();
+            tasklet.ms_wait(10000);
+        }
+        qspn_mgr.destroy();
+        // We must remove identity from identity_manager. This will have IIdmgmtNetnsManager
+        //  to remove pseudodevs and the network namespace. Beforehand, the LinuxRoute
+        //  instance has to be notified.
+        id.route.removing_namespace();
+        identity_mgr.unset_identity_module(nodeid, "qspn");
+        identity_mgr.remove_identity(nodeid);
     }
 
     void enter_net
@@ -3055,6 +3098,36 @@ Command list:
         qspn_mgr.presence_notified.connect(new_identity.presence_notified);
         qspn_mgr.qspn_bootstrap_complete.connect(new_identity.qspn_bootstrap_complete);
         qspn_mgr.remove_identity.connect(new_identity.remove_identity);
+    }
+
+    void make_connectivity(int nodeid_index, int virtual_lvl, int virtual_pos, int eldership, int connectivity_to_lvl)
+    {
+        IdentityData id = nodeids[nodeid_index];
+        NodeID nodeid = id.nodeid;
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+
+        ArrayList<int> _new_naddr = new ArrayList<int>();
+        _new_naddr.add_all(id.my_naddr.pos);
+        ArrayList<int> _new_elderships = new ArrayList<int>();
+        _new_elderships.add_all(id.my_fp.elderships);
+        assert(virtual_lvl >= 0);
+        assert(virtual_lvl < levels);
+        assert(virtual_pos >= _gsizes[virtual_lvl]);
+        _new_naddr[virtual_lvl] = virtual_pos;
+        assert(eldership > _new_elderships[virtual_lvl]);
+        _new_elderships[virtual_lvl] = eldership;
+
+        Naddr new_naddr = new Naddr(_new_naddr.to_array(), _gsizes.to_array());
+        Fingerprint new_fp = new Fingerprint(_new_elderships.to_array(), id.my_fp.id);
+        qspn_mgr.make_connectivity
+            (virtual_lvl + 1,
+             connectivity_to_lvl,
+             new_naddr, new_fp);
+        // It becomes a connectivity identity
+        id.connectivity_from_level = virtual_lvl + 1;
+        id.connectivity_to_level = connectivity_to_lvl;
+        id.my_naddr = new_naddr;
+        id.my_fp = new_fp;
     }
 
     void add_qspnarc(int nodeid_index, int idarc_index, string idarc_address)
