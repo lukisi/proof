@@ -624,15 +624,6 @@ namespace ProofOfConcept
                         string s_naddr_neighbour = _args[3];
                         add_qspnarc(nodeid_index, idarc_index, s_naddr_neighbour);
                     }
-                    else if (_args[0] == "remove_outer_arcs")
-                    {
-                        if (_args.size != 1)
-                        {
-                            print(@"Bad arguments number.\n");
-                            continue;
-                        }
-                        remove_outer_arcs();
-                    }
                     else if (_args[0] == "make_connectivity")
                     {
                         if (_args.size != 6)
@@ -651,6 +642,36 @@ namespace ProofOfConcept
                         int eldership = int.parse(_args[4]);
                         int connectivity_to_lvl = int.parse(_args[5]);
                         make_connectivity(nodeid_index, virtual_lvl, virtual_pos, eldership, connectivity_to_lvl);
+                    }
+                    else if (_args[0] == "remove_outer_arcs")
+                    {
+                        if (_args.size != 2)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        int nodeid_index = int.parse(_args[1]);
+                        if (! (nodeid_index in nodeids.keys))
+                        {
+                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            continue;
+                        }
+                        remove_outer_arcs(nodeid_index);
+                    }
+                    else if (_args[0] == "check_connectivity")
+                    {
+                        if (_args.size != 2)
+                        {
+                            print(@"Bad arguments number.\n");
+                            continue;
+                        }
+                        int nodeid_index = int.parse(_args[1]);
+                        if (! (nodeid_index in nodeids.keys))
+                        {
+                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            continue;
+                        }
+                        check_connectivity(nodeid_index);
                     }
                     else if (_args[0] == "help")
                     {
@@ -715,8 +736,11 @@ Command list:
 > add_qspnarc <nodeid_index> <identityarc_index> <identityarc_address>
   Add a QspnArc.
 
-> remove_outer_arcs
+> remove_outer_arcs <nodeid_index>
   Remove superfluous arcs of a connectivity identity.
+
+> check_connectivity <nodeid_index>
+  Checks whether a connectivity identity is still necessary.
 
 > help
   Show this menu.
@@ -3151,9 +3175,20 @@ Command list:
         nodeids[nodeid_index].route.add_neighbour(peer_mac);
     }
 
-    void remove_outer_arcs()
+    void remove_outer_arcs(int nodeid_index)
     {
-        error("not implemented yet");
+        NodeID id = nodeids[nodeid_index].nodeid;
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
+        qspn_mgr.remove_outer_arcs();
+    }
+
+    void check_connectivity(int nodeid_index)
+    {
+        NodeID id = nodeids[nodeid_index].nodeid;
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
+        bool ret = qspn_mgr.check_connectivity();
+        if (ret) print("This identity can be removed.\n");
+        else print("This identity CANNOT be removed.\n");
     }
 }
 
