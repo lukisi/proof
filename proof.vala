@@ -1530,6 +1530,7 @@ Command list:
             route.removing_namespace();
             identity_mgr.unset_identity_module(nodeid, "qspn");
             identity_mgr.remove_identity(nodeid);
+            nodeids.unset(nodeid_index);
         }
     }
 
@@ -1736,6 +1737,16 @@ Command list:
                 if (com_ret.exit_status != 0)
                     error(@"$(com_ret.stderr)");
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            foreach (int linklocal_index in linklocals.keys)
+            {
+                HandledNic n = linklocals[linklocal_index];
+                if (n.dev == pseudo_dev)
+                {
+                    linklocals.unset(linklocal_index);
+                    print(@"linklocals: #$(linklocal_index) has been removed.\n");
+                    break;
+                }
+            }
         }
 
         public void delete_namespace(string ns)
@@ -1982,13 +1993,39 @@ Command list:
             }
         }
 
+        /* This "void" class is needed for broadcast without arcs.
+         */
+        private class QspnManagerStubVoid : Object, IQspnManagerStub
+        {
+            public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
+            throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
+            {
+                assert_not_reached();
+            }
+
+            public void got_destroy()
+            throws StubError, DeserializeError
+            {
+            }
+
+            public void got_prepare_destroy()
+            throws StubError, DeserializeError
+            {
+            }
+
+            public void send_etp(IQspnEtpMessage etp, bool is_full)
+            throws QspnNotAcceptedError, StubError, DeserializeError
+            {
+            }
+        }
+
         public IQspnManagerStub
                         i_qspn_get_broadcast(
                             Gee.List<IQspnArc> arcs,
                             IQspnMissingArcHandler? missing_handler=null
                         )
         {
-            assert(! arcs.is_empty);
+            if(arcs.is_empty) return new QspnManagerStubVoid();
             NodeID source_node_id = ((QspnArc)arcs[0]).sourceid;
             ArrayList<NodeID> broadcast_node_id_set = new ArrayList<NodeID>();
             foreach (IQspnArc arc in arcs)
@@ -2852,6 +2889,7 @@ Command list:
         id.route.removing_namespace();
         identity_mgr.unset_identity_module(nodeid, "qspn");
         identity_mgr.remove_identity(nodeid);
+        nodeids.unset(old_nodeid_index);
     }
 
     void enter_net
