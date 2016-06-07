@@ -35,6 +35,7 @@ namespace ProofOfConcept
             if (ns != "") cmd_prefix = @"ip netns exec $(ns) ";
             this.whole_network = whole_network;
             command_dispatcher = tasklet.create_dispatchable_tasklet();
+            current_known_destinations = new ArrayList<string>();
             neighbour_macs = new ArrayList<string>();
             start_management();
         }
@@ -59,6 +60,17 @@ namespace ProofOfConcept
             neighbour_macs.add(neighbour_mac);
             create_table(@"$(maintable)_from_$(neighbour_mac)");
             rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
+            // add `unreachable` in this new table for each known destination.
+            foreach (string dest in current_known_destinations)
+            {
+                string cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)_from_$(neighbour_mac)";
+                print(@"$(cmd)\n");
+                try {
+                    TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                    if (com_ret.exit_status != 0)
+                        error(@"$(com_ret.stderr)\n");
+                } catch (Error e) {error("Unable to spawn a command");}
+            }
         }
 
         public void remove_neighbour(string neighbour_mac)
@@ -452,6 +464,8 @@ namespace ProofOfConcept
         **
         */
 
+        private ArrayList<string> current_known_destinations;
+
         public void add_destination(string dest)
         {
             AddDestinationTasklet ts = new AddDestinationTasklet();
@@ -462,6 +476,7 @@ namespace ProofOfConcept
         private void tasklet_add_destination(string dest)
         {
             // add dest unreachable
+            current_known_destinations.add(dest);
             string cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)";
             print(@"$(cmd)\n");
             try {
@@ -501,6 +516,7 @@ namespace ProofOfConcept
         private void tasklet_remove_destination(string dest)
         {
             // remove dest
+            current_known_destinations.remove(dest);
             string cmd = @"$(cmd_prefix)ip route del $(dest) table $(maintable)";
             print(@"$(cmd)\n");
             try {

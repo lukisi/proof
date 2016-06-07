@@ -1508,7 +1508,37 @@ Command list:
 
         public void qspn_bootstrap_complete()
         {
+            update_all_destinations();
+        }
+
+        public void launch_update_all_destinations(int delay)
+        {
+            // In a tasklet: wait then do updates.
+            UpdateAllDestinationsTasklet ts = new UpdateAllDestinationsTasklet();
+            ts.identity = this;
+            ts.delay = delay;
+            tasklet.spawn(ts);
+        }
+        private class UpdateAllDestinationsTasklet : Object, ITaskletSpawnable
+        {
+            public IdentityData identity;
+            public int delay;
+            public void * func()
+            {
+                identity.update_all_destinations_tasklet(delay);
+                return null;
+            }
+        }
+        private void update_all_destinations_tasklet(int delay)
+        {
+            tasklet.ms_wait(delay);
+            update_all_destinations();
+        }
+
+        public void update_all_destinations()
+        {
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+            if (! qspn_mgr.is_bootstrap_complete()) return;
             try {
                 foreach (HCoord h in qspn_mgr.get_known_destinations())
                 {
@@ -3228,6 +3258,7 @@ Command list:
         qspn_mgr.arc_add(arc);
         nodeids[nodeid_index].my_arcs.add(arc);
         nodeids[nodeid_index].route.add_neighbour(peer_mac);
+        nodeids[nodeid_index].launch_update_all_destinations(1000);
     }
 
     void remove_outer_arcs(int nodeid_index)
