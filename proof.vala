@@ -553,14 +553,7 @@ namespace ProofOfConcept
                     }
                     else if (_args[0] == "enter_net")
                     {
-                        if (_args.size < 9)
-                        {
-                            print(@"Bad arguments number.\n");
-                            continue;
-                        }
-                        int pairs = _args.size - 9;
-                        int pairs2 = pairs / 2;
-                        if (pairs != pairs2 * 2)
+                        if (_args.size < 8)
                         {
                             print(@"Bad arguments number.\n");
                             continue;
@@ -593,15 +586,11 @@ namespace ProofOfConcept
                         int into_gnode_level = int.parse(_args[6]);
                         int i = 7;
                         Gee.List<int> idarc_index_set = new ArrayList<int>();
-                        Gee.List<string> idarc_address_set = new ArrayList<string>();
                         while (i < _args.size)
                         {
-                            assert(i+1 < _args.size);
                             int idarc_index = int.parse(_args[i]);
                             idarc_index_set.add(idarc_index);
-                            string idarc_address = _args[i+1];
-                            idarc_address_set.add(idarc_address);
-                            i += 2;
+                            i++;
                         }
                         enter_net(new_nodeid_index,
                             previous_nodeid_index,
@@ -609,20 +598,18 @@ namespace ProofOfConcept
                             s_elderships_new_gnode,
                             hooking_gnode_level,
                             into_gnode_level,
-                            idarc_index_set,
-                            idarc_address_set);
+                            idarc_index_set);
                     }
                     else if (_args[0] == "add_qspnarc")
                     {
-                        if (_args.size != 4)
+                        if (_args.size != 3)
                         {
                             print(@"Bad arguments number.\n");
                             continue;
                         }
                         int nodeid_index = int.parse(_args[1]);
                         int idarc_index = int.parse(_args[2]);
-                        string s_naddr_neighbour = _args[3];
-                        add_qspnarc(nodeid_index, idarc_index, s_naddr_neighbour);
+                        add_qspnarc(nodeid_index, idarc_index);
                     }
                     else if (_args[0] == "make_connectivity")
                     {
@@ -726,14 +713,13 @@ Command list:
             <elderships_new_gnode>
             <hooking_gnode_level>
             <into_gnode_level>
-                  <identityarc_index>    -| one or more times
-                  <identityarc_address>  -|
+                  <identityarc_index>    - one or more times
   Enter network (migrate) with a newly created identity.
 
 > make_connectivity <nodeid_index> <virtual_lvl> <virtual_pos> <eldership> <connectivity_to_lvl>
   Make an identity become of connectivity.
 
-> add_qspnarc <nodeid_index> <identityarc_index> <identityarc_address>
+> add_qspnarc <nodeid_index> <identityarc_index>
   Add a QspnArc.
 
 > remove_outer_arcs <nodeid_index>
@@ -1129,13 +1115,14 @@ Command list:
             h_addr[h.lvl] = h.pos;
             for (int i = 0; i < h.lvl; i++) h_addr[i] = -1;
 
-            // Compute list of neighbors. TODO this might be done only once at start; the list should
-            //  be reevaluated only when `my_arcs` changes or when `my_naddr` changes.
+            // Compute list of neighbors.
             ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
             foreach (QspnArc qspn_arc in my_arcs)
             {
                 Arc arc = qspn_arc.arc;
-                Naddr neighbour_naddr = qspn_arc.neighbour_naddr;
+                IQspnNaddr? _neighbour_naddr = qspn_mgr.get_naddr_for_arc(qspn_arc);
+                if (_neighbour_naddr == null) continue;
+                Naddr neighbour_naddr = (Naddr)_neighbour_naddr;
                 INeighborhoodArc neighborhood_arc = arc.neighborhood_arc;
                 NeighborData neighbor = new NeighborData();
                 neighbor.mac = neighborhood_arc.neighbour_mac;
@@ -2114,28 +2101,21 @@ Command list:
 
     class QspnArc : Object, IQspnArc
     {
-        public QspnArc(Arc arc, NodeID sourceid, NodeID destid, Naddr neighbour_naddr, string peer_mac)
+        public QspnArc(Arc arc, NodeID sourceid, NodeID destid, string peer_mac)
         {
             this.arc = arc;
             this.sourceid = sourceid;
             this.destid = destid;
-            this.neighbour_naddr = neighbour_naddr;
             this.peer_mac = peer_mac;
         }
         public weak Arc arc;
         public NodeID sourceid;
         public NodeID destid;
-        public Naddr neighbour_naddr;
         public string peer_mac;
 
         public IQspnCost i_qspn_get_cost()
         {
             return new Cost(arc.cost);
-        }
-
-        public IQspnNaddr i_qspn_get_naddr()
-        {
-            return neighbour_naddr;
         }
 
         public bool i_qspn_equals(IQspnArc other)
@@ -2946,8 +2926,7 @@ Command list:
      string s_elderships_new_gnode,
      int hooking_gnode_level,
      int into_gnode_level,
-     Gee.List<int> idarc_index_set,
-     Gee.List<string> idarc_address_set)
+     Gee.List<int> idarc_index_set)
     {
         IdentityData previous_identity = nodeids[previous_nodeid_index];
         IdentityData new_identity = nodeids[new_nodeid_index];
@@ -3132,14 +3111,9 @@ Command list:
         string my_elderships_str = fp_elderships_repr(my_fp);
         print(@"new identity will be $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
         ArrayList<IQspnArc> my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-        assert(idarc_index_set.size == idarc_address_set.size);
         for (int i = 0; i < idarc_index_set.size; i++)
         {
             int idarc_index = idarc_index_set[i];
-            string idarc_address = idarc_address_set[i];
-            ArrayList<int> idarc_naddr = new ArrayList<int>();
-            foreach (string s_piece in idarc_address.split(".")) idarc_naddr.insert(0, int.parse(s_piece));
-            Naddr neighbour_naddr = new Naddr(idarc_naddr.to_array(), _gsizes.to_array());
             assert(idarc_index in identityarcs.keys);
             IdentityArc ia = identityarcs[idarc_index];
             NodeID destid = ia.id_arc.get_peer_nodeid();
@@ -3147,7 +3121,7 @@ Command list:
             IdmgmtArc __arc = (IdmgmtArc)ia.arc;
             Arc _arc = __arc.arc;
             string peer_mac = ia.id_arc.get_peer_mac();
-            QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr, peer_mac);
+            QspnArc arc = new QspnArc(_arc, sourceid, destid, peer_mac);
             my_arcs.add(arc);
             new_id_route.add_neighbour(peer_mac);
         }
@@ -3239,14 +3213,11 @@ Command list:
         id.my_fp = new_fp;
     }
 
-    void add_qspnarc(int nodeid_index, int idarc_index, string idarc_address)
+    void add_qspnarc(int nodeid_index, int idarc_index)
     {
         NodeID id = nodeids[nodeid_index].nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
 
-        ArrayList<int> idarc_naddr = new ArrayList<int>();
-        foreach (string s_piece in idarc_address.split(".")) idarc_naddr.insert(0, int.parse(s_piece));
-        Naddr neighbour_naddr = new Naddr(idarc_naddr.to_array(), _gsizes.to_array());
         assert(idarc_index in identityarcs.keys);
         IdentityArc ia = identityarcs[idarc_index];
         NodeID destid = ia.id_arc.get_peer_nodeid();
@@ -3254,7 +3225,7 @@ Command list:
         IdmgmtArc __arc = (IdmgmtArc)ia.arc;
         Arc _arc = __arc.arc;
         string peer_mac = ia.id_arc.get_peer_mac();
-        QspnArc arc = new QspnArc(_arc, sourceid, destid, neighbour_naddr, peer_mac);
+        QspnArc arc = new QspnArc(_arc, sourceid, destid, peer_mac);
         qspn_mgr.arc_add(arc);
         nodeids[nodeid_index].my_arcs.add(arc);
         nodeids[nodeid_index].route.add_neighbour(peer_mac);
