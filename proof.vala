@@ -1530,7 +1530,16 @@ Command list:
             route.removing_namespace();
             identity_mgr.unset_identity_module(nodeid, "qspn");
             identity_mgr.remove_identity(nodeid);
+            // remove identity and its id-arcs from memory data-structures
             nodeids.unset(nodeid_index);
+            ArrayList<int> todel = new ArrayList<int>();
+            foreach (int i in identityarcs.keys)
+            {
+                IdentityArc ia = identityarcs[i];
+                NodeID id = ia.id;
+                if (id.equals(nodeid)) todel.add(i);
+            }
+            foreach (int i in todel) identityarcs.unset(i);
         }
     }
 
@@ -1899,7 +1908,7 @@ Command list:
         {
             TaskletCommandResult com_ret;
             try {
-                print(@"ping -n -q -c 1 $(peer_addr)\n");
+                //print(@"ping -n -q -c 1 $(peer_addr)\n");
                 com_ret = tasklet.exec_command(@"ping -n -q -c 1 $(peer_addr)");
             } catch (Error e) {
                 throw new NeighborhoodGetRttError.GENERIC(@"Unable to spawn a command: $(e.message)");
@@ -1918,7 +1927,7 @@ Command list:
                     if (res)
                     {
                         long ret = (long)(x * 1000);
-                        print(@" returned $(ret) microseconds.\n");
+                        //print(@" returned $(ret) microseconds.\n");
                         return ret;
                     }
                 }
@@ -2480,7 +2489,7 @@ Command list:
 
     void arc_changed(INeighborhoodArc arc)
     {
-        print(@"arc_changed (no effect) for $(arc.neighbour_nic_addr)\n");
+        //print(@"arc_changed (no effect) for $(arc.neighbour_nic_addr)\n");
     }
 
     void arc_removing(INeighborhoodArc arc, bool is_still_usable)
@@ -2889,7 +2898,15 @@ Command list:
         id.route.removing_namespace();
         identity_mgr.unset_identity_module(nodeid, "qspn");
         identity_mgr.remove_identity(nodeid);
+        // remove identity and its id-arcs from memory data-structures
         nodeids.unset(old_nodeid_index);
+        ArrayList<int> todel = new ArrayList<int>();
+        foreach (int i in identityarcs.keys)
+        {
+            IdentityArc ia = identityarcs[i];
+            if (ia.id.equals(nodeid)) todel.add(i);
+        }
+        foreach (int i in todel) identityarcs.unset(i);
     }
 
     void enter_net
