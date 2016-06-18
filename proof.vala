@@ -25,7 +25,6 @@ using TaskletSystem;
 
 namespace ProofOfConcept
 {
-
     const uint16 ntkd_port = 60269;
     const int max_paths = 5;
     const double max_common_hops_ratio = 0.6;
@@ -51,6 +50,7 @@ namespace ProofOfConcept
     HashMap<string, HandledNic> current_nics;
     int nodeid_nextindex;
     HashMap<int, IdentityData> nodeids;
+    HashMap<string, NetworkStack> network_stacks;
     HashMap<string, INeighborhoodArc> neighborhood_arcs;
     int nodearc_nextindex;
     HashMap<int, Arc> nodearcs;
@@ -118,7 +118,6 @@ namespace ProofOfConcept
 
         // TODO startup
 
-        prepare_all_nics();
         // Pass tasklet system to the RPC library (ntkdrpc)
         init_tasklet_system(tasklet);
 
@@ -139,6 +138,9 @@ namespace ProofOfConcept
         current_nics = new HashMap<string, HandledNic>();
         nodeid_nextindex = 0;
         nodeids = new HashMap<int, IdentityData>();
+        network_stacks = new HashMap<string, NetworkStack>();
+        network_stacks[""] = new NetworkStack("", ip_whole_network());
+        find_network_stack_for_ns("").prepare_all_nics();
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         nodearc_nextindex = 0;
         nodearcs = new HashMap<int, Arc>();
@@ -209,27 +211,27 @@ namespace ProofOfConcept
         nodeids[nodeid_index].ready = true;
         nodeids[nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
 
-        string ns = identity_mgr.get_namespace(nodeid);
+        string ns = ""; // first identity in default namespace
         ArrayList<string> pseudodevs = new ArrayList<string>();
         foreach (string real_nic in real_nics)
         {
             string? pseudodev = identity_mgr.get_pseudodev(nodeid, real_nic);
             if (pseudodev != null) pseudodevs.add(pseudodev);
         }
-        LinuxRoute route = new LinuxRoute(ns, ip_whole_network());
-        nodeids[nodeid_index].route = route;
+        NetworkStack network_stack = find_network_stack_for_ns(ns);
+        nodeids[nodeid_index].network_stack = network_stack;
         nodeids[nodeid_index].ip_global = ip_global_node(my_naddr.pos);
-        foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_global, dev);
+        foreach (string dev in pseudodevs) network_stack.add_address(nodeids[nodeid_index].ip_global, dev);
         if (accept_anonymous_requests)
         {
             nodeids[nodeid_index].ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
-            foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_anonymizing, dev);
+            foreach (string dev in pseudodevs) network_stack.add_address(nodeids[nodeid_index].ip_anonymizing, dev);
         }
         nodeids[nodeid_index].ip_internal = new ArrayList<string>();
         for (int j = 0; j <= levels-2; j++)
         {
             nodeids[nodeid_index].ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
-            foreach (string dev in pseudodevs) route.add_address(nodeids[nodeid_index].ip_internal[j], dev);
+            foreach (string dev in pseudodevs) network_stack.add_address(nodeids[nodeid_index].ip_internal[j], dev);
         }
 
         qspn_mgr.arc_removed.connect(nodeids[nodeid_index].arc_removed);
@@ -269,7 +271,7 @@ namespace ProofOfConcept
             IdentityData identity_data = nodeids[i];
             if (! identity_data.main_id)
             {
-                identity_data.route.removing_namespace();
+                identity_data.network_stack.removing_namespace();
                 identity_mgr.remove_identity(identity_data.nodeid);
             }
         }
@@ -281,24 +283,24 @@ namespace ProofOfConcept
             IdentityData identity_data = nodeids[i];
             if (identity_data.main_id)
             {
-                LinuxRoute main_linux_route = identity_data.route;
-                main_linux_route.stop_management();
+                NetworkStack main_network_stack = identity_data.network_stack;
+                main_network_stack.stop_management();
                 // Do I have a *real* Netsukuku address?
                 int real_up_to = identity_data.my_naddr.get_real_up_to();
                 if (real_up_to == levels-1)
                 {
                     foreach (string dev in real_nics)
-                        main_linux_route.remove_address(identity_data.ip_global, dev);
+                        main_network_stack.remove_address(identity_data.ip_global, dev);
                     if (accept_anonymous_requests)
                     {
                         foreach (string dev in real_nics)
-                            main_linux_route.remove_address(identity_data.ip_anonymizing, dev);
+                            main_network_stack.remove_address(identity_data.ip_anonymizing, dev);
                     }
                 }
                 for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
                 {
                     foreach (string dev in real_nics)
-                        main_linux_route.remove_address(identity_data.ip_internal[j], dev);
+                        main_network_stack.remove_address(identity_data.ip_internal[j], dev);
                 }
             }
         }
@@ -330,45 +332,13 @@ namespace ProofOfConcept
     void manage_real_nic(string dev)
     {
         real_nics.add(dev);
-        prepare_nic(dev);
+        find_network_stack_for_ns("").prepare_nic(dev);
         // Start listen UDP on dev
         t_udp_list.add(udp_listen(dlg, err, ntkd_port, dev));
         // Run monitor
         neighborhood_mgr.start_monitor(new NeighborhoodNetworkInterface(dev));
         // Here the linklocal address has been added, and the signal handler for
         //  nic_address_set has been processed, so the module Identities gets its knowledge.
-    }
-
-    void prepare_all_nics(string ns_prefix="")
-    {
-        // disable rp_filter
-        set_sys_ctl("net.ipv4.conf.all.rp_filter", "0", ns_prefix);
-        // arp policies
-        set_sys_ctl("net.ipv4.conf.all.arp_ignore", "1", ns_prefix);
-        set_sys_ctl("net.ipv4.conf.all.arp_announce", "2", ns_prefix);
-    }
-
-    void prepare_nic(string nic, string ns_prefix="")
-    {
-        // disable rp_filter
-        set_sys_ctl(@"net.ipv4.conf.$(nic).rp_filter", "0", ns_prefix);
-        // arp policies
-        set_sys_ctl(@"net.ipv4.conf.$(nic).arp_ignore", "1", ns_prefix);
-        set_sys_ctl(@"net.ipv4.conf.$(nic).arp_announce", "2", ns_prefix);
-    }
-
-    void set_sys_ctl(string key, string val, string ns_prefix="")
-    {
-        try {
-            TaskletCommandResult com_ret = tasklet.exec_command(@"$(ns_prefix)sysctl $(key)=$(val)");
-            if (com_ret.exit_status != 0)
-                error(@"$(com_ret.stderr)");
-            com_ret = tasklet.exec_command(@"$(ns_prefix)sysctl -n $(key)");
-            if (com_ret.exit_status != 0)
-                error(@"$(com_ret.stderr)");
-            if (com_ret.stdout != @"$(val)\n")
-                error(@"Failed to set key '$(key)' to val '$(val)': now it reports '$(com_ret.stdout)'\n");
-        } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
     }
 
     class CommandLineInterfaceTasklet : Object, ITaskletSpawnable
@@ -789,7 +759,7 @@ Command list:
         public ArrayList<QspnArc> my_arcs;
         public int connectivity_from_level;
         public int connectivity_to_level;
-        public LinuxRoute route;
+        public NetworkStack network_stack;
         public bool main_id;
         public string ip_global;
         public string ip_anonymizing;
@@ -799,7 +769,7 @@ Command list:
         {
             QspnArc _arc = (QspnArc)arc;
             my_arcs.remove(_arc);
-            route.remove_neighbour(_arc.peer_mac);
+            network_stack.remove_neighbour(_arc.peer_mac);
             if (bad_link)
             {
                 // Remove arc from neighborhood, because it fails.
@@ -841,13 +811,13 @@ Command list:
                 if (real_up_to == levels-1)
                 {
                     // Global.
-                    route.add_destination(ip_global_gnode(h_addr, h.lvl));
+                    network_stack.add_destination(ip_global_gnode(h_addr, h.lvl));
                     // Anonymizing.
-                    route.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                    network_stack.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                     // Internals. In this case they are guaranteed to be valid.
                     for (int t = h.lvl + 1; t <= levels - 1; t++)
                     {
-                        route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
                     }
                 }
                 else
@@ -867,7 +837,7 @@ Command list:
                                 }
                             }
                             if (invalid_found) break; // The higher levels will be invalid too.
-                            route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                            network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
                     }
                     else if (h.lvl < virtual_up_to)
@@ -886,19 +856,19 @@ Command list:
                                 }
                             }
                             if (invalid_found) break; // The higher levels will be invalid too.
-                            route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                            network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
                     }
                     else
                     {
                         // Global.
-                        route.add_destination(ip_global_gnode(h_addr, h.lvl));
+                        network_stack.add_destination(ip_global_gnode(h_addr, h.lvl));
                         // Anonymizing.
-                        route.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                        network_stack.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                         // Internals. In this case they are guaranteed to be valid.
                         for (int t = h.lvl + 1; t <= levels - 1; t++)
                         {
-                            route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                            network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
                     } 
                 }
@@ -920,19 +890,19 @@ Command list:
                             }
                         }
                         if (invalid_found) break; // The higher levels will be invalid too.
-                        route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
                     }
                 }
                 else
                 {
                     // Global.
-                    route.add_destination(ip_global_gnode(h_addr, h.lvl));
+                    network_stack.add_destination(ip_global_gnode(h_addr, h.lvl));
                     // Anonymizing.
-                    route.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                    network_stack.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                     // Internals. In this case they are guaranteed to be valid.
                     for (int t = h.lvl + 1; t <= levels - 1; t++)
                     {
-                        route.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
                     }
                 } 
             }
@@ -958,13 +928,13 @@ Command list:
                 if (real_up_to == levels-1)
                 {
                     // Global.
-                    route.remove_destination(ip_global_gnode(h_addr, h.lvl));
+                    network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
                     // Anonymizing.
-                    route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                    network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                     // Internals. In this case they are guaranteed to be valid.
                     for (int t = h.lvl + 1; t <= levels - 1; t++)
                     {
-                        route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                     }
                 }
                 else
@@ -984,7 +954,7 @@ Command list:
                                 }
                             }
                             if (invalid_found) break; // The higher levels will be invalid too.
-                            route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                            network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
                     }
                     else if (h.lvl < virtual_up_to)
@@ -1003,19 +973,19 @@ Command list:
                                 }
                             }
                             if (invalid_found) break; // The higher levels will be invalid too.
-                            route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                            network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
                     }
                     else
                     {
                         // Global.
-                        route.remove_destination(ip_global_gnode(h_addr, h.lvl));
+                        network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
                         // Anonymizing.
-                        route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                        network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                         // Internals. In this case they are guaranteed to be valid.
                         for (int t = h.lvl + 1; t <= levels - 1; t++)
                         {
-                            route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                            network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
                     } 
                 }
@@ -1037,19 +1007,19 @@ Command list:
                             }
                         }
                         if (invalid_found) break; // The higher levels will be invalid too.
-                        route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                     }
                 }
                 else
                 {
                     // Global.
-                    route.remove_destination(ip_global_gnode(h_addr, h.lvl));
+                    network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
                     // Anonymizing.
-                    route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                    network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                     // Internals. In this case they are guaranteed to be valid.
                     for (int t = h.lvl + 1; t <= levels - 1; t++)
                     {
-                        route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                        network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                     }
                 } 
             }
@@ -1152,7 +1122,7 @@ Command list:
                         string d_x = ip_dest_set[i];
                         string n_x = ip_src_set[i];
                         // For packets in egress:
-                        route.change_best_path(d_x,
+                        network_stack.change_best_path(d_x,
                                     best_routes["main"].dev,
                                     best_routes["main"].gw,
                                     n_x,
@@ -1162,7 +1132,7 @@ Command list:
                         {
                             if (best_routes.has_key(neighbor.mac))
                             {
-                                route.change_best_path(d_x,
+                                network_stack.change_best_path(d_x,
                                     best_routes[neighbor.mac].dev,
                                     best_routes[neighbor.mac].gw,
                                     null,
@@ -1171,7 +1141,7 @@ Command list:
                             else
                             {
                                 // set unreachable
-                                route.change_best_path(d_x, null, null, null, neighbor.mac);
+                                network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
                             }
                         }
                         // For packets in forward, received from a unknown MAC:
@@ -1207,7 +1177,7 @@ Command list:
                             string d_x = ip_dest_set[i];
                             string n_x = ip_src_set[i];
                             // For packets in egress:
-                            route.change_best_path(d_x,
+                            network_stack.change_best_path(d_x,
                                         best_routes["main"].dev,
                                         best_routes["main"].gw,
                                         n_x,
@@ -1217,7 +1187,7 @@ Command list:
                             {
                                 if (best_routes.has_key(neighbor.mac))
                                 {
-                                    route.change_best_path(d_x,
+                                    network_stack.change_best_path(d_x,
                                         best_routes[neighbor.mac].dev,
                                         best_routes[neighbor.mac].gw,
                                         null,
@@ -1226,7 +1196,7 @@ Command list:
                                 else
                                 {
                                     // set unreachable
-                                    route.change_best_path(d_x, null, null, null, neighbor.mac);
+                                    network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
                                 }
                             }
                             // For packets in forward, received from a unknown MAC:
@@ -1264,7 +1234,7 @@ Command list:
                             {
                                 if (best_routes.has_key(neighbor.mac))
                                 {
-                                    route.change_best_path(d_x,
+                                    network_stack.change_best_path(d_x,
                                         best_routes[neighbor.mac].dev,
                                         best_routes[neighbor.mac].gw,
                                         null,
@@ -1273,11 +1243,11 @@ Command list:
                                 else
                                 {
                                     // set unreachable
-                                    route.change_best_path(d_x, null, null, null, neighbor.mac);
+                                    network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
                                 }
                             }
                             // For packets in forward, received from a unknown MAC:
-                            route.change_best_path(d_x,
+                            network_stack.change_best_path(d_x,
                                         best_routes["main"].dev,
                                         best_routes["main"].gw,
                                         null,
@@ -1309,7 +1279,7 @@ Command list:
                             {
                                 if (best_routes.has_key(neighbor.mac))
                                 {
-                                    route.change_best_path(d_x,
+                                    network_stack.change_best_path(d_x,
                                         best_routes[neighbor.mac].dev,
                                         best_routes[neighbor.mac].gw,
                                         null,
@@ -1318,11 +1288,11 @@ Command list:
                                 else
                                 {
                                     // set unreachable
-                                    route.change_best_path(d_x, null, null, null, neighbor.mac);
+                                    network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
                                 }
                             }
                             // For packets in forward, received from a unknown MAC:
-                            route.change_best_path(d_x,
+                            network_stack.change_best_path(d_x,
                                         best_routes["main"].dev,
                                         best_routes["main"].gw,
                                         null,
@@ -1364,7 +1334,7 @@ Command list:
                         {
                             if (best_routes.has_key(neighbor.mac))
                             {
-                                route.change_best_path(d_x,
+                                network_stack.change_best_path(d_x,
                                     best_routes[neighbor.mac].dev,
                                     best_routes[neighbor.mac].gw,
                                     null,
@@ -1373,11 +1343,11 @@ Command list:
                             else
                             {
                                 // set unreachable
-                                route.change_best_path(d_x, null, null, null, neighbor.mac);
+                                network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
                             }
                         }
                         // For packets in forward, received from a unknown MAC:
-                        route.change_best_path(d_x,
+                        network_stack.change_best_path(d_x,
                                     best_routes["main"].dev,
                                     best_routes["main"].gw,
                                     null,
@@ -1409,7 +1379,7 @@ Command list:
                         {
                             if (best_routes.has_key(neighbor.mac))
                             {
-                                route.change_best_path(d_x,
+                                network_stack.change_best_path(d_x,
                                     best_routes[neighbor.mac].dev,
                                     best_routes[neighbor.mac].gw,
                                     null,
@@ -1418,11 +1388,11 @@ Command list:
                             else
                             {
                                 // set unreachable
-                                route.change_best_path(d_x, null, null, null, neighbor.mac);
+                                network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
                             }
                         }
                         // For packets in forward, received from a unknown MAC:
-                        route.change_best_path(d_x,
+                        network_stack.change_best_path(d_x,
                                     best_routes["main"].dev,
                                     best_routes["main"].gw,
                                     null,
@@ -1531,9 +1501,9 @@ Command list:
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
             qspn_mgr.destroy();
             // We must remove identity from identity_manager. This will have IIdmgmtNetnsManager
-            //  to remove pseudodevs and the network namespace. Beforehand, the LinuxRoute
+            //  to remove pseudodevs and the network namespace. Beforehand, the NetworkStack
             //  instance has to be notified.
-            route.removing_namespace();
+            network_stack.removing_namespace();
             identity_mgr.unset_identity_module(nodeid, "qspn");
             identity_mgr.remove_identity(nodeid);
             // remove identity and its id-arcs from memory data-structures
@@ -1549,50 +1519,32 @@ Command list:
         }
     }
 
+    NetworkStack find_network_stack_for_ns(string ns)
+    {
+        assert(network_stacks.has_key(ns));
+        return network_stacks[ns];
+    }
+
     class NeighborhoodIPRouteManager : Object, INeighborhoodIPRouteManager
     {
         public void add_address(string my_addr, string my_dev)
         {
-            try {
-                string cmd = @"ip address add $(my_addr) dev $(my_dev)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns("").add_linklocal_address(my_dev, my_addr);
         }
 
         public void add_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
-            try {
-                string cmd = @"ip route add $(neighbor_addr) dev $(my_dev) src $(my_addr)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns("").add_gateway(my_addr, neighbor_addr, my_dev);
         }
 
         public void remove_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
-            try {
-                string cmd = @"ip route del $(neighbor_addr) dev $(my_dev) src $(my_addr)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns("").add_gateway(my_addr, neighbor_addr, my_dev);
         }
 
         public void remove_address(string my_addr, string my_dev)
         {
-            try {
-                string cmd = @"ip address del $(my_addr)/32 dev $(my_dev)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns("").remove_linklocal_address(my_dev, my_addr);
         }
     }
 
@@ -1649,51 +1601,19 @@ Command list:
         public void create_namespace(string ns)
         {
             assert(ns != "");
-            try {
-                string cmd = @"ip netns add $(ns)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            network_stacks[ns] = new NetworkStack(ns, ip_whole_network());
         }
 
         public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
         {
-            assert(ns != "");
-            try {
-                string cmd = @"ip link add dev $(pseudo_dev) link $(dev) type macvlan";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-                pseudo_mac = macgetter.get_mac(pseudo_dev).up();
-                cmd = @"ip link set dev $(pseudo_dev) netns $(ns)";
-                print(@"$(cmd)\n");
-                com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-                prepare_nic(pseudo_dev, @"ip netns exec $(ns) ");
-                cmd = @"ip netns exec $(ns) ip link set dev $(pseudo_dev) up";
-                print(@"$(cmd)\n");
-                com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns(ns).create_pseudodev(dev, pseudo_dev, out pseudo_mac);
             assert(! pseudo_macs.has_key(pseudo_dev));
             pseudo_macs[pseudo_dev] = pseudo_mac;
         }
 
         public void add_address(string ns, string pseudo_dev, string linklocal)
         {
-            assert(ns != "");
-            try {
-                string cmd = @"ip netns exec $(ns) ip address add $(linklocal) dev $(pseudo_dev)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns(ns).add_linklocal_address(pseudo_dev, linklocal);
             HandledNic n = new HandledNic();
             n.dev = pseudo_dev;
             n.mac = pseudo_macs[pseudo_dev];
@@ -1705,53 +1625,23 @@ Command list:
 
         public void add_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
         {
-            // ns may be empty-string.
-            try {
-                string cmd = @"ip route add $(linklocal_dst) dev $(dev) src $(linklocal_src)";
-                if (ns != "") cmd = @"ip netns exec $(ns) $(cmd)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns(ns).add_gateway(linklocal_src, linklocal_dst, dev);
         }
 
         public void remove_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
         {
-            // ns may be empty-string.
-            try {
-                string cmd = @"ip route del $(linklocal_dst) dev $(dev) src $(linklocal_src)";
-                if (ns != "") cmd = @"ip netns exec $(ns) $(cmd)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns(ns).remove_gateway(linklocal_src, linklocal_dst, dev);
         }
 
         public void flush_table(string ns)
         {
-            assert(ns != "");
-            try {
-                string cmd = @"ip netns exec $(ns) ip route flush table main";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns(ns).flush_table_main();
         }
 
         public void delete_pseudodev(string ns, string pseudo_dev)
         {
             if (pseudo_macs.has_key(pseudo_dev)) pseudo_macs.unset(pseudo_dev);
-            assert(ns != "");
-            try {
-                string cmd = @"ip netns exec $(ns) ip link delete $(pseudo_dev) type macvlan";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns(ns).delete_pseudodev(pseudo_dev);
             foreach (int linklocal_index in linklocals.keys)
             {
                 HandledNic n = linklocals[linklocal_index];
@@ -1766,14 +1656,8 @@ Command list:
 
         public void delete_namespace(string ns)
         {
-            assert(ns != "");
-            try {
-                string cmd = @"ip netns del $(ns)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)");
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+            find_network_stack_for_ns(ns).delete_namespace();
+            network_stacks.unset(ns);
         }
     }
 
@@ -2401,7 +2285,7 @@ Command list:
                         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
                         qspn_mgr.arc_remove(qspn_arc);
                         _id.my_arcs.remove(qspn_arc);
-                        _id.route.remove_neighbour(qspn_arc.peer_mac);
+                        _id.network_stack.remove_neighbour(qspn_arc.peer_mac);
                     }
                 }
                 break;
@@ -2872,10 +2756,10 @@ Command list:
         string new_ns = identity_mgr.get_namespace(old_id);
         string old_ns = identity_mgr.get_namespace(new_id);
         new_identity.main_id = (old_ns == "");
-        LinuxRoute new_route = new LinuxRoute(new_ns, ip_whole_network());
-        LinuxRoute old_route = old_identity.route;
-        old_identity.route = new_route;
-        new_identity.route = old_route;
+        NetworkStack new_network_stack = find_network_stack_for_ns(new_ns);
+        NetworkStack old_network_stack = old_identity.network_stack;
+        old_identity.network_stack = new_network_stack;
+        new_identity.network_stack = old_network_stack;
 
         print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
     }
@@ -2895,9 +2779,9 @@ Command list:
         }
         qspn_mgr.destroy();
         // We must remove identity from identity_manager. This will have IIdmgmtNetnsManager
-        //  to remove pseudodevs and the network namespace. Beforehand, the LinuxRoute
+        //  to remove pseudodevs and the network namespace. Beforehand, the NetworkStack
         //  instance has to be notified.
-        id.route.removing_namespace();
+        id.network_stack.removing_namespace();
         identity_mgr.unset_identity_module(nodeid, "qspn");
         identity_mgr.remove_identity(nodeid);
         // remove identity and its id-arcs from memory data-structures
@@ -2926,7 +2810,7 @@ Command list:
         Netsukuku.Qspn. QspnManager previous_id_qspn_mgr = (QspnManager)identity_mgr.get_identity_module(previous_id, "qspn");
         Naddr previous_id_my_naddr = previous_identity.my_naddr;
         Fingerprint previous_id_my_fp = previous_identity.my_fp;
-        LinuxRoute new_id_route = new_identity.route;
+        NetworkStack new_id_network_stack = new_identity.network_stack;
 
         if (previous_id_qspn_mgr.is_bootstrap_complete())
         {
@@ -2955,13 +2839,13 @@ Command list:
                     if (real_up_to == levels-1)
                     {
                         // Global.
-                        new_id_route.remove_destination(ip_global_gnode(h_addr, h.lvl));
+                        new_id_network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
                         // Anonymizing.
-                        new_id_route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                        new_id_network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                         // Internals. In this case they are guaranteed to be valid.
                         for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
                         {
-                            new_id_route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                            new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
                     }
                     else
@@ -2981,7 +2865,7 @@ Command list:
                                     }
                                 }
                                 if (invalid_found) break; // The higher levels will be invalid too.
-                                new_id_route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                                new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                             }
                         }
                         else if (h.lvl < virtual_up_to)
@@ -3000,19 +2884,19 @@ Command list:
                                     }
                                 }
                                 if (invalid_found) break; // The higher levels will be invalid too.
-                                new_id_route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                                new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                             }
                         }
                         else
                         {
                             // Global.
-                            new_id_route.remove_destination(ip_global_gnode(h_addr, h.lvl));
+                            new_id_network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
                             // Anonymizing.
-                            new_id_route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                            new_id_network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                             // Internals. In this case they are guaranteed to be valid.
                             for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
                             {
-                                new_id_route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                                new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                             }
                         } 
                     }
@@ -3034,19 +2918,19 @@ Command list:
                                 }
                             }
                             if (invalid_found) break; // The higher levels will be invalid too.
-                            new_id_route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                            new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
                     }
                     else
                     {
                         // Global.
-                        new_id_route.remove_destination(ip_global_gnode(h_addr, h.lvl));
+                        new_id_network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
                         // Anonymizing.
-                        new_id_route.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
+                        new_id_network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
                         // Internals. In this case they are guaranteed to be valid.
                         for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
                         {
-                            new_id_route.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
+                            new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
                         }
                     } 
                 }
@@ -3063,18 +2947,18 @@ Command list:
             if (real_up_to == levels-1)
             {
                 foreach (string dev in real_nics)
-                    new_id_route.remove_address(previous_identity.ip_global, dev);
+                    new_id_network_stack.remove_address(previous_identity.ip_global, dev);
                 if (accept_anonymous_requests)
                 {
                     foreach (string dev in real_nics)
-                        new_id_route.remove_address(previous_identity.ip_anonymizing, dev);
+                        new_id_network_stack.remove_address(previous_identity.ip_anonymizing, dev);
                 }
             }
             for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
             {
                 if (j+1 > into_gnode_level-1)
                     foreach (string dev in real_nics)
-                        new_id_route.remove_address(previous_identity.ip_internal[j], dev);
+                        new_id_network_stack.remove_address(previous_identity.ip_internal[j], dev);
             }
         }
 
@@ -3146,7 +3030,7 @@ Command list:
                 }
             }
             if (! qspnarc_is_internal) external_arc_set.add(arc);
-            new_id_route.add_neighbour(peer_mac);
+            new_id_network_stack.add_neighbour(peer_mac);
         }
         QspnManager qspn_mgr = new Netsukuku.Qspn.QspnManager.enter_net(my_naddr,
             internal_arc_set,
@@ -3184,11 +3068,11 @@ Command list:
             if (real_up_to == levels-1)
             {
                 new_identity.ip_global = ip_global_node(my_naddr.pos);
-                foreach (string dev in pseudodevs) new_id_route.add_address(new_identity.ip_global, dev);
+                foreach (string dev in pseudodevs) new_id_network_stack.add_address(new_identity.ip_global, dev);
                 if (accept_anonymous_requests)
                 {
                     new_identity.ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
-                    foreach (string dev in pseudodevs) new_id_route.add_address(new_identity.ip_anonymizing, dev);
+                    foreach (string dev in pseudodevs) new_id_network_stack.add_address(new_identity.ip_anonymizing, dev);
                 }
             }
             new_identity.ip_internal = new ArrayList<string>();
@@ -3197,7 +3081,7 @@ Command list:
                 new_identity.ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
                 if (j+1 > into_gnode_level-1)
                     foreach (string dev in pseudodevs)
-                        new_id_route.add_address(new_identity.ip_internal[j], dev);
+                        new_id_network_stack.add_address(new_identity.ip_internal[j], dev);
             }
         }
 
@@ -3260,7 +3144,7 @@ Command list:
         QspnArc arc = new QspnArc(_arc, sourceid, destid, peer_mac);
         qspn_mgr.arc_add(arc);
         nodeids[nodeid_index].my_arcs.add(arc);
-        nodeids[nodeid_index].route.add_neighbour(peer_mac);
+        nodeids[nodeid_index].network_stack.add_neighbour(peer_mac);
         nodeids[nodeid_index].launch_update_all_destinations(1000);
     }
 

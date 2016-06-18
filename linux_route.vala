@@ -25,9 +25,23 @@ using TaskletSystem;
 
 namespace ProofOfConcept
 {
-    class LinuxRoute : Object
+    [NoReturn]
+    internal void error_in_command(string cmd, string stdout, string stderr)
     {
-        public LinuxRoute(string network_namespace, string whole_network)
+        print("Error in command:\n");
+        print(@"   $(cmd)\n");
+        print("command stdout =======\n");
+        print(@"$(stdout)\n");
+        print("======================\n");
+        print("command stderr =======\n");
+        print(@"$(stderr)\n");
+        print("======================\n");
+        error(@"Error in command: `$(cmd)`");
+    }
+
+    class NetworkStack : Object
+    {
+        public NetworkStack(string network_namespace, string whole_network)
         {
             if (! init_done) init();
             ns = network_namespace;
@@ -37,10 +51,18 @@ namespace ProofOfConcept
             command_dispatcher = tasklet.create_dispatchable_tasklet();
             current_known_destinations = new ArrayList<string>();
             neighbour_macs = new ArrayList<string>();
-            start_management();
+            if (ns != "")
+            {
+                CreateNamespaceTasklet ts = new CreateNamespaceTasklet();
+                ts.t = this;
+                command_dispatcher.dispatch(ts, true);
+            }
+            StartManagementTasklet ts = new StartManagementTasklet();
+            ts.t = this;
+            command_dispatcher.dispatch(ts, true);
         }
 
-        private string ns;
+        public string ns {get; private set;}
         private string cmd_prefix;
         private string whole_network;
         private DispatchableTasklet command_dispatcher;
@@ -48,18 +70,34 @@ namespace ProofOfConcept
 
         const string maintable = "ntk";
 
-        private void start_management()
+        private void tasklet_start_management()
         {
-            create_table(maintable);
-            rule_default(maintable);
+            tasklet_create_table(maintable);
+            tasklet_rule_default(maintable);
+        }
+        class StartManagementTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public void * func()
+            {
+                t.tasklet_start_management();
+                return null;
+            }
         }
 
         public void add_neighbour(string neighbour_mac)
         {
             assert(! (neighbour_mac in neighbour_macs));
             neighbour_macs.add(neighbour_mac);
-            create_table(@"$(maintable)_from_$(neighbour_mac)");
-            rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
+            AddNeighbourTasklet ts = new AddNeighbourTasklet();
+            ts.t = this;
+            ts.neighbour_mac = neighbour_mac;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_add_neighbour(string neighbour_mac)
+        {
+            tasklet_create_table(@"$(maintable)_from_$(neighbour_mac)");
+            tasklet_rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
             // add `unreachable` in this new table for each known destination.
             foreach (string dest in current_known_destinations)
             {
@@ -68,44 +106,100 @@ namespace ProofOfConcept
                 try {
                     TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                     if (com_ret.exit_status != 0)
-                        error(@"$(com_ret.stderr)\n");
+                        error_in_command(cmd, com_ret.stdout, com_ret.stderr);
                 } catch (Error e) {error("Unable to spawn a command");}
+            }
+        }
+        class AddNeighbourTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string neighbour_mac;
+            public void * func()
+            {
+                t.tasklet_add_neighbour(neighbour_mac);
+                return null;
             }
         }
 
         public void remove_neighbour(string neighbour_mac)
         {
+            RemoveNeighbourTasklet ts = new RemoveNeighbourTasklet();
+            ts.t = this;
+            ts.neighbour_mac = neighbour_mac;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_remove_neighbour(string neighbour_mac)
+        {
             assert(neighbour_mac in neighbour_macs);
             neighbour_macs.remove(neighbour_mac);
-            remove_rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
-            remove_table(@"$(maintable)_from_$(neighbour_mac)");
+            tasklet_remove_rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
+            tasklet_remove_table(@"$(maintable)_from_$(neighbour_mac)");
+        }
+        class RemoveNeighbourTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string neighbour_mac;
+            public void * func()
+            {
+                t.tasklet_remove_neighbour(neighbour_mac);
+                return null;
+            }
         }
 
         public void stop_management()
         {
             // To be called only for the default network namespace
             assert(ns == "");
-            while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
+            StopManagementTasklet ts = new StopManagementTasklet();
+            ts.t = this;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_stop_management()
+        {
             while (! neighbour_macs.is_empty)
             {
-                remove_neighbour(neighbour_macs[0]);
+                tasklet_remove_neighbour(neighbour_macs[0]);
             }
-            remove_rule_default(maintable);
-            remove_table(maintable);
+            tasklet_remove_rule_default(maintable);
+            tasklet_remove_table(maintable);
+        }
+        class StopManagementTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public void * func()
+            {
+                t.tasklet_stop_management();
+                return null;
+            }
         }
 
         public void removing_namespace()
         {
             // To be called only for the non-default network namespaces
             assert(ns != "");
-            while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
+            RemovingNamespaceTasklet ts = new RemovingNamespaceTasklet();
+            ts.t = this;
+            command_dispatcher.dispatch(ts, true);
+            // TODO command_dispatcher.kill, or as an argument on last dispatch.
+        }
+        private void tasklet_removing_namespace()
+        {
             // Remove tables: although the namespace is going to be removed
             //  and hence the deletion of tables could be superfluous, with
             //  these calls we ensure the removal of tablename in the common
             //  file when needed.
             foreach (string neighbour_mac in neighbour_macs)
-                remove_table(@"$(maintable)_from_$(neighbour_mac)");
-            remove_table(maintable);
+                tasklet_remove_table(@"$(maintable)_from_$(neighbour_mac)");
+            tasklet_remove_table(maintable);
+        }
+        class RemovingNamespaceTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public void * func()
+            {
+                t.tasklet_removing_namespace();
+                return null;
+            }
         }
 
         /* Table-names management
@@ -240,7 +334,7 @@ namespace ProofOfConcept
             print(@"Removed table $(tablename).\n");
         }
 
-        /* Route table management
+        /* Tables management
         ** 
         */
 
@@ -248,7 +342,7 @@ namespace ProofOfConcept
           * Make sure the name <tablename> exists in the common file.
           * The table has to be cleared.
           */
-        private void create_table(string tablename)
+        private void tasklet_create_table(string tablename)
         {
             if (tablename in table_references.keys)
             {
@@ -289,20 +383,20 @@ namespace ProofOfConcept
                 table_number[tablename] = new_num;
                 table_references[tablename] = 1;
             }
-            // emtpy the table
+            // empty the table
             try {
                 string cmd = @"$(cmd_prefix)ip route flush table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
             try {
                 string cmd = @"$(cmd_prefix)ip route add unreachable $(whole_network) table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
         }
 
@@ -310,18 +404,18 @@ namespace ProofOfConcept
           * Empty the table.
           * If references to this tablename are terminated, then remove the record from the common file.
           */
-        private void remove_table(string tablename)
+        private void tasklet_remove_table(string tablename)
         {
             while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
             if (! (tablename in table_references.keys)) error(@"table $(tablename) should be in use.");
 
-            // emtpy the table
+            // empty the table
             try {
                 string cmd = @"$(cmd_prefix)ip route flush table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
 
             assert(tablename in table_number.keys);
@@ -347,7 +441,7 @@ namespace ProofOfConcept
                 iptables -t mangle -A PREROUTING -m mac --mac-source $macaddr -j MARK --set-mark $number
                 ip rule add fwmark $number table $tablename
           */
-        private void rule_coming_from_macaddr(string macaddr, string tablename)
+        private void tasklet_rule_coming_from_macaddr(string macaddr, string tablename)
         {
             if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
             assert(tablename in table_number.keys);
@@ -358,7 +452,7 @@ namespace ProofOfConcept
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
                 pres = com_ret.stdout;
             } catch (Error e) {error("Unable to spawn a command");}
             if (@" lookup $(tablename) " in pres) error(@"rule_coming_from_macaddr: rule for $(tablename) was already there");
@@ -367,14 +461,14 @@ namespace ProofOfConcept
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
             try {
                 string cmd = @"$(cmd_prefix)ip rule add fwmark $(num) table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
         }
 
@@ -387,9 +481,9 @@ namespace ProofOfConcept
                 iptables -t mangle -D PREROUTING -m mac --mac-source $macaddr -j MARK --set-mark $number
                 ip rule del fwmark $number table $tablename
           */
-        private void remove_rule_coming_from_macaddr(string macaddr, string tablename)
+        private void tasklet_remove_rule_coming_from_macaddr(string macaddr, string tablename)
         {
-            if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
+            if (! (tablename in table_references.keys)) error(@"remove_rule_coming_from_macaddr: table $(tablename) should be in use.");
             assert(tablename in table_number.keys);
             int num = table_number[tablename];
             try {
@@ -397,14 +491,14 @@ namespace ProofOfConcept
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
             try {
                 string cmd = @"$(cmd_prefix)ip rule del fwmark $(num) table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
         }
 
@@ -416,9 +510,9 @@ namespace ProofOfConcept
           * Use "ip" to rule that all packets search into table <tablename>
                 ip rule add table $tablename
           */
-        private void rule_default(string tablename)
+        private void tasklet_rule_default(string tablename)
         {
-            if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
+            if (! (tablename in table_references.keys)) error(@"rule_default: table $(tablename) should be in use.");
             assert(tablename in table_number.keys);
             string pres;
             try {
@@ -426,7 +520,7 @@ namespace ProofOfConcept
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
                 pres = com_ret.stdout;
             } catch (Error e) {error("Unable to spawn a command");}
             if (@" lookup $(tablename) " in pres) error(@"rule_default: rule for $(tablename) was already there");
@@ -435,7 +529,7 @@ namespace ProofOfConcept
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
         }
 
@@ -447,22 +541,82 @@ namespace ProofOfConcept
           * Use "ip" to remove rule that all packets search into table <tablename>
                 ip rule del table $tablename
           */
-        private void remove_rule_default(string tablename)
+        private void tasklet_remove_rule_default(string tablename)
         {
-            if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
+            if (! (tablename in table_references.keys)) error(@"remove_rule_default: table $(tablename) should be in use.");
             assert(tablename in table_number.keys);
             try {
                 string cmd = @"$(cmd_prefix)ip rule del table $(tablename)";
                 print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
         }
 
         /* Routes management
         **
         */
+
+        public void add_address(string address, string dev)
+        {
+            AddAddressTasklet ts = new AddAddressTasklet();
+            ts.t = this;
+            ts.address = address;
+            ts.dev = dev;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_add_address(string address, string dev)
+        {
+            string cmd = @"$(cmd_prefix)ip address add $(address) dev $(dev)";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error("Unable to spawn a command");}
+        }
+        class AddAddressTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string address;
+            public string dev;
+            public void * func()
+            {
+                t.tasklet_add_address(address, dev);
+                return null;
+            }
+        }
+
+        public void remove_address(string address, string dev)
+        {
+            RemoveAddressTasklet ts = new RemoveAddressTasklet();
+            ts.t = this;
+            ts.address = address;
+            ts.dev = dev;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_remove_address(string address, string dev)
+        {
+            string cmd = @"$(cmd_prefix)ip address del $(address)/32 dev $(dev)";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error("Unable to spawn a command");}
+        }
+        class RemoveAddressTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string address;
+            public string dev;
+            public void * func()
+            {
+                t.tasklet_remove_address(address, dev);
+                return null;
+            }
+        }
 
         private ArrayList<string> current_known_destinations;
 
@@ -471,7 +625,7 @@ namespace ProofOfConcept
             AddDestinationTasklet ts = new AddDestinationTasklet();
             ts.t = this;
             ts.dest = dest;
-            command_dispatcher.dispatch(ts);
+            command_dispatcher.dispatch(ts, true);
         }
         private void tasklet_add_destination(string dest)
         {
@@ -482,7 +636,7 @@ namespace ProofOfConcept
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
             foreach (string neighbour_mac in neighbour_macs)
             {
@@ -491,13 +645,13 @@ namespace ProofOfConcept
                 try {
                     TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                     if (com_ret.exit_status != 0)
-                        error(@"$(com_ret.stderr)\n");
+                        error_in_command(cmd, com_ret.stdout, com_ret.stderr);
                 } catch (Error e) {error("Unable to spawn a command");}
             }
         }
         class AddDestinationTasklet : Object, ITaskletSpawnable
         {
-            public LinuxRoute t;
+            public NetworkStack t;
             public string dest;
             public void * func()
             {
@@ -522,7 +676,7 @@ namespace ProofOfConcept
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
             foreach (string neighbour_mac in neighbour_macs)
             {
@@ -531,13 +685,13 @@ namespace ProofOfConcept
                 try {
                     TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                     if (com_ret.exit_status != 0)
-                        error(@"$(com_ret.stderr)\n");
+                        error_in_command(cmd, com_ret.stdout, com_ret.stderr);
                 } catch (Error e) {error("Unable to spawn a command");}
             }
         }
         class RemoveDestinationTasklet : Object, ITaskletSpawnable
         {
-            public LinuxRoute t;
+            public NetworkStack t;
             public string dest;
             public void * func()
             {
@@ -560,7 +714,7 @@ namespace ProofOfConcept
             ts.gw = gw;
             ts.src = src;
             ts.neighbour_mac = neighbour_mac;
-            command_dispatcher.dispatch(ts);
+            command_dispatcher.dispatch(ts, true);
         }
         private void tasklet_change_best_path(string dest, string? dev, string? gw, string? src, string? neighbour_mac)
         {
@@ -579,12 +733,12 @@ namespace ProofOfConcept
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
         }
         class ChangeBestPathTasklet : Object, ITaskletSpawnable
         {
-            public LinuxRoute t;
+            public NetworkStack t;
             public string dest;
             public string? dev;
             public string? gw;
@@ -596,32 +750,351 @@ namespace ProofOfConcept
                 return null;
             }
         }
-        
 
-        /* Own address management
+        /* Gateways management
         **
         */
 
-        public void add_address(string address, string dev)
+        private void tasklet_create_namespace()
         {
-            string cmd = @"$(cmd_prefix)ip address add $(address) dev $(dev)";
-            print(@"$(cmd)\n");
+            assert(ns != "");
             try {
+                string cmd = @"ip netns add $(ns)";
+                print(@"$(cmd)\n");
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
-            } catch (Error e) {error("Unable to spawn a command");}
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+                tasklet_prepare_all_nics();
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+        class CreateNamespaceTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public void * func()
+            {
+                t.tasklet_create_namespace();
+                return null;
+            }
         }
 
-        public void remove_address(string address, string dev)
+        public void create_pseudodev(string dev, string pseudo_dev, out string pseudo_mac)
         {
-            string cmd = @"$(cmd_prefix)ip address del $(address)/32 dev $(dev)";
+            CreatePseudodevTasklet ts = new CreatePseudodevTasklet();
+            ts.t = this;
+            ts.dev = dev;
+            ts.pseudo_dev = pseudo_dev;
+            command_dispatcher.dispatch(ts, true);
+            pseudo_mac = ts.pseudo_mac;
+        }
+        private void tasklet_create_pseudodev(string dev, string pseudo_dev, out string pseudo_mac)
+        {
+            assert(ns != "");
+            try {
+                string cmd = @"ip link add dev $(pseudo_dev) link $(dev) type macvlan";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+                pseudo_mac = macgetter.get_mac(pseudo_dev).up();
+                cmd = @"ip link set dev $(pseudo_dev) netns $(ns)";
+                print(@"$(cmd)\n");
+                com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+                tasklet_prepare_nic(pseudo_dev);
+                cmd = @"ip netns exec $(ns) ip link set dev $(pseudo_dev) up";
+                print(@"$(cmd)\n");
+                com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+        class CreatePseudodevTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string dev;
+            public string pseudo_dev;
+            public string pseudo_mac;
+            public void * func()
+            {
+                t.tasklet_create_pseudodev(dev, pseudo_dev, out pseudo_mac);
+                return null;
+            }
+        }
+
+        public void add_linklocal_address(string dev, string linklocal)
+        {
+            AddLinklocalAddressTasklet ts = new AddLinklocalAddressTasklet();
+            ts.t = this;
+            ts.dev = dev;
+            ts.linklocal = linklocal;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_add_linklocal_address(string dev, string linklocal)
+        {
+            // ns may be empty-string.
+            try {
+                string cmd = @"$(cmd_prefix)ip address add $(linklocal) dev $(dev)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+        class AddLinklocalAddressTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string dev;
+            public string linklocal;
+            public void * func()
+            {
+                t.tasklet_add_linklocal_address(dev, linklocal);
+                return null;
+            }
+        }
+
+        public void remove_linklocal_address(string dev, string linklocal)
+        {
+            RemoveLinklocalAddressTasklet ts = new RemoveLinklocalAddressTasklet();
+            ts.t = this;
+            ts.dev = dev;
+            ts.linklocal = linklocal;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_remove_linklocal_address(string dev, string linklocal)
+        {
+            // ns may be empty-string.
+            try {
+                string cmd = @"$(cmd_prefix)ip address del $(linklocal)/32 dev $(dev)";
+                print(@"$(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+        class RemoveLinklocalAddressTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string dev;
+            public string linklocal;
+            public void * func()
+            {
+                t.tasklet_remove_linklocal_address(dev, linklocal);
+                return null;
+            }
+        }
+
+        public void add_gateway(string linklocal_src, string linklocal_dst, string dev)
+        {
+            AddGatewayTasklet ts = new AddGatewayTasklet();
+            ts.t = this;
+            ts.linklocal_src = linklocal_src;
+            ts.linklocal_dst = linklocal_dst;
+            ts.dev = dev;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_add_gateway(string linklocal_src, string linklocal_dst, string dev)
+        {
+            // ns may be empty-string.
+            string cmd = @"$(cmd_prefix)ip route add $(linklocal_dst) dev $(dev) src $(linklocal_src)";
             print(@"$(cmd)\n");
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.stderr)\n");
-            } catch (Error e) {error("Unable to spawn a command");}
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+        class AddGatewayTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string linklocal_src;
+            public string linklocal_dst;
+            public string dev;
+            public void * func()
+            {
+                t.tasklet_add_gateway(linklocal_src, linklocal_dst, dev);
+                return null;
+            }
+        }
+
+        public void remove_gateway(string linklocal_src, string linklocal_dst, string dev)
+        {
+            RemoveGatewayTasklet ts = new RemoveGatewayTasklet();
+            ts.t = this;
+            ts.linklocal_src = linklocal_src;
+            ts.linklocal_dst = linklocal_dst;
+            ts.dev = dev;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_remove_gateway(string linklocal_src, string linklocal_dst, string dev)
+        {
+            // ns may be empty-string.
+            string cmd = @"$(cmd_prefix)ip route del $(linklocal_dst) dev $(dev) src $(linklocal_src)";
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+        class RemoveGatewayTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string linklocal_src;
+            public string linklocal_dst;
+            public string dev;
+            public void * func()
+            {
+                t.tasklet_remove_gateway(linklocal_src, linklocal_dst, dev);
+                return null;
+            }
+        }
+
+        public void flush_table_main()
+        {
+            FlushTableMainTasklet ts = new FlushTableMainTasklet();
+            ts.t = this;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_flush_table_main()
+        {
+            assert(ns != "");
+            string cmd = @"$(cmd_prefix)ip route flush table main";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+        class FlushTableMainTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public void * func()
+            {
+                t.tasklet_flush_table_main();
+                return null;
+            }
+        }
+
+        public void delete_pseudodev(string pseudo_dev)
+        {
+            DeletePseudodevTasklet ts = new DeletePseudodevTasklet();
+            ts.t = this;
+            ts.pseudo_dev = pseudo_dev;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_delete_pseudodev(string pseudo_dev)
+        {
+            assert(ns != "");
+            string cmd = @"$(cmd_prefix)ip link delete $(pseudo_dev) type macvlan";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+        class DeletePseudodevTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string pseudo_dev;
+            public void * func()
+            {
+                t.tasklet_delete_pseudodev(pseudo_dev);
+                return null;
+            }
+        }
+
+        public void delete_namespace()
+        {
+            DeleteNamespaceTasklet ts = new DeleteNamespaceTasklet();
+            ts.t = this;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_delete_namespace()
+        {
+            assert(ns != "");
+            string cmd = @"ip netns del $(ns)";
+            print(@"$(cmd)\n");
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
+        }
+        class DeleteNamespaceTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public void * func()
+            {
+                t.tasklet_delete_namespace();
+                return null;
+            }
+        }
+
+        public void prepare_all_nics()
+        {
+            PrepareAllNicsTasklet ts = new PrepareAllNicsTasklet();
+            ts.t = this;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_prepare_all_nics()
+        {
+            // disable rp_filter
+            tasklet_set_sys_ctl("net.ipv4.conf.all.rp_filter", "0");
+            // arp policies
+            tasklet_set_sys_ctl("net.ipv4.conf.all.arp_ignore", "1");
+            tasklet_set_sys_ctl("net.ipv4.conf.all.arp_announce", "2");
+        }
+        class PrepareAllNicsTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public void * func()
+            {
+                t.tasklet_prepare_all_nics();
+                return null;
+            }
+        }
+
+        public void prepare_nic(string nic)
+        {
+            PrepareNicTasklet ts = new PrepareNicTasklet();
+            ts.t = this;
+            ts.nic = nic;
+            command_dispatcher.dispatch(ts, true);
+        }
+        private void tasklet_prepare_nic(string nic)
+        {
+            // disable rp_filter
+            tasklet_set_sys_ctl(@"net.ipv4.conf.$(nic).rp_filter", "0");
+            // arp policies
+            tasklet_set_sys_ctl(@"net.ipv4.conf.$(nic).arp_ignore", "1");
+            tasklet_set_sys_ctl(@"net.ipv4.conf.$(nic).arp_announce", "2");
+        }
+        class PrepareNicTasklet : Object, ITaskletSpawnable
+        {
+            public NetworkStack t;
+            public string nic;
+            public void * func()
+            {
+                t.tasklet_prepare_nic(nic);
+                return null;
+            }
+        }
+
+        private void tasklet_set_sys_ctl(string key, string val)
+        {
+            try {
+                string cmd = @"$(cmd_prefix)sysctl $(key)=$(val)";
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+                com_ret = tasklet.exec_command(@"$(cmd_prefix)sysctl -n $(key)");
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+                if (com_ret.stdout != @"$(val)\n")
+                    error(@"Failed to set key '$(key)' to val '$(val)': now it reports '$(com_ret.stdout)'\n");
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
     }
 }
