@@ -406,7 +406,6 @@ namespace ProofOfConcept
           */
         private void tasklet_remove_table(string tablename)
         {
-            while (! command_dispatcher.is_empty()) tasklet.ms_wait(10);
             if (! (tablename in table_references.keys)) error(@"table $(tablename) should be in use.");
 
             // empty the table
