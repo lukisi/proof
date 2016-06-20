@@ -1539,7 +1539,7 @@ Command list:
 
         public void remove_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
-            find_network_stack_for_ns("").add_gateway(my_addr, neighbor_addr, my_dev);
+            find_network_stack_for_ns("").remove_gateway(my_addr, neighbor_addr, my_dev);
         }
 
         public void remove_address(string my_addr, string my_dev)
