@@ -723,6 +723,8 @@ Command list:
         public IIdmgmtArc arc;
         public NodeID id;
         public IIdmgmtIdentityArc id_arc;
+        public string peer_mac;
+        public string peer_linklocal;
     }
 
     class NeighborData : Object
@@ -2222,6 +2224,8 @@ Command list:
         ia.arc = arc;
         ia.id = id;
         ia.id_arc = id_arc;
+        ia.peer_mac = id_arc.get_peer_mac();
+        ia.peer_linklocal = id_arc.get_peer_linklocal();
         int identityarc_index = identityarc_nextindex++;
         identityarcs[identityarc_index] = ia;
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
@@ -2257,14 +2261,48 @@ Command list:
             return;
         }
         IdentityArc ia = identityarcs[identityarc_index];
+        string old_mac = ia.peer_mac;
+        string old_linklocal = ia.peer_linklocal;
+        ia.peer_mac = id_arc.get_peer_mac();
+        ia.peer_linklocal = id_arc.get_peer_linklocal();
+        NodeID peer_nodeid = id_arc.get_peer_nodeid();
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
-        print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
+        print(@"                  id-id: from $(id.id) to $(peer_nodeid.id).\n");
         string peer_ll = ia.id_arc.get_peer_linklocal();
         string ns = identity_mgr.get_namespace(ia.id);
         string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
         print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
-        // I shouldn't need to change anything in 'IdentityArc ia', cause it's the same instance.
+        // This should be the same instance.
         assert(ia.id_arc == id_arc);
+        // Retrieve my identity.
+        foreach (int i in nodeids.keys)
+        {
+            IdentityData _id = nodeids[i];
+            if (_id.nodeid.equals(id))
+            {
+                // Retrieve qspn_arc if there was one for this identity-arc.
+                foreach (QspnArc qspn_arc in _id.my_arcs)
+                {
+                    if (qspn_arc.arc.idmgmt_arc == arc &&
+                        qspn_arc.sourceid.equals(id) &&
+                        qspn_arc.destid.equals(peer_nodeid))
+                    {
+                        // Update this qspn_arc
+                        qspn_arc.peer_mac = ia.peer_mac;
+                        // Create a new table for neighbour, with an `unreachable` for all known destinations.
+                        _id.network_stack.add_neighbour(qspn_arc.peer_mac);
+                        // Remove the table `ntk_from_old_mac`. It may reappear afterwards, that would be
+                        //  a definitely new neighbour node.
+                        _id.network_stack.remove_neighbour(old_mac);
+                        // In new table `ntk_from_newmac` update all routes.
+                        // In other tables, update all routes that have the new peer_linklocal as gateway.
+                        // Indeed, update best route for all known destinations.
+                        _id.update_all_destinations();
+                    }
+                }
+                break;
+            }
+        }
     }
 
     void identity_arc_removing(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
