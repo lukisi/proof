@@ -41,6 +41,7 @@ namespace ProofOfConcept
     ArrayList<int> _gsizes;
     ArrayList<int> _g_exp;
     int levels;
+    string ip_whole_network;
     NeighborhoodManager? neighborhood_mgr;
     IdentityManager? identity_mgr;
     ArrayList<int> identity_mgr_arcs;
@@ -108,6 +109,7 @@ namespace ProofOfConcept
         foreach (string dev in interfaces) _devs.add(dev);
         if (_naddr.size != _gsizes.size) error("You have to use same number of levels");
         levels = _gsizes.size;
+        ip_whole_network = compute_ip_whole_network();
 
         // Initialize tasklet system
         PthTaskletImplementer.init();
@@ -139,7 +141,7 @@ namespace ProofOfConcept
         nodeid_nextindex = 0;
         nodeids = new HashMap<int, IdentityData>();
         network_stacks = new HashMap<string, NetworkStack>();
-        network_stacks[""] = new NetworkStack("", ip_whole_network());
+        network_stacks[""] = new NetworkStack("", ip_whole_network);
         find_network_stack_for_ns("").prepare_all_nics();
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         nodearc_nextindex = 0;
@@ -191,9 +193,10 @@ namespace ProofOfConcept
         // First identity
         NodeID nodeid = identity_mgr.get_main_id();
         int nodeid_index = nodeid_nextindex++;
-        nodeids[nodeid_index] = new IdentityData(nodeid);
-        nodeids[nodeid_index].nodeid_index = nodeid_index;
-        nodeids[nodeid_index].main_id = true;
+        IdentityData first_identity = new IdentityData(nodeid);
+        nodeids[nodeid_index] = first_identity;
+        first_identity.nodeid_index = nodeid_index;
+        first_identity.main_id = true;
         print(@"nodeids: #$(nodeid_index): $(nodeid.id).\n");
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
@@ -206,46 +209,44 @@ namespace ProofOfConcept
             my_fp,
             new QspnStubFactory(nodeid_index));
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
-        nodeids[nodeid_index].my_naddr = my_naddr;
-        nodeids[nodeid_index].my_fp = my_fp;
-        nodeids[nodeid_index].ready = true;
-        nodeids[nodeid_index].addr_man = new AddressManagerForIdentity(qspn_mgr);
+        first_identity.my_naddr = my_naddr;
+        first_identity.my_fp = my_fp;
+        first_identity.ready = true;
+        first_identity.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
         string ns = ""; // first identity in default namespace
-        ArrayList<string> pseudodevs = new ArrayList<string>();
-        foreach (string real_nic in real_nics)
-        {
-            string? pseudodev = identity_mgr.get_pseudodev(nodeid, real_nic);
-            if (pseudodev != null) pseudodevs.add(pseudodev);
-        }
         NetworkStack network_stack = find_network_stack_for_ns(ns);
-        nodeids[nodeid_index].network_stack = network_stack;
-        nodeids[nodeid_index].ip_global = ip_global_node(my_naddr.pos);
-        foreach (string dev in pseudodevs) network_stack.add_address(nodeids[nodeid_index].ip_global, dev);
+        first_identity.network_stack = network_stack;
+        first_identity.ip_global = ip_global_node(my_naddr.pos);
+        foreach (string dev in real_nics) network_stack.add_address(first_identity.ip_global, dev);
         if (accept_anonymous_requests)
         {
-            nodeids[nodeid_index].ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
-            foreach (string dev in pseudodevs) network_stack.add_address(nodeids[nodeid_index].ip_anonymizing, dev);
+            first_identity.ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
+            foreach (string dev in real_nics) network_stack.add_address(first_identity.ip_anonymizing, dev);
         }
-        nodeids[nodeid_index].ip_internal = new ArrayList<string>();
+        else first_identity.ip_anonymizing = null;
+        first_identity.ip_internal = new ArrayList<string>();
         for (int j = 0; j <= levels-2; j++)
         {
-            nodeids[nodeid_index].ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
-            foreach (string dev in pseudodevs) network_stack.add_address(nodeids[nodeid_index].ip_internal[j], dev);
+            first_identity.ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
+            foreach (string dev in real_nics) network_stack.add_address(first_identity.ip_internal[j], dev);
         }
+        first_identity.all_dest_set = compute_ip_all_possible_destinations(first_identity.my_naddr);
+        foreach (string dest in first_identity.all_dest_set)
+            first_identity.network_stack.add_destination(dest);
 
-        qspn_mgr.arc_removed.connect(nodeids[nodeid_index].arc_removed);
-        qspn_mgr.changed_fp.connect(nodeids[nodeid_index].changed_fp);
-        qspn_mgr.changed_nodes_inside.connect(nodeids[nodeid_index].changed_nodes_inside);
-        qspn_mgr.destination_added.connect(nodeids[nodeid_index].destination_added);
-        qspn_mgr.destination_removed.connect(nodeids[nodeid_index].destination_removed);
-        qspn_mgr.gnode_splitted.connect(nodeids[nodeid_index].gnode_splitted);
-        qspn_mgr.path_added.connect(nodeids[nodeid_index].path_added);
-        qspn_mgr.path_changed.connect(nodeids[nodeid_index].path_changed);
-        qspn_mgr.path_removed.connect(nodeids[nodeid_index].path_removed);
-        qspn_mgr.presence_notified.connect(nodeids[nodeid_index].presence_notified);
-        qspn_mgr.qspn_bootstrap_complete.connect(nodeids[nodeid_index].qspn_bootstrap_complete);
-        qspn_mgr.remove_identity.connect(nodeids[nodeid_index].remove_identity);
+        qspn_mgr.arc_removed.connect(first_identity.arc_removed);
+        qspn_mgr.changed_fp.connect(first_identity.changed_fp);
+        qspn_mgr.changed_nodes_inside.connect(first_identity.changed_nodes_inside);
+        qspn_mgr.destination_added.connect(first_identity.destination_added);
+        qspn_mgr.destination_removed.connect(first_identity.destination_removed);
+        qspn_mgr.gnode_splitted.connect(first_identity.gnode_splitted);
+        qspn_mgr.path_added.connect(first_identity.path_added);
+        qspn_mgr.path_changed.connect(first_identity.path_changed);
+        qspn_mgr.path_removed.connect(first_identity.path_removed);
+        qspn_mgr.presence_notified.connect(first_identity.presence_notified);
+        qspn_mgr.qspn_bootstrap_complete.connect(first_identity.qspn_bootstrap_complete);
+        qspn_mgr.remove_identity.connect(first_identity.remove_identity);
 
         // end startup
 
@@ -766,6 +767,7 @@ Command list:
         public string ip_global;
         public string ip_anonymizing;
         public ArrayList<string> ip_internal;
+        public Gee.List<string> all_dest_set;
 
         public void arc_removed(IQspnArc arc, bool bad_link)
         {
@@ -795,236 +797,12 @@ Command list:
 
         public void destination_added(HCoord h)
         {
-            if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
-            // add a path to 'h' that says 'unreachable'.
-
-            // Compute Netsukuku address of `h`.
-            ArrayList<int> h_addr = new ArrayList<int>();
-            h_addr.add_all(my_naddr.pos);
-            h_addr[h.lvl] = h.pos;
-            for (int i = 0; i < h.lvl; i++) h_addr[i] = -1;
-
-            // Operations now are based on type of my_naddr:
-            // Is this the main ID? Do I have a *real* Netsukuku address?
-            int real_up_to = my_naddr.get_real_up_to();
-            int virtual_up_to = my_naddr.get_virtual_up_to();
-            if (main_id)
-            {
-                if (real_up_to == levels-1)
-                {
-                    // Global.
-                    network_stack.add_destination(ip_global_gnode(h_addr, h.lvl));
-                    // Anonymizing.
-                    network_stack.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
-                    // Internals. In this case they are guaranteed to be valid.
-                    for (int t = h.lvl + 1; t <= levels - 1; t++)
-                    {
-                        network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                    }
-                }
-                else
-                {
-                    if (h.lvl <= real_up_to)
-                    {
-                        // Internals. In this case they MUST be checked.
-                        bool invalid_found = false;
-                        for (int t = h.lvl + 1; t <= levels - 1; t++)
-                        {
-                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                            {
-                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                                {
-                                    invalid_found = true;
-                                    break;
-                                }
-                            }
-                            if (invalid_found) break; // The higher levels will be invalid too.
-                            network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                        }
-                    }
-                    else if (h.lvl < virtual_up_to)
-                    {
-
-                        // Internals. In this case they MUST be checked.
-                        bool invalid_found = false;
-                        for (int t = h.lvl + 1; t <= levels - 1; t++)
-                        {
-                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                            {
-                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                                {
-                                    invalid_found = true;
-                                    break;
-                                }
-                            }
-                            if (invalid_found) break; // The higher levels will be invalid too.
-                            network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                        }
-                    }
-                    else
-                    {
-                        // Global.
-                        network_stack.add_destination(ip_global_gnode(h_addr, h.lvl));
-                        // Anonymizing.
-                        network_stack.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
-                        // Internals. In this case they are guaranteed to be valid.
-                        for (int t = h.lvl + 1; t <= levels - 1; t++)
-                        {
-                            network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                        }
-                    } 
-                }
-            }
-            else
-            {
-                if (h.lvl < virtual_up_to)
-                {
-                    // Internals. In this case they MUST be checked.
-                    bool invalid_found = false;
-                    for (int t = h.lvl + 1; t <= levels - 1; t++)
-                    {
-                        for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                        {
-                            if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                            {
-                                invalid_found = true;
-                                break;
-                            }
-                        }
-                        if (invalid_found) break; // The higher levels will be invalid too.
-                        network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                    }
-                }
-                else
-                {
-                    // Global.
-                    network_stack.add_destination(ip_global_gnode(h_addr, h.lvl));
-                    // Anonymizing.
-                    network_stack.add_destination(ip_anonymizing_gnode(h_addr, h.lvl));
-                    // Internals. In this case they are guaranteed to be valid.
-                    for (int t = h.lvl + 1; t <= levels - 1; t++)
-                    {
-                        network_stack.add_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                    }
-                } 
-            }
+            // something to do?
         }
 
         public void destination_removed(HCoord h)
         {
-            if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
-            // remove any path to 'h'.
-
-            // Compute Netsukuku address of `h`.
-            ArrayList<int> h_addr = new ArrayList<int>();
-            h_addr.add_all(my_naddr.pos);
-            h_addr[h.lvl] = h.pos;
-            for (int i = 0; i < h.lvl; i++) h_addr[i] = -1;
-
-            // Operations now are based on type of my_naddr:
-            // Is this the main ID? Do I have a *real* Netsukuku address?
-            int real_up_to = my_naddr.get_real_up_to();
-            int virtual_up_to = my_naddr.get_virtual_up_to();
-            if (main_id)
-            {
-                if (real_up_to == levels-1)
-                {
-                    // Global.
-                    network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
-                    // Anonymizing.
-                    network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
-                    // Internals. In this case they are guaranteed to be valid.
-                    for (int t = h.lvl + 1; t <= levels - 1; t++)
-                    {
-                        network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                    }
-                }
-                else
-                {
-                    if (h.lvl <= real_up_to)
-                    {
-                        // Internals. In this case they MUST be checked.
-                        bool invalid_found = false;
-                        for (int t = h.lvl + 1; t <= levels - 1; t++)
-                        {
-                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                            {
-                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                                {
-                                    invalid_found = true;
-                                    break;
-                                }
-                            }
-                            if (invalid_found) break; // The higher levels will be invalid too.
-                            network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                        }
-                    }
-                    else if (h.lvl < virtual_up_to)
-                    {
-
-                        // Internals. In this case they MUST be checked.
-                        bool invalid_found = false;
-                        for (int t = h.lvl + 1; t <= levels - 1; t++)
-                        {
-                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                            {
-                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                                {
-                                    invalid_found = true;
-                                    break;
-                                }
-                            }
-                            if (invalid_found) break; // The higher levels will be invalid too.
-                            network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                        }
-                    }
-                    else
-                    {
-                        // Global.
-                        network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
-                        // Anonymizing.
-                        network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
-                        // Internals. In this case they are guaranteed to be valid.
-                        for (int t = h.lvl + 1; t <= levels - 1; t++)
-                        {
-                            network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                        }
-                    } 
-                }
-            }
-            else
-            {
-                if (h.lvl < virtual_up_to)
-                {
-                    // Internals. In this case they MUST be checked.
-                    bool invalid_found = false;
-                    for (int t = h.lvl + 1; t <= levels - 1; t++)
-                    {
-                        for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                        {
-                            if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                            {
-                                invalid_found = true;
-                                break;
-                            }
-                        }
-                        if (invalid_found) break; // The higher levels will be invalid too.
-                        network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                    }
-                }
-                else
-                {
-                    // Global.
-                    network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
-                    // Anonymizing.
-                    network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
-                    // Internals. In this case they are guaranteed to be valid.
-                    for (int t = h.lvl + 1; t <= levels - 1; t++)
-                    {
-                        network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                    }
-                } 
-            }
+            // something to do?
         }
 
         public void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
@@ -1052,9 +830,8 @@ Command list:
         private void update_best_path(HCoord h)
         {
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
-            if (! qspn_mgr.is_bootstrap_complete()) return; // not ready yet.
             if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
-            print(@"Identity #$(nodeid_index): update_best_path for h ($(h.lvl), $(h.pos)): started.\n");
+            print(@"Debug: IdentityData #$(nodeid_index): update_best_path for h ($(h.lvl), $(h.pos)): started.\n");
             // change the route. place current best path to `h`. if none, then change the path to 'unreachable'.
 
             // Retrieve all routes towards `h`.
@@ -1062,13 +839,8 @@ Command list:
             try {
                 paths = qspn_mgr.get_paths_to(h);
             } catch (QspnBootstrapInProgressError e) {
-                assert_not_reached();
+                paths = new ArrayList<IQspnNodePath>();
             }
-            // If we come from a signal `path_removed`, this could be the last path
-            //  towards `h` that is gone, so we might have no paths at all.
-            // In this case we can just do nothing right now; in just a moment we'll
-            //  also get the signal `destination_removed` which will take care.
-            if (paths.is_empty) return;
 
             // Compute Netsukuku address of `h`.
             ArrayList<int> h_addr = new ArrayList<int>();
@@ -1093,7 +865,6 @@ Command list:
 
             // Find best routes towards `h` for table 'ntk' and for tables 'ntk_from_<MAC>'
             HashMap<string, BestRoute> best_routes = find_best_routes(paths, neighbors);
-            assert(best_routes.has_key("main"));
 
             // Operations now are based on type of my_naddr:
             // Is this the main ID? Do I have a *real* Netsukuku address?
@@ -1124,11 +895,13 @@ Command list:
                         string d_x = ip_dest_set[i];
                         string n_x = ip_src_set[i];
                         // For packets in egress:
-                        network_stack.change_best_path(d_x,
+                        if (best_routes.has_key("main"))
+                            network_stack.change_best_path(d_x,
                                     best_routes["main"].dev,
                                     best_routes["main"].gw,
                                     n_x,
                                     null);
+                        else network_stack.change_best_path(d_x, null, null, null, null);
                         // For packets in forward, received from a known MAC:
                         foreach (NeighborData neighbor in neighbors)
                         {
@@ -1179,11 +952,13 @@ Command list:
                             string d_x = ip_dest_set[i];
                             string n_x = ip_src_set[i];
                             // For packets in egress:
-                            network_stack.change_best_path(d_x,
+                            if (best_routes.has_key("main"))
+                                network_stack.change_best_path(d_x,
                                         best_routes["main"].dev,
                                         best_routes["main"].gw,
                                         n_x,
                                         null);
+                            else network_stack.change_best_path(d_x, null, null, null, null);
                             // For packets in forward, received from a known MAC:
                             foreach (NeighborData neighbor in neighbors)
                             {
@@ -1249,11 +1024,13 @@ Command list:
                                 }
                             }
                             // For packets in forward, received from a unknown MAC:
-                            network_stack.change_best_path(d_x,
+                            if (best_routes.has_key("main"))
+                                network_stack.change_best_path(d_x,
                                         best_routes["main"].dev,
                                         best_routes["main"].gw,
                                         null,
                                         null);
+                            else network_stack.change_best_path(d_x, null, null, null, null);
                         }
                     }
                     else
@@ -1294,11 +1071,13 @@ Command list:
                                 }
                             }
                             // For packets in forward, received from a unknown MAC:
-                            network_stack.change_best_path(d_x,
+                            if (best_routes.has_key("main"))
+                                network_stack.change_best_path(d_x,
                                         best_routes["main"].dev,
                                         best_routes["main"].gw,
                                         null,
                                         null);
+                            else network_stack.change_best_path(d_x, null, null, null, null);
                         }
                     }
                 }
@@ -1349,11 +1128,13 @@ Command list:
                             }
                         }
                         // For packets in forward, received from a unknown MAC:
-                        network_stack.change_best_path(d_x,
+                        if (best_routes.has_key("main"))
+                            network_stack.change_best_path(d_x,
                                     best_routes["main"].dev,
                                     best_routes["main"].gw,
                                     null,
                                     null);
+                        else network_stack.change_best_path(d_x, null, null, null, null);
                     }
                 }
                 else
@@ -1394,11 +1175,13 @@ Command list:
                             }
                         }
                         // For packets in forward, received from a unknown MAC:
-                        network_stack.change_best_path(d_x,
+                        if (best_routes.has_key("main"))
+                            network_stack.change_best_path(d_x,
                                     best_routes["main"].dev,
                                     best_routes["main"].gw,
                                     null,
                                     null);
+                        else network_stack.change_best_path(d_x, null, null, null, null);
                     }
                 }
             }
@@ -1456,45 +1239,15 @@ Command list:
 
         public void qspn_bootstrap_complete()
         {
+            print(@"Debug: IdentityData #$(nodeid_index): call update_all_destinations for qspn_bootstrap_complete.\n");
             update_all_destinations();
-        }
-
-        public void launch_update_all_destinations(int delay)
-        {
-            // In a tasklet: wait then do updates.
-            UpdateAllDestinationsTasklet ts = new UpdateAllDestinationsTasklet();
-            ts.identity = this;
-            ts.delay = delay;
-            tasklet.spawn(ts);
-        }
-        private class UpdateAllDestinationsTasklet : Object, ITaskletSpawnable
-        {
-            public IdentityData identity;
-            public int delay;
-            public void * func()
-            {
-                identity.update_all_destinations_tasklet(delay);
-                return null;
-            }
-        }
-        private void update_all_destinations_tasklet(int delay)
-        {
-            tasklet.ms_wait(delay);
-            update_all_destinations();
+            print(@"Debug: IdentityData #$(nodeid_index): done update_all_destinations for qspn_bootstrap_complete.\n");
         }
 
         public void update_all_destinations()
         {
-            QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
-            if (! qspn_mgr.is_bootstrap_complete()) return;
-            try {
-                foreach (HCoord h in qspn_mgr.get_known_destinations())
-                {
-                    update_best_path(h);
-                }
-            } catch (QspnBootstrapInProgressError e) {
-                assert_not_reached();
-            }
+            for (int lvl = 0; lvl < levels; lvl++) for (int pos = 0; pos < _gsizes[lvl]; pos++) if (my_naddr.pos[lvl] != pos)
+                update_best_path(new HCoord(lvl, pos));
         }
 
         public void remove_identity()
@@ -1603,7 +1356,7 @@ Command list:
         public void create_namespace(string ns)
         {
             assert(ns != "");
-            network_stacks[ns] = new NetworkStack(ns, ip_whole_network());
+            network_stacks[ns] = new NetworkStack(ns, ip_whole_network);
         }
 
         public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
@@ -2228,12 +1981,12 @@ Command list:
         ia.peer_linklocal = id_arc.get_peer_linklocal();
         int identityarc_index = identityarc_nextindex++;
         identityarcs[identityarc_index] = ia;
-        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
-        print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
-        string peer_ll = ia.id_arc.get_peer_linklocal();
         string ns = identity_mgr.get_namespace(ia.id);
         string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
-        print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
+        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
+        print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
+        print(@"                  my id handles $(pseudodev) on '$(ns)'.\n");
+        print(@"                  on the other side this identityarc links to $(ia.peer_linklocal) == $(ia.peer_mac).\n");
     }
 
     void identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
@@ -2266,12 +2019,13 @@ Command list:
         ia.peer_mac = id_arc.get_peer_mac();
         ia.peer_linklocal = id_arc.get_peer_linklocal();
         NodeID peer_nodeid = id_arc.get_peer_nodeid();
-        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
-        print(@"                  id-id: from $(id.id) to $(peer_nodeid.id).\n");
-        string peer_ll = ia.id_arc.get_peer_linklocal();
         string ns = identity_mgr.get_namespace(ia.id);
         string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
-        print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
+        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
+        print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
+        print(@"                  my id handles $(pseudodev) on '$(ns)'.\n");
+        print(@"                  on the other side this identityarc links to $(ia.peer_linklocal) == $(ia.peer_mac).\n");
+        print(@"                  before the change, the link was to $(old_linklocal) == $(old_mac).\n");
         // This should be the same instance.
         assert(ia.id_arc == id_arc);
         // Retrieve my identity.
@@ -2280,6 +2034,13 @@ Command list:
             IdentityData _id = nodeids[i];
             if (_id.nodeid.equals(id))
             {
+                // This identity might be right now in process of changing namespace. That is, we may be
+                //  during `identity_manager.add_identity`. So, `_id.network_stack` might be the old one
+                //  right now; whilst we should use the new one. We can see it for this:
+                if (_id.network_stack.ns != ns)
+                {
+                    // TODO what?
+                }
                 // Retrieve qspn_arc if there was one for this identity-arc.
                 foreach (QspnArc qspn_arc in _id.my_arcs)
                 {
@@ -2297,7 +2058,10 @@ Command list:
                         // In new table `ntk_from_newmac` update all routes.
                         // In other tables, update all routes that have the new peer_linklocal as gateway.
                         // Indeed, update best route for all known destinations.
+                        print("\n");
+                        print(@"Debug: IdentityData #$(_id.nodeid_index): call update_all_destinations for identity_arc_changed.\n");
                         _id.update_all_destinations();
+                        print(@"Debug: IdentityData #$(_id.nodeid_index): done update_all_destinations for identity_arc_changed.\n");
                     }
                 }
                 break;
@@ -2356,12 +2120,12 @@ Command list:
             return;
         }
         IdentityArc ia = identityarcs[identityarc_index];
-        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
-        print(@"                  id-id: from $(id.id) to $(peer_nodeid.id).\n");
-        string peer_ll = ia.id_arc.get_peer_linklocal();
         string ns = identity_mgr.get_namespace(ia.id);
         string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
-        print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
+        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
+        print(@"                  id-id: from $(id.id) to $(ia.id_arc.get_peer_nodeid().id).\n");
+        print(@"                  my id handles $(pseudodev) on '$(ns)'.\n");
+        print(@"                  on the other side this identityarc links to $(ia.peer_linklocal) == $(ia.peer_mac).\n");
         identityarcs.unset(identityarc_index);
     }
 
@@ -2622,12 +2386,89 @@ Command list:
         return ret;
     }
 
-    string ip_whole_network()
+    string compute_ip_whole_network()
     {
         int sum = 0;
         for (int k = 0; k <= levels - 1; k++) sum += _g_exp[k];
         int prefix = 32 - sum - 2;
         string ret = @"10.0.0.0/$(prefix)";
+        return ret;
+    }
+
+    Gee.List<string> compute_ip_all_possible_destinations(Naddr own_naddr)
+    {
+        ArrayList<string> ret = new ArrayList<string>();
+        for (int lvl = 0; lvl < levels; lvl++) for (int pos = 0; pos < _gsizes[lvl]; pos++) if (own_naddr.pos[lvl] != pos)
+        {
+            ret.add_all(compute_ip_one_destination(new HCoord(lvl, pos), own_naddr));
+        }
+        return ret;
+    }
+
+    Gee.List<string> compute_ip_one_destination(HCoord h, Naddr own_naddr)
+    {
+        ArrayList<string> ret = new ArrayList<string>();
+
+        // Compute Netsukuku address of `h`.
+        ArrayList<int> h_addr = new ArrayList<int>();
+        h_addr.add_all(own_naddr.pos);
+        h_addr[h.lvl] = h.pos;
+        for (int i = 0; i < h.lvl; i++) h_addr[i] = -1;
+
+        // Operations now are based on my own Netsukuku address:
+        int real_up_to = own_naddr.get_real_up_to();
+        if (real_up_to == levels-1)
+        {
+            ret.add_all(compute_ip_one_real_destination(h_addr, h.lvl, own_naddr));
+        }
+        else
+        {
+            int virtual_up_to = own_naddr.get_virtual_up_to();
+            if (h.lvl < virtual_up_to)
+            {
+                ret.add_all(compute_ip_one_virtual_destination(h_addr, h.lvl, own_naddr));
+            }
+            else
+            {
+                ret.add_all(compute_ip_one_real_destination(h_addr, h.lvl, own_naddr));
+            }
+        }
+        return ret;
+    }
+
+    Gee.List<string> compute_ip_one_real_destination(ArrayList<int> h_addr, int h_lvl, Naddr own_naddr)
+    {
+        ArrayList<string> ret = new ArrayList<string>();
+        // Global.
+        ret.add(ip_global_gnode(h_addr, h_lvl));
+        // Anonymizing.
+        ret.add(ip_anonymizing_gnode(h_addr, h_lvl));
+        // Internals. In this case they are guaranteed to be valid.
+        for (int t = h_lvl + 1; t <= levels - 1; t++)
+        {
+            ret.add(ip_internal_gnode(h_addr, h_lvl, t));
+        }
+        return ret;
+    }
+
+    Gee.List<string> compute_ip_one_virtual_destination(ArrayList<int> h_addr, int h_lvl, Naddr own_naddr)
+    {
+        ArrayList<string> ret = new ArrayList<string>();
+        // Internals. In this case they MUST be checked.
+        bool invalid_found = false;
+        for (int t = h_lvl + 1; t <= levels - 1; t++)
+        {
+            for (int n_lvl = h_lvl + 1; n_lvl <= t - 1; n_lvl++)
+            {
+                if (h_addr[n_lvl] >= _gsizes[n_lvl])
+                {
+                    invalid_found = true;
+                    break;
+                }
+            }
+            if (invalid_found) break; // The higher levels will be invalid too.
+            ret.add(ip_internal_gnode(h_addr, h_lvl, t));
+        }
         return ret;
     }
 
@@ -2781,12 +2622,13 @@ Command list:
 
     void add_identity(int migration_id, int old_nodeid_index)
     {
-        NodeID old_id = nodeids[old_nodeid_index].nodeid;
+        IdentityData old_identity = nodeids[old_nodeid_index];
+        NodeID old_id = old_identity.nodeid;
         NodeID new_id = identity_mgr.add_identity(migration_id, old_id);
+
         int nodeid_index = nodeid_nextindex++;
         nodeids[nodeid_index] = new IdentityData(new_id);
         IdentityData new_identity = nodeids[nodeid_index];
-        IdentityData old_identity = nodeids[old_nodeid_index];
         new_identity.copy_of_identity = old_identity;
         new_identity.nodeid_index = nodeid_index;
         old_identity.main_id = false;
@@ -2798,6 +2640,8 @@ Command list:
         NetworkStack old_network_stack = old_identity.network_stack;
         old_identity.network_stack = new_network_stack;
         new_identity.network_stack = old_network_stack;
+        new_identity.all_dest_set = old_identity.all_dest_set;
+        old_identity.all_dest_set = new ArrayList<string>();
 
         print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
     }
@@ -2833,6 +2677,41 @@ Command list:
         foreach (int i in todel) identityarcs.unset(i);
     }
 
+    void make_connectivity(int nodeid_index, int virtual_lvl, int virtual_pos, int eldership, int connectivity_to_lvl)
+    {
+        IdentityData id = nodeids[nodeid_index];
+        NodeID nodeid = id.nodeid;
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+
+        ArrayList<int> _new_naddr = new ArrayList<int>();
+        _new_naddr.add_all(id.my_naddr.pos);
+        ArrayList<int> _new_elderships = new ArrayList<int>();
+        _new_elderships.add_all(id.my_fp.elderships);
+        assert(virtual_lvl >= 0);
+        assert(virtual_lvl < levels);
+        assert(virtual_pos >= _gsizes[virtual_lvl]);
+        _new_naddr[virtual_lvl] = virtual_pos;
+        assert(eldership > _new_elderships[virtual_lvl]);
+        _new_elderships[virtual_lvl] = eldership;
+
+        Naddr new_naddr = new Naddr(_new_naddr.to_array(), _gsizes.to_array());
+        Fingerprint new_fp = new Fingerprint(_new_elderships.to_array(), id.my_fp.id);
+        qspn_mgr.make_connectivity
+            (virtual_lvl + 1,
+             connectivity_to_lvl,
+             new_naddr, new_fp);
+        // It becomes a connectivity identity
+        id.connectivity_from_level = virtual_lvl + 1;
+        id.connectivity_to_level = connectivity_to_lvl;
+        id.my_naddr = new_naddr;
+        id.my_fp = new_fp;
+        foreach (QspnArc arc in id.my_arcs)
+            id.network_stack.add_neighbour(arc.peer_mac);
+        id.all_dest_set = compute_ip_all_possible_destinations(id.my_naddr);
+        foreach (string dest in id.all_dest_set)
+            id.network_stack.add_destination(dest);
+    }
+
     void enter_net
     (int new_nodeid_index,
      string s_naddr_new_gnode,
@@ -2848,157 +2727,6 @@ Command list:
         Netsukuku.Qspn. QspnManager previous_id_qspn_mgr = (QspnManager)identity_mgr.get_identity_module(previous_id, "qspn");
         Naddr previous_id_my_naddr = previous_identity.my_naddr;
         Fingerprint previous_id_my_fp = previous_identity.my_fp;
-        NetworkStack new_id_network_stack = new_identity.network_stack;
-
-        if (previous_id_qspn_mgr.is_bootstrap_complete())
-        {
-            Gee.List<HCoord> dests;
-            try {
-                dests = previous_id_qspn_mgr.get_known_destinations();
-            } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
-            foreach (HCoord h in dests)
-            {
-                if (h.pos >= _gsizes[h.lvl]) continue; // ignore virtual destination.
-
-                // Compute Netsukuku address of `h`.
-                ArrayList<int> h_addr = new ArrayList<int>();
-                h_addr.add_all(previous_identity.my_naddr.pos);
-                h_addr[h.lvl] = h.pos;
-                for (int i = 0; i < h.lvl; i++) h_addr[i] = -1;
-
-                // Remove routes towards global IPs. Then, remove routes towards internal IPs
-                //  only inside lvl > hooking_gnode_level.
-                // Operations now are based on type of previous_identity:
-                // Is this the main ID? Do I have a *real* Netsukuku address?
-                int real_up_to = previous_identity.my_naddr.get_real_up_to();
-                int virtual_up_to = previous_identity.my_naddr.get_virtual_up_to();
-                if (previous_identity.main_id)
-                {
-                    if (real_up_to == levels-1)
-                    {
-                        // Global.
-                        new_id_network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
-                        // Anonymizing.
-                        new_id_network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
-                        // Internals. In this case they are guaranteed to be valid.
-                        for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
-                        {
-                            new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                        }
-                    }
-                    else
-                    {
-                        if (h.lvl <= real_up_to)
-                        {
-                            // Internals. In this case they MUST be checked.
-                            bool invalid_found = false;
-                            for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
-                            {
-                                for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                                {
-                                    if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                                    {
-                                        invalid_found = true;
-                                        break;
-                                    }
-                                }
-                                if (invalid_found) break; // The higher levels will be invalid too.
-                                new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                            }
-                        }
-                        else if (h.lvl < virtual_up_to)
-                        {
-
-                            // Internals. In this case they MUST be checked.
-                            bool invalid_found = false;
-                            for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
-                            {
-                                for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                                {
-                                    if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                                    {
-                                        invalid_found = true;
-                                        break;
-                                    }
-                                }
-                                if (invalid_found) break; // The higher levels will be invalid too.
-                                new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                            }
-                        }
-                        else
-                        {
-                            // Global.
-                            new_id_network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
-                            // Anonymizing.
-                            new_id_network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
-                            // Internals. In this case they are guaranteed to be valid.
-                            for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
-                            {
-                                new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                            }
-                        } 
-                    }
-                }
-                else
-                {
-                    if (h.lvl < virtual_up_to)
-                    {
-                        // Internals. In this case they MUST be checked.
-                        bool invalid_found = false;
-                        for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
-                        {
-                            for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                            {
-                                if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                                {
-                                    invalid_found = true;
-                                    break;
-                                }
-                            }
-                            if (invalid_found) break; // The higher levels will be invalid too.
-                            new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                        }
-                    }
-                    else
-                    {
-                        // Global.
-                        new_id_network_stack.remove_destination(ip_global_gnode(h_addr, h.lvl));
-                        // Anonymizing.
-                        new_id_network_stack.remove_destination(ip_anonymizing_gnode(h_addr, h.lvl));
-                        // Internals. In this case they are guaranteed to be valid.
-                        for (int t = h.lvl + 1; t <= levels - 1; t++) if (t > hooking_gnode_level)
-                        {
-                            new_id_network_stack.remove_destination(ip_internal_gnode(h_addr, h.lvl, t));
-                        }
-                    } 
-                }
-            }
-        }
-
-        // Remove my global IP. Then, remove my internal IPs only inside lvl > into_gnode_level-1.
-        // Operations now are based on type of previous_identity:
-        // Is the current (that is, was the previous) the main ID?
-        if (new_identity.main_id)
-        {
-            // Did previous have a *real* Netsukuku address?
-            int real_up_to = previous_identity.my_naddr.get_real_up_to();
-            if (real_up_to == levels-1)
-            {
-                foreach (string dev in real_nics)
-                    new_id_network_stack.remove_address(previous_identity.ip_global, dev);
-                if (accept_anonymous_requests)
-                {
-                    foreach (string dev in real_nics)
-                        new_id_network_stack.remove_address(previous_identity.ip_anonymizing, dev);
-                }
-            }
-            for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
-            {
-                if (j+1 > into_gnode_level-1)
-                    foreach (string dev in real_nics)
-                        new_id_network_stack.remove_address(previous_identity.ip_internal[j], dev);
-            }
-        }
 
         ArrayList<int> _naddr = new ArrayList<int>();
         ArrayList<int> _elderships = new ArrayList<int>();
@@ -3020,6 +2748,37 @@ Command list:
         }
         Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
         Fingerprint my_fp = new Fingerprint(_elderships.to_array(), previous_id_my_fp.id);
+
+        if (new_identity.main_id)
+        {
+            int real_up_to = my_naddr.get_real_up_to();
+            if (real_up_to == levels-1) new_identity.ip_global = ip_global_node(my_naddr.pos);
+            else new_identity.ip_global = null;
+            if (new_identity.ip_global != previous_identity.ip_global)
+                foreach (string dev in real_nics) new_identity.network_stack.add_address(new_identity.ip_global, dev);
+            if (accept_anonymous_requests)
+            {
+                if (real_up_to == levels-1) new_identity.ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
+                else new_identity.ip_anonymizing = null;
+                if (new_identity.ip_anonymizing != previous_identity.ip_anonymizing)
+                    foreach (string dev in real_nics) new_identity.network_stack.add_address(new_identity.ip_anonymizing, dev);
+            }
+            else new_identity.ip_anonymizing = null;
+            new_identity.ip_internal = new ArrayList<string>();
+            for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
+            {
+                new_identity.ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
+                if (new_identity.ip_internal.size <= j || previous_identity.ip_internal[j] != new_identity.ip_internal[j])
+                    foreach (string dev in real_nics) new_identity.network_stack.add_address(new_identity.ip_internal[j], dev);
+            }
+        }
+        else
+        {
+            new_identity.ip_global = null;
+            new_identity.ip_anonymizing = null;
+            new_identity.ip_internal = new ArrayList<string>();
+        }
+
         string my_naddr_str = naddr_repr(my_naddr);
         string my_elderships_str = fp_elderships_repr(my_fp);
         print(@"new identity will be $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
@@ -3068,7 +2827,6 @@ Command list:
                 }
             }
             if (! qspnarc_is_internal) external_arc_set.add(arc);
-            new_id_network_stack.add_neighbour(peer_mac);
         }
         QspnManager qspn_mgr = new Netsukuku.Qspn.QspnManager.enter_net(my_naddr,
             internal_arc_set,
@@ -3093,36 +2851,6 @@ Command list:
         new_identity.my_arcs.add_all(internal_arc_set);
         new_identity.my_arcs.add_all(external_arc_set);
 
-        ArrayList<string> pseudodevs = new ArrayList<string>();
-        foreach (string real_nic in real_nics)
-        {
-            string? pseudodev = identity_mgr.get_pseudodev(new_id, real_nic);
-            if (pseudodev != null) pseudodevs.add(pseudodev);
-        }
-        if (/* Is this the main ID? */ new_identity.main_id)
-        {
-            // Do I have a *real* Netsukuku address?
-            int real_up_to = my_naddr.get_real_up_to();
-            if (real_up_to == levels-1)
-            {
-                new_identity.ip_global = ip_global_node(my_naddr.pos);
-                foreach (string dev in pseudodevs) new_id_network_stack.add_address(new_identity.ip_global, dev);
-                if (accept_anonymous_requests)
-                {
-                    new_identity.ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
-                    foreach (string dev in pseudodevs) new_id_network_stack.add_address(new_identity.ip_anonymizing, dev);
-                }
-            }
-            new_identity.ip_internal = new ArrayList<string>();
-            for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
-            {
-                new_identity.ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
-                if (j+1 > into_gnode_level-1)
-                    foreach (string dev in pseudodevs)
-                        new_id_network_stack.add_address(new_identity.ip_internal[j], dev);
-            }
-        }
-
         qspn_mgr.arc_removed.connect(new_identity.arc_removed);
         qspn_mgr.changed_fp.connect(new_identity.changed_fp);
         qspn_mgr.changed_nodes_inside.connect(new_identity.changed_nodes_inside);
@@ -3135,41 +2863,53 @@ Command list:
         qspn_mgr.presence_notified.connect(new_identity.presence_notified);
         qspn_mgr.qspn_bootstrap_complete.connect(new_identity.qspn_bootstrap_complete);
         qspn_mgr.remove_identity.connect(new_identity.remove_identity);
-    }
 
-    void make_connectivity(int nodeid_index, int virtual_lvl, int virtual_pos, int eldership, int connectivity_to_lvl)
-    {
-        IdentityData id = nodeids[nodeid_index];
-        NodeID nodeid = id.nodeid;
-        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+        ArrayList<string> new_id_network_stack_current_neighbours = new ArrayList<string>();
+        new_id_network_stack_current_neighbours.add_all(new_identity.network_stack.current_neighbours);
+        ArrayList<string> new_id_arcs_peer_mac = new ArrayList<string>();
+        foreach (QspnArc arc in new_identity.my_arcs) new_id_arcs_peer_mac.add(arc.peer_mac);
+        foreach (string neighbour_mac in new_id_network_stack_current_neighbours)
+            if (! (neighbour_mac in new_id_arcs_peer_mac))
+                new_identity.network_stack.remove_neighbour(neighbour_mac);
+        foreach (string neighbour_mac in new_id_arcs_peer_mac)
+            if (! (neighbour_mac in new_id_network_stack_current_neighbours))
+                new_identity.network_stack.add_neighbour(neighbour_mac);
 
-        ArrayList<int> _new_naddr = new ArrayList<int>();
-        _new_naddr.add_all(id.my_naddr.pos);
-        ArrayList<int> _new_elderships = new ArrayList<int>();
-        _new_elderships.add_all(id.my_fp.elderships);
-        assert(virtual_lvl >= 0);
-        assert(virtual_lvl < levels);
-        assert(virtual_pos >= _gsizes[virtual_lvl]);
-        _new_naddr[virtual_lvl] = virtual_pos;
-        assert(eldership > _new_elderships[virtual_lvl]);
-        _new_elderships[virtual_lvl] = eldership;
+        Gee.List<string> old_dest_set = new_identity.all_dest_set;
+        Gee.List<string> new_dest_set = compute_ip_all_possible_destinations(new_identity.my_naddr);
+        foreach (string dest in new_dest_set)
+            if (! (dest in old_dest_set))
+                new_identity.network_stack.add_destination(dest);
+        foreach (string dest in old_dest_set)
+            if (! (dest in new_dest_set))
+                new_identity.network_stack.remove_destination(dest);
+        new_identity.all_dest_set = new_dest_set;
+        print(@"Debug: IdentityData #$(new_identity.nodeid_index): call update_all_destinations for enter_net.\n");
+        new_identity.update_all_destinations();
+        print(@"Debug: IdentityData #$(new_identity.nodeid_index): done update_all_destinations for enter_net.\n");
 
-        Naddr new_naddr = new Naddr(_new_naddr.to_array(), _gsizes.to_array());
-        Fingerprint new_fp = new Fingerprint(_new_elderships.to_array(), id.my_fp.id);
-        qspn_mgr.make_connectivity
-            (virtual_lvl + 1,
-             connectivity_to_lvl,
-             new_naddr, new_fp);
-        // It becomes a connectivity identity
-        id.connectivity_from_level = virtual_lvl + 1;
-        id.connectivity_to_level = connectivity_to_lvl;
-        id.my_naddr = new_naddr;
-        id.my_fp = new_fp;
+        if (new_identity.main_id)
+        {
+            ArrayList<string> all_ip_previous_identity = new ArrayList<string>();
+            if (previous_identity.ip_global != null) all_ip_previous_identity.add(previous_identity.ip_global);
+            if (previous_identity.ip_anonymizing != null) all_ip_previous_identity.add(previous_identity.ip_anonymizing);
+            all_ip_previous_identity.add_all(previous_identity.ip_internal);
+
+            ArrayList<string> all_ip_new_identity = new ArrayList<string>();
+            if (new_identity.ip_global != null) all_ip_new_identity.add(new_identity.ip_global);
+            if (new_identity.ip_anonymizing != null) all_ip_new_identity.add(new_identity.ip_anonymizing);
+            all_ip_new_identity.add_all(new_identity.ip_internal);
+
+            foreach (string old_ip in all_ip_previous_identity) if (! (old_ip in all_ip_new_identity))
+                foreach (string dev in real_nics)
+                    new_identity.network_stack.remove_address(old_ip, dev);
+        }
     }
 
     void add_qspnarc(int nodeid_index, int idarc_index)
     {
-        NodeID id = nodeids[nodeid_index].nodeid;
+        IdentityData identity = nodeids[nodeid_index];
+        NodeID id = identity.nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
 
         assert(idarc_index in identityarcs.keys);
@@ -3181,9 +2921,12 @@ Command list:
         string peer_mac = ia.id_arc.get_peer_mac();
         QspnArc arc = new QspnArc(_arc, sourceid, destid, peer_mac);
         qspn_mgr.arc_add(arc);
-        nodeids[nodeid_index].my_arcs.add(arc);
-        nodeids[nodeid_index].network_stack.add_neighbour(peer_mac);
-        nodeids[nodeid_index].launch_update_all_destinations(1000);
+        identity.my_arcs.add(arc);
+        if (! (peer_mac in identity.network_stack.current_neighbours))
+            identity.network_stack.add_neighbour(peer_mac);
+        print(@"Debug: IdentityData #$(identity.nodeid_index): call update_all_destinations for add_qspnarc.\n");
+        identity.update_all_destinations();
+        print(@"Debug: IdentityData #$(identity.nodeid_index): done update_all_destinations for add_qspnarc.\n");
     }
 
     void remove_outer_arcs(int nodeid_index)

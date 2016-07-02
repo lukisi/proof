@@ -66,7 +66,14 @@ namespace ProofOfConcept
         private string cmd_prefix;
         private string whole_network;
         private DispatchableTasklet command_dispatcher;
-        ArrayList<string> neighbour_macs;
+        private ArrayList<string> neighbour_macs;
+        private Gee.List<string> _current_neighbours;
+        public Gee.List<string> current_neighbours {
+            get {
+                _current_neighbours = neighbour_macs.read_only_view;
+                return _current_neighbours;
+            }
+        }
 
         const string maintable = "ntk";
 
@@ -87,8 +94,6 @@ namespace ProofOfConcept
 
         public void add_neighbour(string neighbour_mac)
         {
-            assert(! (neighbour_mac in neighbour_macs));
-            neighbour_macs.add(neighbour_mac);
             AddNeighbourTasklet ts = new AddNeighbourTasklet();
             ts.t = this;
             ts.neighbour_mac = neighbour_mac;
@@ -96,18 +101,23 @@ namespace ProofOfConcept
         }
         private void tasklet_add_neighbour(string neighbour_mac)
         {
+            //print(@"Debug: NetworkStack[$(ns)]: add_neighbour($(neighbour_mac))\n");return;
+            assert(! (neighbour_mac in neighbour_macs));
             tasklet_create_table(@"$(maintable)_from_$(neighbour_mac)");
             tasklet_rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
+            neighbour_macs.add(neighbour_mac);
             // add `unreachable` in this new table for each known destination.
             foreach (string dest in current_known_destinations)
             {
                 string cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)_from_$(neighbour_mac)";
                 print(@"$(cmd)\n");
+                /*/
                 try {
                     TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                     if (com_ret.exit_status != 0)
                         error_in_command(cmd, com_ret.stdout, com_ret.stderr);
                 } catch (Error e) {error("Unable to spawn a command");}
+                /*/
             }
         }
         class AddNeighbourTasklet : Object, ITaskletSpawnable
@@ -130,6 +140,7 @@ namespace ProofOfConcept
         }
         private void tasklet_remove_neighbour(string neighbour_mac)
         {
+            //print(@"Debug: NetworkStack[$(ns)]: remove_neighbour($(neighbour_mac))\n"); return;
             assert(neighbour_mac in neighbour_macs);
             neighbour_macs.remove(neighbour_mac);
             tasklet_remove_rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
@@ -567,13 +578,16 @@ namespace ProofOfConcept
         }
         private void tasklet_add_address(string address, string dev)
         {
+            //print(@"Debug: NetworkStack[$(ns)]: add_address($(address), $(dev))\n");return;
             string cmd = @"$(cmd_prefix)ip address add $(address) dev $(dev)";
             print(@"$(cmd)\n");
+                /*/
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
+                /*/
         }
         class AddAddressTasklet : Object, ITaskletSpawnable
         {
@@ -597,13 +611,16 @@ namespace ProofOfConcept
         }
         private void tasklet_remove_address(string address, string dev)
         {
+            //print(@"Debug: NetworkStack[$(ns)]: remove_address($(address), $(dev))\n");return;
             string cmd = @"$(cmd_prefix)ip address del $(address)/32 dev $(dev)";
             print(@"$(cmd)\n");
+                /*/
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
+                /*/
         }
         class RemoveAddressTasklet : Object, ITaskletSpawnable
         {
@@ -628,24 +645,29 @@ namespace ProofOfConcept
         }
         private void tasklet_add_destination(string dest)
         {
+            //print(@"Debug: NetworkStack[$(ns)]: add_destination($(dest))\n");return;
             // add dest unreachable
             current_known_destinations.add(dest);
             string cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)";
             print(@"$(cmd)\n");
+                /*/
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
+                /*/
             foreach (string neighbour_mac in neighbour_macs)
             {
                 cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)_from_$(neighbour_mac)";
                 print(@"$(cmd)\n");
+                /*/
                 try {
                     TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                     if (com_ret.exit_status != 0)
                         error_in_command(cmd, com_ret.stdout, com_ret.stderr);
                 } catch (Error e) {error("Unable to spawn a command");}
+                /*/
             }
         }
         class AddDestinationTasklet : Object, ITaskletSpawnable
@@ -668,24 +690,29 @@ namespace ProofOfConcept
         }
         private void tasklet_remove_destination(string dest)
         {
+            //print(@"Debug: NetworkStack[$(ns)]: remove_destination($(dest))\n");return;
             // remove dest
             current_known_destinations.remove(dest);
             string cmd = @"$(cmd_prefix)ip route del $(dest) table $(maintable)";
             print(@"$(cmd)\n");
+                /*/
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
+                /*/
             foreach (string neighbour_mac in neighbour_macs)
             {
                 cmd = @"$(cmd_prefix)ip route del $(dest) table $(maintable)_from_$(neighbour_mac)";
                 print(@"$(cmd)\n");
+                /*/
                 try {
                     TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                     if (com_ret.exit_status != 0)
                         error_in_command(cmd, com_ret.stdout, com_ret.stderr);
                 } catch (Error e) {error("Unable to spawn a command");}
+                /*/
             }
         }
         class RemoveDestinationTasklet : Object, ITaskletSpawnable
@@ -717,6 +744,7 @@ namespace ProofOfConcept
         }
         private void tasklet_change_best_path(string dest, string? dev, string? gw, string? src, string? neighbour_mac)
         {
+            //print(@"Debug: NetworkStack[$(ns)]: change_best_path($(dest), ..., $(neighbour_mac==null?"null":neighbour_mac))\n");return;
             // change route to dest.
             string table = maintable;
             if (neighbour_mac != null) table = @"$(maintable)_from_$(neighbour_mac)";
@@ -729,11 +757,13 @@ namespace ProofOfConcept
             }
             string cmd = @"$(cmd_prefix)ip route change $(route_solution)";
             print(@"$(cmd)\n");
+                /*/
             try {
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error("Unable to spawn a command");}
+                /*/
         }
         class ChangeBestPathTasklet : Object, ITaskletSpawnable
         {
