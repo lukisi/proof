@@ -196,7 +196,6 @@ namespace ProofOfConcept
         IdentityData first_identity = new IdentityData(nodeid);
         nodeids[nodeid_index] = first_identity;
         first_identity.nodeid_index = nodeid_index;
-        first_identity.main_id = true;
         print(@"nodeids: #$(nodeid_index): $(nodeid.id).\n");
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
@@ -214,9 +213,7 @@ namespace ProofOfConcept
         first_identity.ready = true;
         first_identity.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
-        string ns = ""; // first identity in default namespace
-        NetworkStack network_stack = find_network_stack_for_ns(ns);
-        first_identity.network_stack = network_stack;
+        NetworkStack network_stack = first_identity.network_stack; // first identity in default namespace
         first_identity.ip_global = ip_global_node(my_naddr.pos);
         foreach (string dev in real_nics) network_stack.add_address(first_identity.ip_global, dev);
         if (accept_anonymous_requests)
@@ -762,12 +759,26 @@ Command list:
         public ArrayList<QspnArc> my_arcs;
         public int connectivity_from_level;
         public int connectivity_to_level;
-        public NetworkStack network_stack;
-        public bool main_id;
         public string ip_global;
         public string ip_anonymizing;
         public ArrayList<string> ip_internal;
         public Gee.List<string> all_dest_set;
+
+        private NetworkStack _network_stack;
+        public NetworkStack network_stack {
+            get {
+                string ns = identity_mgr.get_namespace(nodeid);
+                _network_stack = find_network_stack_for_ns(ns);
+                return _network_stack;
+            }
+        }
+
+        public bool main_id {
+            get {
+                string ns = identity_mgr.get_namespace(nodeid);
+                return ns == "";
+            }
+        }
 
         public void arc_removed(IQspnArc arc, bool bad_link)
         {
@@ -2034,13 +2045,6 @@ Command list:
             IdentityData _id = nodeids[i];
             if (_id.nodeid.equals(id))
             {
-                // This identity might be right now in process of changing namespace. That is, we may be
-                //  during `identity_manager.add_identity`. So, `_id.network_stack` might be the old one
-                //  right now; whilst we should use the new one. We can see it for this:
-                if (_id.network_stack.ns != ns)
-                {
-                    // TODO what?
-                }
                 // Retrieve qspn_arc if there was one for this identity-arc.
                 foreach (QspnArc qspn_arc in _id.my_arcs)
                 {
@@ -2048,6 +2052,7 @@ Command list:
                         qspn_arc.sourceid.equals(id) &&
                         qspn_arc.destid.equals(peer_nodeid))
                     {
+                        // TODO This has to be done only if this identity is not doing add_identity.
                         // Update this qspn_arc
                         qspn_arc.peer_mac = ia.peer_mac;
                         // Create a new table for neighbour, with an `unreachable` for all known destinations.
@@ -2631,17 +2636,11 @@ Command list:
         IdentityData new_identity = nodeids[nodeid_index];
         new_identity.copy_of_identity = old_identity;
         new_identity.nodeid_index = nodeid_index;
-        old_identity.main_id = false;
 
-        string new_ns = identity_mgr.get_namespace(old_id);
-        string old_ns = identity_mgr.get_namespace(new_id);
-        new_identity.main_id = (old_ns == "");
-        NetworkStack new_network_stack = find_network_stack_for_ns(new_ns);
-        NetworkStack old_network_stack = old_identity.network_stack;
-        old_identity.network_stack = new_network_stack;
-        new_identity.network_stack = old_network_stack;
         new_identity.all_dest_set = old_identity.all_dest_set;
         old_identity.all_dest_set = new ArrayList<string>();
+        foreach (QspnArc arc in old_identity.my_arcs)
+            old_identity.network_stack.add_neighbour(arc.peer_mac);
 
         print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
     }
@@ -2705,8 +2704,6 @@ Command list:
         id.connectivity_to_level = connectivity_to_lvl;
         id.my_naddr = new_naddr;
         id.my_fp = new_fp;
-        foreach (QspnArc arc in id.my_arcs)
-            id.network_stack.add_neighbour(arc.peer_mac);
         id.all_dest_set = compute_ip_all_possible_destinations(id.my_naddr);
         foreach (string dest in id.all_dest_set)
             id.network_stack.add_destination(dest);
