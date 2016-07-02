@@ -2063,7 +2063,6 @@ Command list:
                         // In new table `ntk_from_newmac` update all routes.
                         // In other tables, update all routes that have the new peer_linklocal as gateway.
                         // Indeed, update best route for all known destinations.
-                        print("\n");
                         print(@"Debug: IdentityData #$(_id.nodeid_index): call update_all_destinations for identity_arc_changed.\n");
                         _id.update_all_destinations();
                         print(@"Debug: IdentityData #$(_id.nodeid_index): done update_all_destinations for identity_arc_changed.\n");

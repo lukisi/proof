@@ -1114,15 +1114,24 @@ namespace ProofOfConcept
         private void tasklet_set_sys_ctl(string key, string val)
         {
             try {
+                tasklet.ms_wait(5);
                 string cmd = @"$(cmd_prefix)sysctl $(key)=$(val)";
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+                tasklet.ms_wait(5);
                 com_ret = tasklet.exec_command(@"$(cmd_prefix)sysctl -n $(key)");
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
                 if (com_ret.stdout != @"$(val)\n")
-                    error(@"Failed to set key '$(key)' to val '$(val)': now it reports '$(com_ret.stdout)'\n");
+                {
+                    tasklet.ms_wait(5);
+                    com_ret = tasklet.exec_command(@"$(cmd_prefix)sysctl -n $(key)");
+                    if (com_ret.exit_status != 0)
+                        error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+                    if (com_ret.stdout != @"$(val)\n")
+                        error(@"Failed to set key '$(key)' to val '$(val)': now it reports '$(com_ret.stdout)'\n");
+                }
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
     }
