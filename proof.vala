@@ -63,7 +63,12 @@ namespace ProofOfConcept
     ServerErrorHandler err;
     ArrayList<ITaskletHandle> t_udp_list;
 
-    int main(string[] args)
+    const string pipe_response = "/tmp/qpsnclient_response";
+    const string pipe_commands = "/tmp/qpsnclient_commands";
+    int server_fd_commands;
+    int client_fd_response;
+
+    int main(string[] _args)
     {
         accept_anonymous_requests = false; // default
         no_anonymize = false; // default
@@ -76,14 +81,141 @@ namespace ProofOfConcept
         entries[index++] = { null };
         oc.add_main_entries(entries, null);
         try {
-            oc.parse(ref args);
+            oc.parse(ref _args);
         }
         catch (OptionError e) {
             print(@"Error parsing options: $(e.message)\n");
             return 1;
         }
 
-        if (args.length < 3) error("You have to set your topology (args[1]) and address (args[2]).");
+        ArrayList<string> args = new ArrayList<string>.wrap(_args);
+        if (args.size < 2) error("At least a command.");
+        if (args[1] != "init")
+        {
+            if (args[1] == "help")
+            {
+                print("""
+Command list:
+
+> show_linklocals
+  List current link-local addresses.
+
+> show_nodeids
+  List current NodeID values.
+
+> show_neighborhood_arcs
+  List current usable arcs.
+
+> add_node_arc <from_MAC>-<to_MAC> <cost>
+  Notify a arc to IdentityManager.
+  You choose a cost in microseconds for it.
+
+> show_nodearcs
+  List current accepted arcs.
+
+> change_nodearc <nodearc_index> <cost>
+  Change the cost (in microsecond) for a given arc, which was already accepted.
+
+> remove_nodearc <nodearc_index>
+  Remove a given arc, which was already accepted.
+
+> show_identityarcs
+  List current identity-arcs.
+
+> show_ntkaddress <nodeid_index>
+  Show address and elderships of one of my identities.
+
+> prepare_add_identity <migration_id> <previous_nodeid_index>
+  Prepare to create new identity.
+
+> add_identity <migration_id> <previous_nodeid_index>
+  Create new identity.
+
+> remove_identity <nodeid_index>
+  Dismiss a connectivity identity (and all its connectivity g-node).
+
+> enter_net <new_nodeid_index>
+            <address_new_gnode>
+            <elderships_new_gnode>
+            <hooking_gnode_level>
+            <into_gnode_level>
+                  <identityarc_index>    - one or more times
+  Enter network (migrate) with a newly created identity.
+
+> make_connectivity <nodeid_index> <virtual_lvl> <virtual_pos> <eldership> <connectivity_to_lvl>
+  Make an identity become of connectivity.
+
+> add_qspnarc <nodeid_index> <identityarc_index>
+  Add a QspnArc.
+
+> remove_outer_arcs <nodeid_index>
+  Remove superfluous arcs of a connectivity identity.
+
+> check_connectivity <nodeid_index>
+  Checks whether a connectivity identity is still necessary.
+
+> help
+  Show this menu.
+
+> quit
+  Exit. You can also press <ctrl-C>.
+
+""");
+
+                return 0;
+            }
+            // A command to the instance running.
+            // Initialize tasklet system
+            PthTaskletImplementer.init();
+            tasklet = PthTaskletImplementer.get_tasklet_system();
+            // check
+            if (check_pipe_response())
+            {
+                print("A command is now in progress.\n");
+                return 1;
+            }
+            client_create_pipe_response();
+            // generate a command id
+            int id = Random.int_range(0, int.MAX);
+            string command_id = @"$(id)";
+            // concatenate command_id and command
+            string cl = @"$(command_id)";
+            for (int i = 1; i < args.size; i++) cl = @"$(cl) $(args[i])";
+            try {
+                // send command
+                write_command(cl);
+                // get response. first line is command_id, retval and number of lines.
+                client_open_pipe_response();
+                string resp0 = read_response();
+                string prefix = @"$(command_id) ";
+                assert(resp0.has_prefix(prefix));
+                resp0 = resp0.substring(prefix.length);
+                string[] resp0_pieces = resp0.split(" ");
+                int retval = int.parse(resp0_pieces[0]);
+                int numlines = int.parse(resp0_pieces[1]);
+                for (int i = 0; i < numlines; i++)
+                {
+                    string resp = read_response();
+                    print(@"$(resp)\n");
+                }
+                remove_pipe_response();
+                PthTaskletImplementer.kill();
+                return retval;
+            } catch (Error e) {
+                remove_pipe_response();
+                error(@"Error during pass of command or response: $(e.message)");
+            }
+        }
+        // `init` command.
+        if (check_pipe_commands())
+        {
+            print("Already in progress.\n");
+            return 1;
+        }
+        server_create_pipe_commands();
+        args.remove_at(1);  // remove keywork `init` and go on as usual.
+
+        if (args.size < 3) error("You have to set your topology (args[1]) and address (args[2]).");
         gsizes = args[1];
         naddr = args[2];
         ArrayList<int> _naddr = new ArrayList<int>();
@@ -247,13 +379,13 @@ namespace ProofOfConcept
 
         // end startup
 
-        // start a tasklet to get commands from stdin.
-        CommandLineInterfaceTasklet ts = new CommandLineInterfaceTasklet();
+        // start a tasklet to get commands from pipe_commands.
+        ReadCommandsTasklet ts = new ReadCommandsTasklet();
         tasklet.spawn(ts);
 
         // register handlers for SIGINT and SIGTERM to exit
-        Posix.signal(Posix.SIGINT, safe_exit);
-        Posix.signal(Posix.SIGTERM, safe_exit);
+        Posix.@signal(Posix.SIGINT, safe_exit);
+        Posix.@signal(Posix.SIGTERM, safe_exit);
         // Main loop
         while (true)
         {
@@ -320,6 +452,162 @@ namespace ProofOfConcept
         return 0;
     }
 
+    void server_create_pipe_commands()
+    {
+        int ret = Posix.mkfifo(pipe_commands, Posix.S_IRUSR | Posix.S_IWUSR);
+        if (ret != 0) error(@"Couldn't create pipe commands: retcode = $(ret)");
+    }
+
+    void server_open_pipe_commands()
+    {
+        server_fd_commands = Posix.open(pipe_commands, Posix.O_RDONLY);
+    }
+
+    void client_create_pipe_response()
+    {
+        int ret = Posix.mkfifo(pipe_response, Posix.S_IRUSR | Posix.S_IWUSR);
+        if (ret != 0) error(@"Couldn't create pipe response: retcode = $(ret)");
+    }
+
+    void client_open_pipe_response()
+    {
+        client_fd_response = Posix.open(pipe_response, Posix.O_RDONLY);
+    }
+
+    void remove_pipe_commands()
+    {
+        Posix.close(server_fd_commands);
+        Posix.unlink(pipe_commands);
+    }
+
+    void remove_pipe_response()
+    {
+        Posix.close(client_fd_response);
+        Posix.unlink(pipe_response);
+    }
+
+    bool check_pipe_commands()
+    {
+        return check_pipe(pipe_commands);
+    }
+
+    bool check_pipe_response()
+    {
+        return check_pipe(pipe_response);
+    }
+
+    bool check_pipe(string fname)
+    {
+        Posix.Stat sb;
+        int ret = Posix.stat(fname, out sb);
+        if (ret != 0 && Posix.errno == Posix.ENOENT) return false;
+        if (ret != 0)
+        {
+            print(@"stat: ret = $(ret)\n");
+            print(@"stat: errno = $(Posix.errno)\n");
+            switch (Posix.errno)
+            {
+                case Posix.EACCES:
+                    print("EACCES\n");
+                    break;
+                case Posix.EBADF:
+                    print("EBADF\n");
+                    break;
+                case Posix.EFAULT:
+                    print("EFAULT\n");
+                    break;
+                case Posix.ELOOP:
+                    print("ELOOP\n");
+                    break;
+                case Posix.ENAMETOOLONG:
+                    print("ENAMETOOLONG\n");
+                    break;
+                default:
+                    print("???\n");
+                    break;
+            }
+            error(@"unexpected stat retcode");
+        }
+        if (Posix.S_ISFIFO(sb.st_mode)) return true;
+        error(@"unexpected stat result from file $(fname)");
+    }
+
+    string read_command() throws Error
+    {
+        uint8 buf[256];
+        size_t len = 0;
+        while (true)
+        {
+            len += tasklet.read(server_fd_commands, (void*)(((uint8*)buf)+len), 1);
+            if (buf[len-1] == '\n') break;
+            if (len >= buf.length) error("command too long");
+        }
+        string line = (string)buf;
+        line = line.substring(0, line.length-1);
+        return line;
+    }
+
+    void write_response(string _res) throws Error
+    {
+        string res = _res + "\n";
+        int fd_response = Posix.open(pipe_response, Posix.O_WRONLY);
+        size_t remaining = res.length;
+        uint8 *buf = res.data;
+        while (remaining > 0)
+        {
+            size_t len = tasklet.write(fd_response, (void*)buf, remaining);
+            remaining -= len;
+            buf += len;
+        }
+        Posix.close(fd_response);
+    }
+
+    void write_block_response(string command_id, Gee.List<string> lines, int retval=0) throws Error
+    {
+        write_response(@"$(command_id) $(retval) $(lines.size)");
+        foreach (string line in lines) write_response(line);
+    }
+
+    void write_empty_response(string command_id, int retval=0) throws Error
+    {
+        write_block_response(command_id, new ArrayList<string>(), retval);
+    }
+
+    void write_oneline_response(string command_id, string line, int retval=0) throws Error
+    {
+        write_block_response(command_id, new ArrayList<string>.wrap({line}), retval);
+    }
+
+    void write_command(string _res) throws Error
+    {
+        string res = _res + "\n";
+        int fd_commands = Posix.open(pipe_commands, Posix.O_WRONLY);
+        size_t remaining = res.length;
+        uint8 *buf = res.data;
+        while (remaining > 0)
+        {
+            size_t len = tasklet.write(fd_commands, (void*)buf, remaining);
+            remaining -= len;
+            buf += len;
+        }
+        Posix.close(fd_commands);
+    }
+
+    string read_response() throws Error
+    {
+        uint8 buf[256];
+        size_t len = 0;
+        while (true)
+        {
+            len += tasklet.read(client_fd_response, (void*)(((uint8*)buf)+len), 1);
+            if (buf[len-1] == '\n') break;
+            if (len >= buf.length) error("response too long");
+        }
+        string line = (string)buf;
+        line = line.substring(0, line.length-1);
+        return line;
+    }
+
     bool do_me_exit = false;
     void safe_exit(int sig)
     {
@@ -339,202 +627,221 @@ namespace ProofOfConcept
         //  nic_address_set has been processed, so the module Identities gets its knowledge.
     }
 
-    class CommandLineInterfaceTasklet : Object, ITaskletSpawnable
+    class ReadCommandsTasklet : Object, ITaskletSpawnable
     {
-        public void * func()
+        void handle_commands()
         {
-            try {
+            try
+            {
+                server_open_pipe_commands();
                 while (true)
                 {
-                    print("Ok> ");
-                    uint8 buf[256];
-                    size_t len = tasklet.read(0, (void*)buf, buf.length);
-                    if (len > 255) error("Error during read of CLI: line too long");
-                    string line = (string)buf;
-                    if (line.has_suffix("\n")) line = line.substring(0, line.length-1);
+                    string line = read_command();
+                    if (! check_pipe_response())
+                    {
+                        continue;
+                    }
+                    assert(line != "");
                     ArrayList<string> _args = new ArrayList<string>();
                     foreach (string s_piece in line.split(" ")) _args.add(s_piece);
-                    if (_args.size == 0)
-                    {}
-                    else if (_args[0] == "quit")
+                    string command_id = _args.remove_at(0);
+                    assert(_args.size > 0);
+                    if (_args[0] == "quit")
                     {
                         if (_args.size != 1)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
+                        write_empty_response(command_id);
+                        tasklet.ms_wait(5);
+                        remove_pipe_commands();
                         do_me_exit = true;
+                        break;
                     }
                     else if (_args[0] == "show_linklocals")
                     {
                         if (_args.size != 1)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         show_linklocals();
+                        write_empty_response(command_id);
+                        // TODO: write_block_response(command_id, show_linklocals());
                     }
                     else if (_args[0] == "show_nodeids")
                     {
                         if (_args.size != 1)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         show_nodeids();
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "show_neighborhood_arcs")
                     {
                         if (_args.size != 1)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         show_neighborhood_arcs();
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "add_node_arc")
                     {
                         if (_args.size != 3)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         string k = _args[1];
                         int i_cost = int.parse(_args[2]);
                         if (! (k in neighborhood_arcs.keys))
                         {
-                            print(@"wrong key '$(k)'\n");
+                            write_oneline_response(command_id, @"wrong key '$(k)'", 1);
                             continue;
                         }
                         add_node_arc(neighborhood_arcs[k], i_cost);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "show_nodearcs")
                     {
                         if (_args.size != 1)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         show_nodearcs();
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "change_nodearc")
                     {
                         if (_args.size != 3)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int nodearc_index = int.parse(_args[1]);
                         if (! (nodearc_index in nodearcs.keys))
                         {
-                            print(@"wrong nodearc_index '$(nodearc_index)'\n");
+                            write_oneline_response(command_id, @"wrong nodearc_index '$(nodearc_index)'", 1);
                             continue;
                         }
                         int i_cost = int.parse(_args[2]);
                         change_nodearc(nodearc_index, i_cost);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "remove_nodearc")
                     {
                         if (_args.size != 2)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int nodearc_index = int.parse(_args[1]);
                         if (! (nodearc_index in nodearcs.keys))
                         {
-                            print(@"wrong nodearc_index '$(nodearc_index)'\n");
+                            write_oneline_response(command_id, @"wrong nodearc_index '$(nodearc_index)'", 1);
                             continue;
                         }
                         remove_nodearc(nodearc_index);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "show_identityarcs")
                     {
                         if (_args.size != 1)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         show_identityarcs();
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "show_ntkaddress")
                     {
                         if (_args.size != 2)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int nodeid_index = int.parse(_args[1]);
                         if (! (nodeid_index in nodeids.keys))
                         {
-                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
                         show_ntkaddress(nodeid_index);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "prepare_add_identity")
                     {
                         if (_args.size != 3)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int migration_id = int.parse(_args[1]);
                         int nodeid_index = int.parse(_args[2]);
                         if (! (nodeid_index in nodeids.keys))
                         {
-                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
                         prepare_add_identity(migration_id, nodeid_index);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "add_identity")
                     {
                         if (_args.size != 3)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int migration_id = int.parse(_args[1]);
                         int nodeid_index = int.parse(_args[2]);
                         if (! (nodeid_index in nodeids.keys))
                         {
-                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
                         add_identity(migration_id, nodeid_index);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "remove_identity")
                     {
                         if (_args.size != 2)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int nodeid_index = int.parse(_args[1]);
                         if (! (nodeid_index in nodeids.keys))
                         {
-                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
                         remove_identity(nodeid_index);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "enter_net")
                     {
                         if (_args.size < 7)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int new_nodeid_index = int.parse(_args[1]);
                         if (! (new_nodeid_index in nodeids.keys))
                         {
-                            print(@"wrong new_nodeid_index '$(new_nodeid_index)'\n");
+                            write_oneline_response(command_id, @"wrong new_nodeid_index '$(new_nodeid_index)'", 1);
                             continue;
                         }
                         if (nodeids[new_nodeid_index].ready)
                         {
-                            print(@"wrong new_nodeid_index '$(new_nodeid_index)' (it is already started)\n");
+                            write_oneline_response(command_id, @"wrong new_nodeid_index '$(new_nodeid_index)' (it is already started)", 1);
                             continue;
                         }
                         string s_naddr_new_gnode = _args[2];
@@ -555,29 +862,31 @@ namespace ProofOfConcept
                             hooking_gnode_level,
                             into_gnode_level,
                             idarc_index_set);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "add_qspnarc")
                     {
                         if (_args.size != 3)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int nodeid_index = int.parse(_args[1]);
                         int idarc_index = int.parse(_args[2]);
                         add_qspnarc(nodeid_index, idarc_index);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "make_connectivity")
                     {
                         if (_args.size != 6)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int nodeid_index = int.parse(_args[1]);
                         if (! (nodeid_index in nodeids.keys))
                         {
-                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
                         int virtual_lvl = int.parse(_args[2]);
@@ -585,120 +894,55 @@ namespace ProofOfConcept
                         int eldership = int.parse(_args[4]);
                         int connectivity_to_lvl = int.parse(_args[5]);
                         make_connectivity(nodeid_index, virtual_lvl, virtual_pos, eldership, connectivity_to_lvl);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "remove_outer_arcs")
                     {
                         if (_args.size != 2)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int nodeid_index = int.parse(_args[1]);
                         if (! (nodeid_index in nodeids.keys))
                         {
-                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
                         remove_outer_arcs(nodeid_index);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "check_connectivity")
                     {
                         if (_args.size != 2)
                         {
-                            print(@"Bad arguments number.\n");
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int nodeid_index = int.parse(_args[1]);
                         if (! (nodeid_index in nodeids.keys))
                         {
-                            print(@"wrong nodeid_index '$(nodeid_index)'\n");
+                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
                         check_connectivity(nodeid_index);
-                    }
-                    else if (_args[0] == "help")
-                    {
-                        if (_args.size != 1)
-                        {
-                            print(@"Bad arguments number.\n");
-                            continue;
-                        }
-                        print("""
-Command list:
-
-> show_linklocals
-  List current link-local addresses.
-
-> show_nodeids
-  List current NodeID values.
-
-> show_neighborhood_arcs
-  List current usable arcs.
-
-> add_node_arc <from_MAC>-<to_MAC> <cost>
-  Notify a arc to IdentityManager.
-  You choose a cost in microseconds for it.
-
-> show_nodearcs
-  List current accepted arcs.
-
-> change_nodearc <nodearc_index> <cost>
-  Change the cost (in microsecond) for a given arc, which was already accepted.
-
-> remove_nodearc <nodearc_index>
-  Remove a given arc, which was already accepted.
-
-> show_identityarcs
-  List current identity-arcs.
-
-> show_ntkaddress <nodeid_index>
-  Show address and elderships of one of my identities.
-
-> prepare_add_identity <migration_id> <previous_nodeid_index>
-  Prepare to create new identity.
-
-> add_identity <migration_id> <previous_nodeid_index>
-  Create new identity.
-
-> remove_identity <nodeid_index>
-  Dismiss a connectivity identity (and all its connectivity g-node).
-
-> enter_net <new_nodeid_index>
-            <address_new_gnode>
-            <elderships_new_gnode>
-            <hooking_gnode_level>
-            <into_gnode_level>
-                  <identityarc_index>    - one or more times
-  Enter network (migrate) with a newly created identity.
-
-> make_connectivity <nodeid_index> <virtual_lvl> <virtual_pos> <eldership> <connectivity_to_lvl>
-  Make an identity become of connectivity.
-
-> add_qspnarc <nodeid_index> <identityarc_index>
-  Add a QspnArc.
-
-> remove_outer_arcs <nodeid_index>
-  Remove superfluous arcs of a connectivity identity.
-
-> check_connectivity <nodeid_index>
-  Checks whether a connectivity identity is still necessary.
-
-> help
-  Show this menu.
-
-> quit
-  Exit. You can also press <ctrl-C>.
-
-""");
+                        write_empty_response(command_id);
                     }
                     else
                     {
-                        print("CLI: unknown command\n");
+                        write_oneline_response(command_id, @"unknown command '$(_args[0])'.", 1);
                     }
                 }
             } catch (Error e) {
-                error(@"Error during read of CLI: $(e.message)");
+                remove_pipe_commands();
+                error(@"Error during pass of command or response: $(e.message)");
             }
+        }
+
+        public void * func()
+        {
+            handle_commands();
+            return null;
         }
     }
 
