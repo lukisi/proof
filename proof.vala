@@ -666,9 +666,7 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        show_linklocals();
-                        write_empty_response(command_id);
-                        // TODO: write_block_response(command_id, show_linklocals());
+                        write_block_response(command_id, show_linklocals());
                     }
                     else if (_args[0] == "show_nodeids")
                     {
@@ -677,8 +675,7 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        show_nodeids();
-                        write_empty_response(command_id);
+                        write_block_response(command_id, show_nodeids());
                     }
                     else if (_args[0] == "show_neighborhood_arcs")
                     {
@@ -687,8 +684,7 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        show_neighborhood_arcs();
-                        write_empty_response(command_id);
+                        write_block_response(command_id, show_neighborhood_arcs());
                     }
                     else if (_args[0] == "add_node_arc")
                     {
@@ -704,8 +700,7 @@ Command list:
                             write_oneline_response(command_id, @"wrong key '$(k)'", 1);
                             continue;
                         }
-                        add_node_arc(neighborhood_arcs[k], i_cost);
-                        write_empty_response(command_id);
+                        write_block_response(command_id, add_node_arc(neighborhood_arcs[k], i_cost));
                     }
                     else if (_args[0] == "show_nodearcs")
                     {
@@ -714,8 +709,7 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        show_nodearcs();
-                        write_empty_response(command_id);
+                        write_block_response(command_id, show_nodearcs());
                     }
                     else if (_args[0] == "change_nodearc")
                     {
@@ -757,8 +751,7 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        show_identityarcs();
-                        write_empty_response(command_id);
+                        write_block_response(command_id, show_identityarcs());
                     }
                     else if (_args[0] == "show_ntkaddress")
                     {
@@ -773,8 +766,7 @@ Command list:
                             write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
-                        show_ntkaddress(nodeid_index);
-                        write_empty_response(command_id);
+                        write_block_response(command_id, show_ntkaddress(nodeid_index));
                     }
                     else if (_args[0] == "prepare_add_identity")
                     {
@@ -2745,45 +2737,52 @@ Command list:
         return my_elderships_str;
     }
 
-    void show_linklocals()
+    Gee.List<string> show_linklocals()
     {
+        ArrayList<string> ret = new ArrayList<string>();
         foreach (int i in linklocals.keys)
         {
             HandledNic n = linklocals[i];
-            print(@"linklocals: #$(i): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
+            ret.add(@"linklocals: #$(i): $(n.dev) ($(n.mac)) has $(n.linklocal).");
         }
+        return ret;
     }
 
-    void show_nodeids()
+    Gee.List<string> show_nodeids()
     {
+        ArrayList<string> ret = new ArrayList<string>();
         foreach (int i in nodeids.keys)
         {
             NodeID nodeid = nodeids[i].nodeid;
             bool nodeid_ready = nodeids[i].ready;
             bool main = identity_mgr.get_main_id().equals(nodeid);
-            print(@"nodeids: #$(i): $(nodeid.id), $(nodeid_ready ? "" : "not ")ready.$(main ? " [main]" : "")\n");
+            ret.add(@"nodeids: #$(i): $(nodeid.id), $(nodeid_ready ? "" : "not ")ready.$(main ? " [main]" : "")");
         }
+        return ret;
     }
 
-    void show_neighborhood_arcs()
+    Gee.List<string> show_neighborhood_arcs()
     {
+        ArrayList<string> ret = new ArrayList<string>();
         foreach (string k in neighborhood_arcs.keys)
         {
             INeighborhoodArc arc = neighborhood_arcs[k];
-            print(@"arc $(k) is for $(arc.neighbour_nic_addr)\n");
+            ret.add(@"arc $(k) is for $(arc.neighbour_nic_addr)");
         }
+        return ret;
     }
 
-    void add_node_arc(INeighborhoodArc _arc, int cost)
+    Gee.List<string> add_node_arc(INeighborhoodArc _arc, int cost)
     {
+        ArrayList<string> ret = new ArrayList<string>();
         // Had this arc been already added to 'nodearcs'?
         foreach (int nodearc_index in nodearcs.keys)
         {
             Arc node_arc = nodearcs[nodearc_index];
             if (_arc == node_arc.neighborhood_arc)
             {
-                print("Already there.\n");
-                return;
+                ret.add("Already there.");
+                return ret;
             }
         }
         Arc arc = new Arc();
@@ -2795,21 +2794,24 @@ Command list:
         string _dev = arc.idmgmt_arc.get_dev();
         string _p_ll = arc.idmgmt_arc.get_peer_linklocal();
         string _p_mac = arc.idmgmt_arc.get_peer_mac();
-        print(@"nodearcs: #$(nodearc_index): from $(_dev) to $(_p_ll) ($(_p_mac)).\n");
+        ret.add(@"nodearcs: #$(nodearc_index): from $(_dev) to $(_p_ll) ($(_p_mac)).");
         identity_mgr.add_arc(arc.idmgmt_arc);
         identity_mgr_arcs.add(nodearc_index);
+        return ret;
     }
 
-    void show_nodearcs()
+    Gee.List<string> show_nodearcs()
     {
+        ArrayList<string> ret = new ArrayList<string>();
         foreach (int i in nodearcs.keys)
         {
             Arc arc = nodearcs[i];
             string _dev = arc.idmgmt_arc.get_dev();
             string _p_ll = arc.idmgmt_arc.get_peer_linklocal();
             string _p_mac = arc.idmgmt_arc.get_peer_mac();
-            print(@"nodearcs: #$(i): from $(_dev) to $(_p_ll) ($(_p_mac)).\n");
+            ret.add(@"nodearcs: #$(i): from $(_dev) to $(_p_ll) ($(_p_mac)).");
         }
+        return ret;
     }
 
     void change_nodearc(int nodearc_index, int cost)
@@ -2836,30 +2838,34 @@ Command list:
         error("not implemented yet");
     }
 
-    void show_identityarcs()
+    Gee.List<string> show_identityarcs()
     {
+        ArrayList<string> ret = new ArrayList<string>();
         foreach (int i in identityarcs.keys)
         {
             IdentityArc ia = identityarcs[i];
             IIdmgmtArc arc = ia.arc;
             NodeID id = ia.id;
             IIdmgmtIdentityArc id_arc = ia.id_arc;
-            print(@"identityarcs: #$(i): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
-            print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
+            ret.add(@"identityarcs: #$(i): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),");
+            ret.add(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).");
             string peer_ll = ia.id_arc.get_peer_linklocal();
             string ns = identity_mgr.get_namespace(ia.id);
             string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
-            print(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).\n");
+            ret.add(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).");
         }
+        return ret;
     }
 
-    void show_ntkaddress(int nodeid_index)
+    Gee.List<string> show_ntkaddress(int nodeid_index)
     {
+        ArrayList<string> ret = new ArrayList<string>();
         Naddr my_naddr = nodeids[nodeid_index].my_naddr;
         Fingerprint my_fp = nodeids[nodeid_index].my_fp;
         string my_naddr_str = naddr_repr(my_naddr);
         string my_elderships_str = fp_elderships_repr(my_fp);
-        print(@"my_naddr = $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
+        ret.add(@"my_naddr = $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).");
+        return ret;
     }
 
     void prepare_add_identity(int migration_id, int old_nodeid_index)
