@@ -171,7 +171,7 @@ Command list:
             // check
             if (check_pipe_response())
             {
-                print("A command is now in progress.\n");
+                print("Client: Another command is now in progress.\n");
                 return 1;
             }
             client_create_pipe_response();
@@ -209,7 +209,7 @@ Command list:
         // `init` command.
         if (check_pipe_commands())
         {
-            print("Already in progress.\n");
+            print("Server is already in progress.\n");
             return 1;
         }
         server_create_pipe_commands();
@@ -460,7 +460,7 @@ Command list:
 
     void server_open_pipe_commands()
     {
-        server_fd_commands = Posix.open(pipe_commands, Posix.O_RDONLY);
+        server_fd_commands = Posix.open(pipe_commands, Posix.O_RDONLY | Posix.O_NONBLOCK);
     }
 
     void client_create_pipe_response()
@@ -471,7 +471,7 @@ Command list:
 
     void client_open_pipe_response()
     {
-        client_fd_response = Posix.open(pipe_response, Posix.O_RDONLY);
+        client_fd_response = Posix.open(pipe_response, Posix.O_RDONLY | Posix.O_NONBLOCK);
     }
 
     void remove_pipe_commands()
@@ -503,7 +503,7 @@ Command list:
         if (ret != 0 && Posix.errno == Posix.ENOENT) return false;
         if (ret != 0)
         {
-            print(@"stat: ret = $(ret)\n");
+            print(@"check_pipe($(fname)): stat: ret = $(ret)\n");
             print(@"stat: errno = $(Posix.errno)\n");
             switch (Posix.errno)
             {
@@ -538,7 +538,19 @@ Command list:
         size_t len = 0;
         while (true)
         {
-            len += tasklet.read(server_fd_commands, (void*)(((uint8*)buf)+len), 1);
+            while (true)
+            {
+                size_t nb = tasklet.read(server_fd_commands, (void*)(((uint8*)buf)+len), 1);
+                if (nb == 0)
+                {
+                    tasklet.ms_wait(2);
+                }
+                else
+                {
+                    len += nb;
+                    break;
+                }
+            }
             if (buf[len-1] == '\n') break;
             if (len >= buf.length) error("command too long");
         }
@@ -599,7 +611,19 @@ Command list:
         size_t len = 0;
         while (true)
         {
-            len += tasklet.read(client_fd_response, (void*)(((uint8*)buf)+len), 1);
+            while (true)
+            {
+                size_t nb = tasklet.read(client_fd_response, (void*)(((uint8*)buf)+len), 1);
+                if (nb == 0)
+                {
+                    tasklet.ms_wait(2);
+                }
+                else
+                {
+                    len += nb;
+                    break;
+                }
+            }
             if (buf[len-1] == '\n') break;
             if (len >= buf.length) error("response too long");
         }
@@ -639,6 +663,7 @@ Command list:
                     string line = read_command();
                     if (! check_pipe_response())
                     {
+                        print("Server: ignore command because no pipe for response.\n");
                         continue;
                     }
                     assert(line != "");
