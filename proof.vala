@@ -158,7 +158,7 @@ Command list:
   Show this menu.
 
 > quit
-  Exit. You can also press <ctrl-C>.
+  Exit.
 
 """);
 
@@ -824,8 +824,7 @@ Command list:
                             write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
-                        add_identity(migration_id, nodeid_index);
-                        write_empty_response(command_id);
+                        write_block_response(command_id, add_identity(migration_id, nodeid_index));
                     }
                     else if (_args[0] == "remove_identity")
                     {
@@ -873,13 +872,12 @@ Command list:
                             idarc_index_set.add(idarc_index);
                             i++;
                         }
-                        enter_net(new_nodeid_index,
+                        write_block_response(command_id, enter_net(new_nodeid_index,
                             s_naddr_new_gnode,
                             s_elderships_new_gnode,
                             hooking_gnode_level,
                             into_gnode_level,
-                            idarc_index_set);
-                        write_empty_response(command_id);
+                            idarc_index_set));
                     }
                     else if (_args[0] == "add_qspnarc")
                     {
@@ -942,8 +940,7 @@ Command list:
                             write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
                             continue;
                         }
-                        check_connectivity(nodeid_index);
-                        write_empty_response(command_id);
+                        write_block_response(command_id, check_connectivity(nodeid_index));
                     }
                     else
                     {
@@ -2899,8 +2896,9 @@ Command list:
         identity_mgr.prepare_add_identity(migration_id, old_id);
     }
 
-    void add_identity(int migration_id, int old_nodeid_index)
+    Gee.List<string> add_identity(int migration_id, int old_nodeid_index)
     {
+        ArrayList<string> ret = new ArrayList<string>();
         IdentityData old_identity = nodeids[old_nodeid_index];
         NodeID old_id = old_identity.nodeid;
         NodeID new_id = identity_mgr.add_identity(migration_id, old_id);
@@ -2916,7 +2914,8 @@ Command list:
         foreach (QspnArc arc in old_identity.my_arcs)
             old_identity.network_stack.add_neighbour(arc.peer_mac);
 
-        print(@"nodeids: #$(nodeid_index): $(new_id.id).\n");
+        ret.add(@"nodeids: #$(nodeid_index): $(new_id.id).");
+        return ret;
     }
 
     void remove_identity(int old_nodeid_index)
@@ -2983,7 +2982,7 @@ Command list:
             id.network_stack.add_destination(dest);
     }
 
-    void enter_net
+    Gee.List<string> enter_net
     (int new_nodeid_index,
      string s_naddr_new_gnode,
      string s_elderships_new_gnode,
@@ -2991,6 +2990,7 @@ Command list:
      int into_gnode_level,
      Gee.List<int> idarc_index_set)
     {
+        ArrayList<string> ret = new ArrayList<string>();
         IdentityData new_identity = nodeids[new_nodeid_index];
         IdentityData previous_identity = new_identity.copy_of_identity;
         NodeID new_id = new_identity.nodeid;
@@ -3052,7 +3052,7 @@ Command list:
 
         string my_naddr_str = naddr_repr(my_naddr);
         string my_elderships_str = fp_elderships_repr(my_fp);
-        print(@"new identity will be $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
+        ret.add(@"new identity will be $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).");
         ArrayList<QspnArc> internal_arc_set = new ArrayList<QspnArc>();
         ArrayList<Naddr> internal_arc_peer_naddr_set = new ArrayList<Naddr>();
         ArrayList<QspnArc> external_arc_set = new ArrayList<QspnArc>();
@@ -3175,6 +3175,8 @@ Command list:
                 foreach (string dev in real_nics)
                     new_identity.network_stack.remove_address(old_ip, dev);
         }
+
+        return ret;
     }
 
     void add_qspnarc(int nodeid_index, int idarc_index)
@@ -3207,13 +3209,15 @@ Command list:
         qspn_mgr.remove_outer_arcs();
     }
 
-    void check_connectivity(int nodeid_index)
+    Gee.List<string> check_connectivity(int nodeid_index)
     {
+        ArrayList<string> ret = new ArrayList<string>();
         NodeID id = nodeids[nodeid_index].nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
-        bool ret = qspn_mgr.check_connectivity();
-        if (ret) print("This identity can be removed.\n");
-        else print("This identity CANNOT be removed.\n");
+        bool _ret = qspn_mgr.check_connectivity();
+        if (_ret) ret.add("This identity can be removed.");
+        else ret.add("This identity CANNOT be removed.");
+        return ret;
     }
 }
 
