@@ -168,13 +168,8 @@ Command list:
             // Initialize tasklet system
             PthTaskletImplementer.init();
             tasklet = PthTaskletImplementer.get_tasklet_system();
-            // check
-            if (check_pipe_response())
-            {
-                print("Client: Another command is now in progress.\n");
-                return 1;
-            }
-            client_create_pipe_response();
+            // Open pipe for response in nonblock readonly.
+            client_open_pipe_response();
             // generate a command id
             int id = Random.int_range(0, int.MAX);
             string command_id = @"$(id)";
@@ -185,7 +180,6 @@ Command list:
                 // send command
                 write_command(cl);
                 // get response. first line is command_id, retval and number of lines.
-                client_open_pipe_response();
                 string resp0 = read_response();
                 string prefix = @"$(command_id) ";
                 assert(resp0.has_prefix(prefix));
@@ -207,12 +201,8 @@ Command list:
             }
         }
         // `init` command.
-        if (check_pipe_commands())
-        {
-            print("Server is already in progress.\n");
-            return 1;
-        }
-        server_create_pipe_commands();
+        // Open pipe for commands in nonblock readonly.
+        server_open_pipe_commands();
         args.remove_at(1);  // remove keywork `init` and go on as usual.
 
         if (args.size < 3) error("You have to set your topology (args[1]) and address (args[2]).");
@@ -452,26 +442,65 @@ Command list:
         return 0;
     }
 
-    void server_create_pipe_commands()
+    size_t nonblock_read(int fd, void* b, size_t nbytes) throws Error
     {
-        int ret = Posix.mkfifo(pipe_commands, Posix.S_IRUSR | Posix.S_IWUSR);
-        if (ret != 0) error(@"Couldn't create pipe commands: retcode = $(ret)");
+        ssize_t result = Posix.read(fd, b, nbytes);
+        if (result == -1)
+        {
+            if (errno == Posix.EAGAIN) return (size_t)0;
+            report_error_posix_read();
+        }
+        return (size_t)result;
+    }
+
+    [NoReturn]
+    void report_error_posix_read() throws Error
+    {
+        if (errno == Posix.EAGAIN)
+            throw new FileError.FAILED(@"Posix.read returned EAGAIN");
+        if (errno == Posix.EWOULDBLOCK)
+            throw new FileError.FAILED(@"Posix.read returned EWOULDBLOCK");
+        if (errno == Posix.EBADF)
+            throw new FileError.FAILED(@"Posix.read returned EBADF");
+        if (errno == Posix.ECONNREFUSED)
+            throw new FileError.FAILED(@"Posix.read returned ECONNREFUSED");
+        if (errno == Posix.EFAULT)
+            throw new FileError.FAILED(@"Posix.read returned EFAULT");
+        if (errno == Posix.EINTR)
+            throw new FileError.FAILED(@"Posix.read returned EINTR");
+        if (errno == Posix.EINVAL)
+            throw new FileError.FAILED(@"Posix.read returned EINVAL");
+        if (errno == Posix.ENOMEM)
+            throw new FileError.FAILED(@"Posix.read returned ENOMEM");
+        if (errno == Posix.ENOTCONN)
+            throw new FileError.FAILED(@"Posix.read returned ENOTCONN");
+        if (errno == Posix.ENOTSOCK)
+            throw new FileError.FAILED(@"Posix.read returned ENOTSOCK");
+        throw new FileError.FAILED(@"Posix.read returned -1, errno = $(errno)");
     }
 
     void server_open_pipe_commands()
     {
+        int ret = Posix.mkfifo(pipe_commands, Posix.S_IRUSR | Posix.S_IWUSR);
+        if (ret != 0 && Posix.errno == Posix.EEXIST)
+        {
+            error("Server is already in progress.");
+        }
+        if (ret != 0) error(@"Couldn't create pipe commands: Posix.errno = $(Posix.errno)");
         server_fd_commands = Posix.open(pipe_commands, Posix.O_RDONLY | Posix.O_NONBLOCK);
-    }
-
-    void client_create_pipe_response()
-    {
-        int ret = Posix.mkfifo(pipe_response, Posix.S_IRUSR | Posix.S_IWUSR);
-        if (ret != 0) error(@"Couldn't create pipe response: retcode = $(ret)");
+        if (server_fd_commands == -1) error(@"Couldn't open pipe commands: Posix.errno = $(Posix.errno)");
     }
 
     void client_open_pipe_response()
     {
+        int ret = Posix.mkfifo(pipe_response, Posix.S_IRUSR | Posix.S_IWUSR);
+        if (ret != 0 && Posix.errno == Posix.EEXIST)
+        {
+            error("Client: Another command is now in progress.");
+        }
+        if (ret != 0) error(@"Couldn't create pipe response: Posix.errno = $(Posix.errno)");
         client_fd_response = Posix.open(pipe_response, Posix.O_RDONLY | Posix.O_NONBLOCK);
+        if (client_fd_response == -1) error(@"Couldn't open pipe response: Posix.errno = $(Posix.errno)");
     }
 
     void remove_pipe_commands()
@@ -484,11 +513,6 @@ Command list:
     {
         Posix.close(client_fd_response);
         Posix.unlink(pipe_response);
-    }
-
-    bool check_pipe_commands()
-    {
-        return check_pipe(pipe_commands);
     }
 
     bool check_pipe_response()
@@ -540,7 +564,7 @@ Command list:
         {
             while (true)
             {
-                size_t nb = tasklet.read(server_fd_commands, (void*)(((uint8*)buf)+len), 1);
+                size_t nb = nonblock_read(server_fd_commands, (void*)(((uint8*)buf)+len), 1);
                 if (nb == 0)
                 {
                     tasklet.ms_wait(2);
@@ -613,7 +637,7 @@ Command list:
         {
             while (true)
             {
-                size_t nb = tasklet.read(client_fd_response, (void*)(((uint8*)buf)+len), 1);
+                size_t nb = nonblock_read(client_fd_response, (void*)(((uint8*)buf)+len), 1);
                 if (nb == 0)
                 {
                     tasklet.ms_wait(2);
@@ -657,7 +681,6 @@ Command list:
         {
             try
             {
-                server_open_pipe_commands();
                 while (true)
                 {
                     string line = read_command();
