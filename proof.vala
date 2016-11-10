@@ -36,6 +36,7 @@ namespace ProofOfConcept
     string[] interfaces;
     bool accept_anonymous_requests;
     bool no_anonymize;
+    int subnetlevel;
 
     ITasklet tasklet;
     ArrayList<int> _gsizes;
@@ -70,11 +71,13 @@ namespace ProofOfConcept
 
     int main(string[] _args)
     {
+        subnetlevel = 0; // default
         accept_anonymous_requests = false; // default
         no_anonymize = false; // default
         OptionContext oc = new OptionContext("<topology> <address>");
-        OptionEntry[] entries = new OptionEntry[4];
+        OptionEntry[] entries = new OptionEntry[5];
         int index = 0;
+        entries[index++] = {"subnetlevel", 's', 0, OptionArg.INT, ref subnetlevel, "Level of g-node for autonomous subnet", null};
         entries[index++] = {"interfaces", 'i', 0, OptionArg.STRING_ARRAY, ref interfaces, "Interface (e.g. -i eth1). You can use it multiple times.", null};
         entries[index++] = {"serve-anonymous", 'k', 0, OptionArg.NONE, ref accept_anonymous_requests, "Accept anonymous requests", null};
         entries[index++] = {"no-anonymize", 'j', 0, OptionArg.NONE, ref no_anonymize, "Disable anonymizer", null};
