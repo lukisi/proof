@@ -1028,10 +1028,19 @@ Command list:
         }
 
         public NodeID nodeid;
-        public IdentityData? copy_of_identity;
-        public int local_identity_index;
         public Naddr my_naddr;
         public Fingerprint my_fp;
+
+        private string _network_namespace;
+        public string network_namespace {
+            get {
+                _network_namespace = identity_mgr.get_namespace(nodeid);
+                return _network_namespace;
+            }
+        }
+
+        public IdentityData? copy_of_identity;
+        public int local_identity_index;
         public bool ready;
         public AddressManagerForIdentity addr_man;
         public ArrayList<QspnArc> my_arcs;
