@@ -48,8 +48,8 @@ namespace ProofOfConcept
     ArrayList<int> identity_mgr_arcs;
     ArrayList<string> real_nics;
     ArrayList<HandledNic> handlednics;
-    int nodeid_nextindex;
-    HashMap<int, IdentityData> nodeids;
+    int local_identity_nextindex;
+    HashMap<int, IdentityData> local_identities;
     HashMap<string, NetworkStack> network_stacks;
     HashMap<string, INeighborhoodArc> neighborhood_arcs;
     int nodearc_nextindex;
@@ -98,7 +98,7 @@ namespace ProofOfConcept
                 print("""
 Command list:
 
-> show_nodeids
+> show_local_identities
   List current NodeID values.
 
 > show_neighborhood_arcs
@@ -120,19 +120,19 @@ Command list:
 > show_identityarcs
   List current identity-arcs.
 
-> show_ntkaddress <nodeid_index>
+> show_ntkaddress <local_identity_index>
   Show address and elderships of one of my identities.
 
-> prepare_add_identity <migration_id> <previous_nodeid_index>
+> prepare_add_identity <migration_id> <previous_local_identity_index>
   Prepare to create new identity.
 
-> add_identity <migration_id> <previous_nodeid_index>
+> add_identity <migration_id> <previous_local_identity_index>
   Create new identity.
 
-> remove_identity <nodeid_index>
+> remove_identity <local_identity_index>
   Dismiss a connectivity identity (and all its connectivity g-node).
 
-> enter_net <new_nodeid_index>
+> enter_net <new_local_identity_index>
             <address_new_gnode>
             <elderships_new_gnode>
             <hooking_gnode_level>
@@ -140,16 +140,16 @@ Command list:
                   <identityarc_index>    - one or more times
   Enter network (migrate) with a newly created identity.
 
-> make_connectivity <nodeid_index> <virtual_lvl> <virtual_pos> <eldership> <connectivity_to_lvl>
+> make_connectivity <local_identity_index> <virtual_lvl> <virtual_pos> <eldership> <connectivity_to_lvl>
   Make an identity become of connectivity.
 
-> add_qspnarc <nodeid_index> <identityarc_index>
+> add_qspnarc <local_identity_index> <identityarc_index>
   Add a QspnArc.
 
-> remove_outer_arcs <nodeid_index>
+> remove_outer_arcs <local_identity_index>
   Remove superfluous arcs of a connectivity identity.
 
-> check_connectivity <nodeid_index>
+> check_connectivity <local_identity_index>
   Checks whether a connectivity identity is still necessary.
 
 > help
@@ -256,8 +256,8 @@ Command list:
 
         real_nics = new ArrayList<string>();
         handlednics = new ArrayList<HandledNic>();
-        nodeid_nextindex = 0;
-        nodeids = new HashMap<int, IdentityData>();
+        local_identity_nextindex = 0;
+        local_identities = new HashMap<int, IdentityData>();
         network_stacks = new HashMap<string, NetworkStack>();
         network_stacks[""] = new NetworkStack("", ip_whole_network);
         find_network_stack_for_ns("").prepare_all_nics();
@@ -313,11 +313,11 @@ Command list:
 
         // First identity
         NodeID nodeid = identity_mgr.get_main_id();
-        int nodeid_index = nodeid_nextindex++;
+        int local_identity_index = local_identity_nextindex++;
         IdentityData first_identity = new IdentityData(nodeid);
-        nodeids[nodeid_index] = first_identity;
-        first_identity.nodeid_index = nodeid_index;
-        print(@"nodeids: #$(nodeid_index): $(nodeid.id).\n");
+        local_identities[local_identity_index] = first_identity;
+        first_identity.local_identity_index = local_identity_index;
+        print(@"local_identities: #$(local_identity_index): $(nodeid.id).\n");
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
         Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
@@ -327,7 +327,7 @@ Command list:
         print(@"First identity is $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
         QspnManager qspn_mgr = new QspnManager.create_net(my_naddr,
             my_fp,
-            new QspnStubFactory(nodeid_index));
+            new QspnStubFactory(local_identity_index));
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
         first_identity.my_naddr = my_naddr;
         first_identity.my_fp = my_fp;
@@ -385,9 +385,9 @@ Command list:
         // TODO cleanup
 
         // Remove identities and their network namespaces and linklocal addresses.
-        foreach (int i in nodeids.keys)
+        foreach (int i in local_identities.keys)
         {
-            IdentityData identity_data = nodeids[i];
+            IdentityData identity_data = local_identities[i];
             if (! identity_data.main_id)
             {
                 identity_data.network_stack.removing_namespace();
@@ -397,9 +397,9 @@ Command list:
 
         // Cleanup addresses and routes that were added previously in order to
         //  obey to the qspn_mgr which is now in default network namespace.
-        foreach (int i in nodeids.keys)
+        foreach (int i in local_identities.keys)
         {
-            IdentityData identity_data = nodeids[i];
+            IdentityData identity_data = local_identities[i];
             if (identity_data.main_id)
             {
                 NetworkStack main_network_stack = identity_data.network_stack;
@@ -423,7 +423,7 @@ Command list:
                 }
             }
         }
-        nodeids.clear();
+        local_identities.clear();
 
         // First, we call stop_monitor_all of NeighborhoodManager.
         neighborhood_mgr.stop_monitor_all();
@@ -713,14 +713,14 @@ Command list:
                         }
                         write_block_response(command_id, show_handlednics());
                     }
-                    else if (_args[0] == "show_nodeids")
+                    else if (_args[0] == "show_local_identities")
                     {
                         if (_args.size != 1)
                         {
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        write_block_response(command_id, show_nodeids());
+                        write_block_response(command_id, show_local_identities());
                     }
                     else if (_args[0] == "show_neighborhood_arcs")
                     {
@@ -805,13 +805,13 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        int nodeid_index = int.parse(_args[1]);
-                        if (! (nodeid_index in nodeids.keys))
+                        int local_identity_index = int.parse(_args[1]);
+                        if (! (local_identity_index in local_identities.keys))
                         {
-                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
+                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
                             continue;
                         }
-                        write_block_response(command_id, show_ntkaddress(nodeid_index));
+                        write_block_response(command_id, show_ntkaddress(local_identity_index));
                     }
                     else if (_args[0] == "prepare_add_identity")
                     {
@@ -821,13 +821,13 @@ Command list:
                             continue;
                         }
                         int migration_id = int.parse(_args[1]);
-                        int nodeid_index = int.parse(_args[2]);
-                        if (! (nodeid_index in nodeids.keys))
+                        int local_identity_index = int.parse(_args[2]);
+                        if (! (local_identity_index in local_identities.keys))
                         {
-                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
+                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
                             continue;
                         }
-                        prepare_add_identity(migration_id, nodeid_index);
+                        prepare_add_identity(migration_id, local_identity_index);
                         write_empty_response(command_id);
                     }
                     else if (_args[0] == "add_identity")
@@ -838,13 +838,13 @@ Command list:
                             continue;
                         }
                         int migration_id = int.parse(_args[1]);
-                        int nodeid_index = int.parse(_args[2]);
-                        if (! (nodeid_index in nodeids.keys))
+                        int local_identity_index = int.parse(_args[2]);
+                        if (! (local_identity_index in local_identities.keys))
                         {
-                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
+                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
                             continue;
                         }
-                        write_block_response(command_id, add_identity(migration_id, nodeid_index));
+                        write_block_response(command_id, add_identity(migration_id, local_identity_index));
                     }
                     else if (_args[0] == "remove_identity")
                     {
@@ -853,13 +853,13 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        int nodeid_index = int.parse(_args[1]);
-                        if (! (nodeid_index in nodeids.keys))
+                        int local_identity_index = int.parse(_args[1]);
+                        if (! (local_identity_index in local_identities.keys))
                         {
-                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
+                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
                             continue;
                         }
-                        remove_identity(nodeid_index);
+                        remove_identity(local_identity_index);
                         write_empty_response(command_id);
                     }
                     else if (_args[0] == "enter_net")
@@ -869,15 +869,15 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        int new_nodeid_index = int.parse(_args[1]);
-                        if (! (new_nodeid_index in nodeids.keys))
+                        int new_local_identity_index = int.parse(_args[1]);
+                        if (! (new_local_identity_index in local_identities.keys))
                         {
-                            write_oneline_response(command_id, @"wrong new_nodeid_index '$(new_nodeid_index)'", 1);
+                            write_oneline_response(command_id, @"wrong new_local_identity_index '$(new_local_identity_index)'", 1);
                             continue;
                         }
-                        if (nodeids[new_nodeid_index].ready)
+                        if (local_identities[new_local_identity_index].ready)
                         {
-                            write_oneline_response(command_id, @"wrong new_nodeid_index '$(new_nodeid_index)' (it is already started)", 1);
+                            write_oneline_response(command_id, @"wrong new_local_identity_index '$(new_local_identity_index)' (it is already started)", 1);
                             continue;
                         }
                         string s_naddr_new_gnode = _args[2];
@@ -892,7 +892,7 @@ Command list:
                             idarc_index_set.add(idarc_index);
                             i++;
                         }
-                        write_block_response(command_id, enter_net(new_nodeid_index,
+                        write_block_response(command_id, enter_net(new_local_identity_index,
                             s_naddr_new_gnode,
                             s_elderships_new_gnode,
                             hooking_gnode_level,
@@ -906,9 +906,9 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        int nodeid_index = int.parse(_args[1]);
+                        int local_identity_index = int.parse(_args[1]);
                         int idarc_index = int.parse(_args[2]);
-                        add_qspnarc(nodeid_index, idarc_index);
+                        add_qspnarc(local_identity_index, idarc_index);
                         write_empty_response(command_id);
                     }
                     else if (_args[0] == "make_connectivity")
@@ -918,17 +918,17 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        int nodeid_index = int.parse(_args[1]);
-                        if (! (nodeid_index in nodeids.keys))
+                        int local_identity_index = int.parse(_args[1]);
+                        if (! (local_identity_index in local_identities.keys))
                         {
-                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
+                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
                             continue;
                         }
                         int virtual_lvl = int.parse(_args[2]);
                         int virtual_pos = int.parse(_args[3]);
                         int eldership = int.parse(_args[4]);
                         int connectivity_to_lvl = int.parse(_args[5]);
-                        make_connectivity(nodeid_index, virtual_lvl, virtual_pos, eldership, connectivity_to_lvl);
+                        make_connectivity(local_identity_index, virtual_lvl, virtual_pos, eldership, connectivity_to_lvl);
                         write_empty_response(command_id);
                     }
                     else if (_args[0] == "remove_outer_arcs")
@@ -938,13 +938,13 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        int nodeid_index = int.parse(_args[1]);
-                        if (! (nodeid_index in nodeids.keys))
+                        int local_identity_index = int.parse(_args[1]);
+                        if (! (local_identity_index in local_identities.keys))
                         {
-                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
+                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
                             continue;
                         }
-                        remove_outer_arcs(nodeid_index);
+                        remove_outer_arcs(local_identity_index);
                         write_empty_response(command_id);
                     }
                     else if (_args[0] == "check_connectivity")
@@ -954,13 +954,13 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        int nodeid_index = int.parse(_args[1]);
-                        if (! (nodeid_index in nodeids.keys))
+                        int local_identity_index = int.parse(_args[1]);
+                        if (! (local_identity_index in local_identities.keys))
                         {
-                            write_oneline_response(command_id, @"wrong nodeid_index '$(nodeid_index)'", 1);
+                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
                             continue;
                         }
-                        write_block_response(command_id, check_connectivity(nodeid_index));
+                        write_block_response(command_id, check_connectivity(local_identity_index));
                     }
                     else
                     {
@@ -1029,7 +1029,7 @@ Command list:
 
         public NodeID nodeid;
         public IdentityData? copy_of_identity;
-        public int nodeid_index;
+        public int local_identity_index;
         public Naddr my_naddr;
         public Fingerprint my_fp;
         public bool ready;
@@ -1120,7 +1120,7 @@ Command list:
         {
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
             if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
-            print(@"Debug: IdentityData #$(nodeid_index): update_best_path for h ($(h.lvl), $(h.pos)): started.\n");
+            print(@"Debug: IdentityData #$(local_identity_index): update_best_path for h ($(h.lvl), $(h.pos)): started.\n");
             // change the route. place current best path to `h`. if none, then change the path to 'unreachable'.
 
             // Retrieve all routes towards `h`.
@@ -1528,9 +1528,9 @@ Command list:
 
         public void qspn_bootstrap_complete()
         {
-            print(@"Debug: IdentityData #$(nodeid_index): call update_all_destinations for qspn_bootstrap_complete.\n");
+            print(@"Debug: IdentityData #$(local_identity_index): call update_all_destinations for qspn_bootstrap_complete.\n");
             update_all_destinations();
-            print(@"Debug: IdentityData #$(nodeid_index): done update_all_destinations for qspn_bootstrap_complete.\n");
+            print(@"Debug: IdentityData #$(local_identity_index): done update_all_destinations for qspn_bootstrap_complete.\n");
         }
 
         public void update_all_destinations()
@@ -1551,7 +1551,7 @@ Command list:
             identity_mgr.unset_identity_module(nodeid, "qspn");
             identity_mgr.remove_identity(nodeid);
             // remove identity and its id-arcs from memory data-structures
-            nodeids.unset(nodeid_index);
+            local_identities.unset(local_identity_index);
             ArrayList<int> todel = new ArrayList<int>();
             foreach (int i in identityarcs.keys)
             {
@@ -1855,20 +1855,20 @@ Command list:
 
     class NeighborhoodMissingArcHandler : Object, INeighborhoodMissingArcHandler
     {
-        public NeighborhoodMissingArcHandler.from_qspn(IQspnMissingArcHandler qspn_missing, int nodeid_index)
+        public NeighborhoodMissingArcHandler.from_qspn(IQspnMissingArcHandler qspn_missing, int local_identity_index)
         {
             this.qspn_missing = qspn_missing;
-            this.nodeid_index = nodeid_index;
+            this.local_identity_index = local_identity_index;
         }
         private IQspnMissingArcHandler? qspn_missing;
-        private int nodeid_index;
+        private int local_identity_index;
 
         public void missing(INeighborhoodArc arc)
         {
             if (qspn_missing != null)
             {
                 // from a INeighborhoodArc get a list of QspnArc
-                foreach (QspnArc qspn_arc in nodeids[nodeid_index].my_arcs)
+                foreach (QspnArc qspn_arc in local_identities[local_identity_index].my_arcs)
                     if (qspn_arc.arc.neighborhood_arc == arc)
                         qspn_missing.i_qspn_missing(qspn_arc);
             }
@@ -1877,11 +1877,11 @@ Command list:
 
     class QspnStubFactory : Object, IQspnStubFactory
     {
-        public QspnStubFactory(int nodeid_index)
+        public QspnStubFactory(int local_identity_index)
         {
-            this.nodeid_index = nodeid_index;
+            this.local_identity_index = local_identity_index;
         }
-        private int nodeid_index;
+        private int local_identity_index;
 
         /* This "holder" class is needed because the QspnManagerRemote class provided by
          * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
@@ -1962,7 +1962,7 @@ Command list:
             INeighborhoodMissingArcHandler? n_missing_handler = null;
             if (missing_handler != null)
             {
-                n_missing_handler = new NeighborhoodMissingArcHandler.from_qspn(missing_handler, nodeid_index);
+                n_missing_handler = new NeighborhoodMissingArcHandler.from_qspn(missing_handler, local_identity_index);
             }
             IAddressManagerStub addrstub = 
                 neighborhood_mgr.get_stub_identity_aware_broadcast(
@@ -2181,10 +2181,10 @@ Command list:
         NodeID unicast_id,
         string peer_address)
     {
-        foreach (int nodeid_index in nodeids.keys)
+        foreach (int local_identity_index in local_identities.keys)
         {
-            NodeID nodeid_index_id = nodeids[nodeid_index].nodeid;
-            if (nodeid_index_id.equals(unicast_id))
+            NodeID local_nodeid = local_identities[local_identity_index].nodeid;
+            if (local_nodeid.equals(unicast_id))
             {
                 foreach (int identityarc_index in identityarcs.keys)
                 {
@@ -2193,11 +2193,11 @@ Command list:
                     Arc _arc = __arc.arc;
                     if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address)
                     {
-                        if (ia.id.equals(nodeid_index_id))
+                        if (ia.id.equals(local_nodeid))
                         {
                             if (ia.id_arc.get_peer_nodeid().equals(source_id))
                             {
-                                return nodeids[nodeid_index].addr_man;
+                                return local_identities[local_identity_index].addr_man;
                             }
                         }
                     }
@@ -2215,10 +2215,10 @@ Command list:
         string dev)
     {
         ArrayList<IAddressManagerSkeleton> ret = new ArrayList<IAddressManagerSkeleton>();
-        foreach (int nodeid_index in nodeids.keys)
+        foreach (int local_identity_index in local_identities.keys)
         {
-            NodeID nodeid_index_id = nodeids[nodeid_index].nodeid;
-            if (nodeid_index_id in broadcast_set)
+            NodeID local_nodeid = local_identities[local_identity_index].nodeid;
+            if (local_nodeid in broadcast_set)
             {
                 foreach (int identityarc_index in identityarcs.keys)
                 {
@@ -2228,11 +2228,11 @@ Command list:
                     if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address
                         && _arc.neighborhood_arc.nic.dev == dev)
                     {
-                        if (ia.id.equals(nodeid_index_id))
+                        if (ia.id.equals(local_nodeid))
                         {
                             if (ia.id_arc.get_peer_nodeid().equals(source_id))
                             {
-                                ret.add(nodeids[nodeid_index].addr_man);
+                                ret.add(local_identities[local_identity_index].addr_man);
                             }
                         }
                     }
@@ -2301,9 +2301,9 @@ Command list:
         // This should be the same instance.
         assert(ia.id_arc == id_arc);
         // Retrieve my identity.
-        foreach (int i in nodeids.keys)
+        foreach (int i in local_identities.keys)
         {
-            IdentityData _id = nodeids[i];
+            IdentityData _id = local_identities[i];
             if (_id.nodeid.equals(id))
             {
                 // Retrieve qspn_arc if there was one for this identity-arc.
@@ -2324,9 +2324,9 @@ Command list:
                         // In new table `ntk_from_newmac` update all routes.
                         // In other tables, update all routes that have the new peer_linklocal as gateway.
                         // Indeed, update best route for all known destinations.
-                        print(@"Debug: IdentityData #$(_id.nodeid_index): call update_all_destinations for identity_arc_changed.\n");
+                        print(@"Debug: IdentityData #$(_id.local_identity_index): call update_all_destinations for identity_arc_changed.\n");
                         _id.update_all_destinations();
-                        print(@"Debug: IdentityData #$(_id.nodeid_index): done update_all_destinations for identity_arc_changed.\n");
+                        print(@"Debug: IdentityData #$(_id.local_identity_index): done update_all_destinations for identity_arc_changed.\n");
                     }
                 }
                 break;
@@ -2337,9 +2337,9 @@ Command list:
     void identity_arc_removing(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
     {
         // Retrieve my identity.
-        foreach (int i in nodeids.keys)
+        foreach (int i in local_identities.keys)
         {
-            IdentityData _id = nodeids[i];
+            IdentityData _id = local_identities[i];
             if (_id.nodeid.equals(id))
             {
                 // Retrieve qspn_arc if still there.
@@ -2775,15 +2775,15 @@ Command list:
         return ret;
     }
 
-    Gee.List<string> show_nodeids()
+    Gee.List<string> show_local_identities()
     {
         ArrayList<string> ret = new ArrayList<string>();
-        foreach (int i in nodeids.keys)
+        foreach (int i in local_identities.keys)
         {
-            NodeID nodeid = nodeids[i].nodeid;
-            bool nodeid_ready = nodeids[i].ready;
+            NodeID nodeid = local_identities[i].nodeid;
+            bool nodeid_ready = local_identities[i].ready;
             bool main = identity_mgr.get_main_id().equals(nodeid);
-            ret.add(@"nodeids: #$(i): $(nodeid.id), $(nodeid_ready ? "" : "not ")ready.$(main ? " [main]" : "")");
+            ret.add(@"local_identities: #$(i): $(nodeid.id), $(nodeid_ready ? "" : "not ")ready.$(main ? " [main]" : "")");
         }
         return ret;
     }
@@ -2846,9 +2846,9 @@ Command list:
         assert(nodearc_index in nodearcs.keys);
         Arc arc = nodearcs[nodearc_index];
         arc.cost = cost;
-        foreach (int i in nodeids.keys)
+        foreach (int i in local_identities.keys)
         {
-            IdentityData identity_data = nodeids[i];
+            IdentityData identity_data = local_identities[i];
             foreach (QspnArc qspn_arc in identity_data.my_arcs)
             {
                 if (arc == qspn_arc.arc)
@@ -2884,49 +2884,49 @@ Command list:
         return ret;
     }
 
-    Gee.List<string> show_ntkaddress(int nodeid_index)
+    Gee.List<string> show_ntkaddress(int local_identity_index)
     {
         ArrayList<string> ret = new ArrayList<string>();
-        Naddr my_naddr = nodeids[nodeid_index].my_naddr;
-        Fingerprint my_fp = nodeids[nodeid_index].my_fp;
+        Naddr my_naddr = local_identities[local_identity_index].my_naddr;
+        Fingerprint my_fp = local_identities[local_identity_index].my_fp;
         string my_naddr_str = naddr_repr(my_naddr);
         string my_elderships_str = fp_elderships_repr(my_fp);
         ret.add(@"my_naddr = $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).");
         return ret;
     }
 
-    void prepare_add_identity(int migration_id, int old_nodeid_index)
+    void prepare_add_identity(int migration_id, int old_local_identity_index)
     {
-        NodeID old_id = nodeids[old_nodeid_index].nodeid;
+        NodeID old_id = local_identities[old_local_identity_index].nodeid;
         identity_mgr.prepare_add_identity(migration_id, old_id);
     }
 
-    Gee.List<string> add_identity(int migration_id, int old_nodeid_index)
+    Gee.List<string> add_identity(int migration_id, int old_local_identity_index)
     {
         ArrayList<string> ret = new ArrayList<string>();
-        IdentityData old_identity = nodeids[old_nodeid_index];
+        IdentityData old_identity = local_identities[old_local_identity_index];
         NodeID old_id = old_identity.nodeid;
         NodeID new_id = identity_mgr.add_identity(migration_id, old_id);
 
-        int nodeid_index = nodeid_nextindex++;
-        nodeids[nodeid_index] = new IdentityData(new_id);
-        IdentityData new_identity = nodeids[nodeid_index];
+        int local_identity_index = local_identity_nextindex++;
+        local_identities[local_identity_index] = new IdentityData(new_id);
+        IdentityData new_identity = local_identities[local_identity_index];
         new_identity.copy_of_identity = old_identity;
-        new_identity.nodeid_index = nodeid_index;
+        new_identity.local_identity_index = local_identity_index;
 
         new_identity.all_dest_set = old_identity.all_dest_set;
         old_identity.all_dest_set = new ArrayList<string>();
         foreach (QspnArc arc in old_identity.my_arcs)
             old_identity.network_stack.add_neighbour(arc.peer_mac);
 
-        ret.add(@"nodeids: #$(nodeid_index): $(new_id.id).");
+        ret.add(@"local_identities: #$(local_identity_index): $(new_id.id).");
         return ret;
     }
 
-    void remove_identity(int old_nodeid_index)
+    void remove_identity(int old_local_identity_index)
     {
         // The user wants to remove this identity.
-        IdentityData id = nodeids[old_nodeid_index];
+        IdentityData id = local_identities[old_local_identity_index];
         NodeID nodeid = id.nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
         // It must be a connectivity identity
@@ -2944,7 +2944,7 @@ Command list:
         identity_mgr.unset_identity_module(nodeid, "qspn");
         identity_mgr.remove_identity(nodeid);
         // remove identity and its id-arcs from memory data-structures
-        nodeids.unset(old_nodeid_index);
+        local_identities.unset(old_local_identity_index);
         ArrayList<int> todel = new ArrayList<int>();
         foreach (int i in identityarcs.keys)
         {
@@ -2954,9 +2954,9 @@ Command list:
         foreach (int i in todel) identityarcs.unset(i);
     }
 
-    void make_connectivity(int nodeid_index, int virtual_lvl, int virtual_pos, int eldership, int connectivity_to_lvl)
+    void make_connectivity(int local_identity_index, int virtual_lvl, int virtual_pos, int eldership, int connectivity_to_lvl)
     {
-        IdentityData id = nodeids[nodeid_index];
+        IdentityData id = local_identities[local_identity_index];
         NodeID nodeid = id.nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
 
@@ -2988,7 +2988,7 @@ Command list:
     }
 
     Gee.List<string> enter_net
-    (int new_nodeid_index,
+    (int new_local_identity_index,
      string s_naddr_new_gnode,
      string s_elderships_new_gnode,
      int hooking_gnode_level,
@@ -2996,7 +2996,7 @@ Command list:
      Gee.List<int> idarc_index_set)
     {
         ArrayList<string> ret = new ArrayList<string>();
-        IdentityData new_identity = nodeids[new_nodeid_index];
+        IdentityData new_identity = local_identities[new_local_identity_index];
         IdentityData previous_identity = new_identity.copy_of_identity;
         NodeID new_id = new_identity.nodeid;
         NodeID previous_id = previous_identity.nodeid;
@@ -3115,7 +3115,7 @@ Command list:
                 return null;
             },
             my_fp,
-            new QspnStubFactory(new_nodeid_index),
+            new QspnStubFactory(new_local_identity_index),
             hooking_gnode_level,
             into_gnode_level,
             previous_id_qspn_mgr);
@@ -3160,9 +3160,9 @@ Command list:
             if (! (dest in new_dest_set))
                 new_identity.network_stack.remove_destination(dest);
         new_identity.all_dest_set = new_dest_set;
-        print(@"Debug: IdentityData #$(new_identity.nodeid_index): call update_all_destinations for enter_net.\n");
+        print(@"Debug: IdentityData #$(new_identity.local_identity_index): call update_all_destinations for enter_net.\n");
         new_identity.update_all_destinations();
-        print(@"Debug: IdentityData #$(new_identity.nodeid_index): done update_all_destinations for enter_net.\n");
+        print(@"Debug: IdentityData #$(new_identity.local_identity_index): done update_all_destinations for enter_net.\n");
 
         if (new_identity.main_id)
         {
@@ -3184,9 +3184,9 @@ Command list:
         return ret;
     }
 
-    void add_qspnarc(int nodeid_index, int idarc_index)
+    void add_qspnarc(int local_identity_index, int idarc_index)
     {
-        IdentityData identity = nodeids[nodeid_index];
+        IdentityData identity = local_identities[local_identity_index];
         NodeID id = identity.nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
 
@@ -3202,22 +3202,22 @@ Command list:
         identity.my_arcs.add(arc);
         if (! (peer_mac in identity.network_stack.current_neighbours))
             identity.network_stack.add_neighbour(peer_mac);
-        print(@"Debug: IdentityData #$(identity.nodeid_index): call update_all_destinations for add_qspnarc.\n");
+        print(@"Debug: IdentityData #$(identity.local_identity_index): call update_all_destinations for add_qspnarc.\n");
         identity.update_all_destinations();
-        print(@"Debug: IdentityData #$(identity.nodeid_index): done update_all_destinations for add_qspnarc.\n");
+        print(@"Debug: IdentityData #$(identity.local_identity_index): done update_all_destinations for add_qspnarc.\n");
     }
 
-    void remove_outer_arcs(int nodeid_index)
+    void remove_outer_arcs(int local_identity_index)
     {
-        NodeID id = nodeids[nodeid_index].nodeid;
+        NodeID id = local_identities[local_identity_index].nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
         qspn_mgr.remove_outer_arcs();
     }
 
-    Gee.List<string> check_connectivity(int nodeid_index)
+    Gee.List<string> check_connectivity(int local_identity_index)
     {
         ArrayList<string> ret = new ArrayList<string>();
-        NodeID id = nodeids[nodeid_index].nodeid;
+        NodeID id = local_identities[local_identity_index].nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
         bool _ret = qspn_mgr.check_connectivity();
         if (_ret) ret.add("This identity can be removed.");
