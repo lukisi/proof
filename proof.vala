@@ -47,8 +47,6 @@ namespace ProofOfConcept
     IdentityManager? identity_mgr;
     ArrayList<int> identity_mgr_arcs;
     ArrayList<string> real_nics;
-    int linklocal_nextindex;
-    HashMap<int, HandledNic> linklocals;
     HashMap<string, HandledNic> current_nics;
     int nodeid_nextindex;
     HashMap<int, IdentityData> nodeids;
@@ -99,9 +97,6 @@ namespace ProofOfConcept
             {
                 print("""
 Command list:
-
-> show_linklocals
-  List current link-local addresses.
 
 > show_nodeids
   List current NodeID values.
@@ -260,8 +255,6 @@ Command list:
         t_tcp = tcp_listen(dlg, err, ntkd_port);
 
         real_nics = new ArrayList<string>();
-        linklocal_nextindex = 0;
-        linklocals = new HashMap<int, HandledNic>();
         current_nics = new HashMap<string, HandledNic>();
         nodeid_nextindex = 0;
         nodeids = new HashMap<int, IdentityData>();
@@ -293,10 +286,13 @@ Command list:
         neighborhood_mgr.arc_removed.connect(arc_removed);
         neighborhood_mgr.nic_address_set.connect(nic_address_unset);
         foreach (string dev in _devs) manage_real_nic(dev);
+        // Here (for each dev) the linklocal address has been added, and the signal handler for
+        //  nic_address_set has been processed, so we have in `current_nics` the informations
+        //  for the module Identities.
         Gee.List<string> if_list_dev = new ArrayList<string>();
         Gee.List<string> if_list_mac = new ArrayList<string>();
         Gee.List<string> if_list_linklocal = new ArrayList<string>();
-        foreach (HandledNic n in linklocals.values)
+        foreach (HandledNic n in current_nics.values)
         {
             if_list_dev.add(n.dev);
             if_list_mac.add(n.mac);
@@ -674,8 +670,6 @@ Command list:
         t_udp_list.add(udp_listen(dlg, err, ntkd_port, dev));
         // Run monitor
         neighborhood_mgr.start_monitor(new NeighborhoodNetworkInterface(dev));
-        // Here the linklocal address has been added, and the signal handler for
-        //  nic_address_set has been processed, so the module Identities gets its knowledge.
     }
 
     class ReadCommandsTasklet : Object, ITaskletSpawnable
@@ -709,15 +703,6 @@ Command list:
                         remove_pipe_commands();
                         do_me_exit = true;
                         break;
-                    }
-                    else if (_args[0] == "show_linklocals")
-                    {
-                        if (_args.size != 1)
-                        {
-                            write_oneline_response(command_id, @"Bad arguments number.", 1);
-                            continue;
-                        }
-                        write_block_response(command_id, show_linklocals());
                     }
                     else if (_args[0] == "show_nodeids")
                     {
@@ -1664,13 +1649,6 @@ Command list:
         public void add_address(string ns, string pseudo_dev, string linklocal)
         {
             find_network_stack_for_ns(ns).add_linklocal_address(pseudo_dev, linklocal);
-            HandledNic n = new HandledNic();
-            n.dev = pseudo_dev;
-            n.mac = pseudo_macs[pseudo_dev];
-            n.linklocal = linklocal;
-            int linklocal_index = linklocal_nextindex++;
-            linklocals[linklocal_index] = n;
-            print(@"linklocals: #$(linklocal_index): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
         }
 
         public void add_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
@@ -1692,16 +1670,6 @@ Command list:
         {
             if (pseudo_macs.has_key(pseudo_dev)) pseudo_macs.unset(pseudo_dev);
             find_network_stack_for_ns(ns).delete_pseudodev(pseudo_dev);
-            foreach (int linklocal_index in linklocals.keys)
-            {
-                HandledNic n = linklocals[linklocal_index];
-                if (n.dev == pseudo_dev)
-                {
-                    linklocals.unset(linklocal_index);
-                    print(@"linklocals: #$(linklocal_index) has been removed.\n");
-                    break;
-                }
-            }
         }
 
         public void delete_namespace(string ns)
@@ -2441,9 +2409,6 @@ Command list:
         n.dev = my_dev;
         n.mac = my_mac;
         n.linklocal = my_addr;
-        int linklocal_index = linklocal_nextindex++;
-        linklocals[linklocal_index] = n;
-        print(@"linklocals: #$(linklocal_index): $(n.dev) ($(n.mac)) has $(n.linklocal).\n");
         current_nics[n.dev] = n;
         if (identity_mgr != null)
         {
@@ -2783,17 +2748,6 @@ Command list:
             sep = ":";
         }
         return my_elderships_str;
-    }
-
-    Gee.List<string> show_linklocals()
-    {
-        ArrayList<string> ret = new ArrayList<string>();
-        foreach (int i in linklocals.keys)
-        {
-            HandledNic n = linklocals[i];
-            ret.add(@"linklocals: #$(i): $(n.dev) ($(n.mac)) has $(n.linklocal).");
-        }
-        return ret;
     }
 
     Gee.List<string> show_nodeids()
