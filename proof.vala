@@ -47,7 +47,7 @@ namespace ProofOfConcept
     IdentityManager? identity_mgr;
     ArrayList<int> identity_mgr_arcs;
     ArrayList<string> real_nics;
-    HashMap<string, HandledNic> current_nics;
+    ArrayList<HandledNic> handlednics;
     int nodeid_nextindex;
     HashMap<int, IdentityData> nodeids;
     HashMap<string, NetworkStack> network_stacks;
@@ -255,7 +255,7 @@ Command list:
         t_tcp = tcp_listen(dlg, err, ntkd_port);
 
         real_nics = new ArrayList<string>();
-        current_nics = new HashMap<string, HandledNic>();
+        handlednics = new ArrayList<HandledNic>();
         nodeid_nextindex = 0;
         nodeids = new HashMap<int, IdentityData>();
         network_stacks = new HashMap<string, NetworkStack>();
@@ -284,15 +284,15 @@ Command list:
         neighborhood_mgr.arc_changed.connect(arc_changed);
         neighborhood_mgr.arc_removing.connect(arc_removing);
         neighborhood_mgr.arc_removed.connect(arc_removed);
-        neighborhood_mgr.nic_address_set.connect(nic_address_unset);
+        neighborhood_mgr.nic_address_unset.connect(nic_address_unset);
         foreach (string dev in _devs) manage_real_nic(dev);
         // Here (for each dev) the linklocal address has been added, and the signal handler for
-        //  nic_address_set has been processed, so we have in `current_nics` the informations
+        //  nic_address_set has been processed, so we have in `handlednics` the informations
         //  for the module Identities.
         Gee.List<string> if_list_dev = new ArrayList<string>();
         Gee.List<string> if_list_mac = new ArrayList<string>();
         Gee.List<string> if_list_linklocal = new ArrayList<string>();
-        foreach (HandledNic n in current_nics.values)
+        foreach (HandledNic n in handlednics)
         {
             if_list_dev.add(n.dev);
             if_list_mac.add(n.mac);
@@ -703,6 +703,15 @@ Command list:
                         remove_pipe_commands();
                         do_me_exit = true;
                         break;
+                    }
+                    else if (_args[0] == "show_handlednics")
+                    {
+                        if (_args.size != 1)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        write_block_response(command_id, show_handlednics());
                     }
                     else if (_args[0] == "show_nodeids")
                     {
@@ -1722,9 +1731,9 @@ Command list:
                 TcpclientCallerInfo c = (TcpclientCallerInfo)caller;
                 ISourceID sourceid = c.sourceid;
                 string my_address = c.my_address;
-                foreach (string dev in current_nics.keys)
+                foreach (HandledNic n in handlednics)
                 {
-                    HandledNic n = current_nics[dev];
+                    string dev = n.dev;
                     if (n.linklocal == my_address)
                     {
                         INeighborhoodArc? neighborhood_arc = neighborhood_mgr.get_node_arc(sourceid, dev);
@@ -1746,9 +1755,9 @@ Command list:
                 }
                 print(@"got a unknown caller:\n");
                 print(@"  my_address was $(my_address).\n");
-                foreach (string dev in current_nics.keys)
+                foreach (HandledNic n in handlednics)
                 {
-                    HandledNic n = current_nics[dev];
+                    string dev = n.dev;
                     print(@"  in $(dev) we have $(n.linklocal).\n");
                 }
                 return null;
@@ -2404,22 +2413,26 @@ Command list:
 
     void nic_address_set(string my_dev, string my_addr)
     {
+        if (identity_mgr != null)
+        {
+            print(@"Warning: Signal `nic_address_set($(my_dev),$(my_addr))` when module Identities is already initialized.\n");
+            print(@"         This should not happen and will be ignored.\n");
+            return;
+        }
         string my_mac = macgetter.get_mac(my_dev).up();
         HandledNic n = new HandledNic();
         n.dev = my_dev;
         n.mac = my_mac;
         n.linklocal = my_addr;
-        current_nics[n.dev] = n;
-        if (identity_mgr != null)
-        {
-            identity_mgr.add_handled_nic(n.dev, n.mac, n.linklocal);
-        }
+        handlednics.add(n);
+        int i = handlednics.size - 1;
+        print(@"handlednics: #$(i): $(n.dev) = $(n.mac) (has $(n.linklocal)).\n");
     }
 
     void arc_added(INeighborhoodArc arc)
     {
         print(@"arc_added for $(arc.neighbour_nic_addr)\n");
-        print(@" $(arc.nic.dev) ($(arc.nic.mac) = $(current_nics[arc.nic.dev].linklocal)) connected to $(arc.neighbour_mac)\n");
+        print(@" $(arc.nic.dev) ($(arc.nic.mac)) connected to $(arc.neighbour_mac)\n");
         string k = @"$(arc.nic.mac)-$(arc.neighbour_mac)";
         assert(! (k in neighborhood_arcs.keys));
         neighborhood_arcs[k] = arc;
@@ -2748,6 +2761,18 @@ Command list:
             sep = ":";
         }
         return my_elderships_str;
+    }
+
+    Gee.List<string> show_handlednics()
+    {
+        ArrayList<string> ret = new ArrayList<string>();
+        int i = 0;
+        foreach (HandledNic n in handlednics)
+        {
+            ret.add(@"handlednics: #$(i): $(n.dev) = $(n.mac) (has $(n.linklocal)).");
+            i++;
+        }
+        return ret;
     }
 
     Gee.List<string> show_nodeids()
