@@ -297,14 +297,10 @@ Command list:
         IdentityData first_identity = new IdentityData(nodeid);
         local_identities[local_identity_index] = first_identity;
         first_identity.local_identity_index = local_identity_index;
-        print(@"local_identities: #$(local_identity_index): $(nodeid.id).\n");
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
         Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
         Fingerprint my_fp = new Fingerprint(_elderships.to_array());
-        string my_naddr_str = naddr_repr(my_naddr);
-        string my_elderships_str = fp_elderships_repr(my_fp);
-        print(@"First identity is $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).\n");
         QspnManager qspn_mgr = new QspnManager.create_net(my_naddr,
             my_fp,
             new QspnStubFactory(local_identity_index));
@@ -313,6 +309,8 @@ Command list:
         first_identity.my_fp = my_fp;
         first_identity.ready = true;
         first_identity.addr_man = new AddressManagerForIdentity(qspn_mgr);
+
+        foreach (string s in print_local_identity(0)) print(s + "\n");
 
         NetworkStack network_stack = first_identity.network_stack; // first identity in default namespace
         first_identity.ip_global = ip_global_node(my_naddr.pos);
@@ -2663,11 +2661,26 @@ Command list:
         ArrayList<string> ret = new ArrayList<string>();
         foreach (int i in local_identities.keys)
         {
-            NodeID nodeid = local_identities[i].nodeid;
-            bool nodeid_ready = local_identities[i].ready;
-            bool main = identity_mgr.get_main_id().equals(nodeid);
-            ret.add(@"local_identities: #$(i): $(nodeid.id), $(nodeid_ready ? "" : "not ")ready.$(main ? " [main]" : "")");
+            ret.add_all(print_local_identity(i));
         }
+        return ret;
+    }
+
+    Gee.List<string> print_local_identity(int index)
+    {
+        ArrayList<string> ret = new ArrayList<string>();
+        IdentityData identity = local_identities[index];
+        string my_naddr_str = naddr_repr(identity.my_naddr);
+        string my_elderships_str = fp_elderships_repr(identity.my_fp);
+        string my_fp0 = @"$(identity.my_fp.id)";
+        string l0 = @"local_identity #$(index):";
+        l0 += @" address $(my_naddr_str), elderships $(my_elderships_str),";
+        string network_namespace_str = identity.network_namespace;
+        if (network_namespace_str == "") network_namespace_str = "default";
+        l0 += @" namespace $(network_namespace_str),";
+        string l1 = @"                   fp0 $(my_fp0).";
+        ret.add(l0);
+        ret.add(l1);
         return ret;
     }
 
