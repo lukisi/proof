@@ -887,6 +887,20 @@ Command list:
         public string dev;
     }
 
+    class LocalIPSet : Object
+    {
+        public string global;
+        public string anonymous;
+        public HashMap<int,string> intern;
+    }
+
+    class DestinationIPSet : Object
+    {
+        public string global;
+        public string anonymous;
+        public HashMap<int,string> intern;
+    }
+
     class IdentityData : Object
     {
         public IdentityData(NodeID nodeid)
@@ -897,6 +911,26 @@ Command list:
             connectivity_from_level = 0;
             connectivity_to_level = 0;
             copy_of_identity = null;
+
+            local_ip = new LocalIPSet();
+            local_ip.global = "";
+            local_ip.anonymous = "";
+            local_ip.intern = new HashMap<int,string>();
+            for (int j = 1; j < levels; j++) local_ip.intern[j] = "";
+
+            destination_ip = new HashMap<int,HashMap<int,DestinationIPSet>>();
+            for (int i = 0; i < levels; i++)
+            {
+                destination_ip[i] = new HashMap<int,DestinationIPSet>();
+                for (int k = 0; k < _gsizes[i]; k++)
+                {
+                    destination_ip[i][k] = new DestinationIPSet();
+                    destination_ip[i][k].global = "";
+                    destination_ip[i][k].anonymous = "";
+                    destination_ip[i][k].intern = new HashMap<int,string>();
+                    for (int j = i + 1; j < levels; j++) destination_ip[i][k].intern[j] = "";
+                }
+            }
         }
 
         public NodeID nodeid;
@@ -918,6 +952,10 @@ Command list:
         public ArrayList<QspnArc> my_arcs;
         public int connectivity_from_level;
         public int connectivity_to_level;
+
+        public LocalIPSet local_ip;
+        public HashMap<int,HashMap<int,DestinationIPSet>> destination_ip;
+
         public string ip_global;
         public string ip_anonymizing;
         public ArrayList<string> ip_internal;
