@@ -45,15 +45,14 @@ namespace ProofOfConcept
     string ip_whole_network;
     NeighborhoodManager? neighborhood_mgr;
     IdentityManager? identity_mgr;
-    ArrayList<int> identity_mgr_arcs;
+    ArrayList<string> identity_mgr_arcs; // to memorize the `real_arcs` that have been added to IdentityManager
     ArrayList<string> real_nics;
     ArrayList<HandledNic> handlednics;
     int local_identity_nextindex;
     HashMap<int, IdentityData> local_identities;
     HashMap<string, NetworkStack> network_stacks;
     HashMap<string, INeighborhoodArc> neighborhood_arcs;
-    int nodearc_nextindex;
-    HashMap<int, Arc> nodearcs;
+    HashMap<string, Arc> real_arcs;
     int identityarc_nextindex;
     HashMap<int, IdentityArc> identityarcs;
 
@@ -99,22 +98,22 @@ namespace ProofOfConcept
 Command list:
 
 > show_local_identities
-  List current NodeID values.
+  List current local identities.
 
 > show_neighborhood_arcs
   List current usable arcs.
 
-> add_node_arc <from_MAC>-<to_MAC> <cost>
-  Notify a arc to IdentityManager.
+> add_real_arc <from_MAC> <to_MAC> <cost>
+  Use the specific arc.
   You choose a cost in microseconds for it.
 
-> show_nodearcs
+> show_real_arcs
   List current accepted arcs.
 
-> change_nodearc <nodearc_index> <cost>
+> change_real_arc <from_MAC> <to_MAC> <cost>
   Change the cost (in microsecond) for a given arc, which was already accepted.
 
-> remove_nodearc <nodearc_index>
+> remove_real_arc <from_MAC> <to_MAC>
   Remove a given arc, which was already accepted.
 
 > show_identityarcs
@@ -242,8 +241,7 @@ Command list:
         network_stacks[""] = new NetworkStack("", ip_whole_network);
         find_network_stack_for_ns("").prepare_all_nics();
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
-        nodearc_nextindex = 0;
-        nodearcs = new HashMap<int, Arc>();
+        real_arcs = new HashMap<string, Arc>();
         identityarc_nextindex = 0;
         identityarcs = new HashMap<int, IdentityArc>();
         // Init module Neighborhood
@@ -283,7 +281,7 @@ Command list:
             if_list_dev, if_list_mac, if_list_linklocal,
             new IdmgmtNetnsManager(),
             new IdmgmtStubFactory());
-        identity_mgr_arcs = new ArrayList<int>();
+        identity_mgr_arcs = new ArrayList<string>();
         node_skeleton.identity_mgr = identity_mgr;
         identity_mgr.identity_arc_added.connect(identity_arc_added);
         identity_mgr.identity_arc_changed.connect(identity_arc_changed);
@@ -709,62 +707,62 @@ Command list:
                         }
                         write_block_response(command_id, show_neighborhood_arcs());
                     }
-                    else if (_args[0] == "add_node_arc")
+                    else if (_args[0] == "add_real_arc")
                     {
-                        if (_args.size != 3)
+                        if (_args.size != 4)
                         {
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        string k = _args[1];
-                        int i_cost = int.parse(_args[2]);
+                        string k = key_for_physical_arc(_args[1], _args[2]);
+                        int i_cost = int.parse(_args[3]);
                         if (! (k in neighborhood_arcs.keys))
                         {
-                            write_oneline_response(command_id, @"wrong key '$(k)'", 1);
+                            write_oneline_response(command_id, @"wrong MAC pair '$(k)'", 1);
                             continue;
                         }
-                        write_block_response(command_id, add_node_arc(neighborhood_arcs[k], i_cost));
+                        write_block_response(command_id, add_real_arc(k, i_cost));
                     }
-                    else if (_args[0] == "show_nodearcs")
+                    else if (_args[0] == "show_real_arcs")
                     {
                         if (_args.size != 1)
                         {
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        write_block_response(command_id, show_nodearcs());
+                        write_block_response(command_id, show_real_arcs());
                     }
-                    else if (_args[0] == "change_nodearc")
+                    else if (_args[0] == "change_real_arc")
+                    {
+                        if (_args.size != 4)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        string k = key_for_physical_arc(_args[1], _args[2]);
+                        int i_cost = int.parse(_args[3]);
+                        if (! (k in real_arcs.keys))
+                        {
+                            write_oneline_response(command_id, @"wrong MAC pair '$(k)'", 1);
+                            continue;
+                        }
+                        change_real_arc(k, i_cost);
+                        write_empty_response(command_id);
+                    }
+                    else if (_args[0] == "remove_real_arc")
                     {
                         if (_args.size != 3)
                         {
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        int nodearc_index = int.parse(_args[1]);
-                        if (! (nodearc_index in nodearcs.keys))
+                        string k = key_for_physical_arc(_args[1], _args[2]);
+                        if (! (k in real_arcs.keys))
                         {
-                            write_oneline_response(command_id, @"wrong nodearc_index '$(nodearc_index)'", 1);
+                            write_oneline_response(command_id, @"wrong MAC pair '$(k)'", 1);
                             continue;
                         }
-                        int i_cost = int.parse(_args[2]);
-                        change_nodearc(nodearc_index, i_cost);
-                        write_empty_response(command_id);
-                    }
-                    else if (_args[0] == "remove_nodearc")
-                    {
-                        if (_args.size != 2)
-                        {
-                            write_oneline_response(command_id, @"Bad arguments number.", 1);
-                            continue;
-                        }
-                        int nodearc_index = int.parse(_args[1]);
-                        if (! (nodearc_index in nodearcs.keys))
-                        {
-                            write_oneline_response(command_id, @"wrong nodearc_index '$(nodearc_index)'", 1);
-                            continue;
-                        }
-                        remove_nodearc(nodearc_index);
+                        remove_real_arc(k);
                         write_empty_response(command_id);
                     }
                     else if (_args[0] == "show_identityarcs")
@@ -1661,9 +1659,9 @@ Command list:
                             // some warning message?
                             return null;
                         }
-                        foreach (int i in nodearcs.keys)
+                        foreach (string k in real_arcs.keys)
                         {
-                            Arc arc = nodearcs[i];
+                            Arc arc = real_arcs[k];
                             if (arc.neighborhood_arc == neighborhood_arc)
                             {
                                 return arc.idmgmt_arc;
@@ -2316,13 +2314,13 @@ Command list:
     void identity_mgr_arc_removed(IIdmgmtArc arc)
     {
         // Find the arc data.
-        foreach (int nodearc_index in nodearcs.keys)
+        foreach (string k in real_arcs.keys)
         {
-            Arc node_arc = nodearcs[nodearc_index];
+            Arc node_arc = real_arcs[k];
             if (node_arc.idmgmt_arc == arc)
             {
                 // This arc has been removed from identity_mgr. Save this info.
-                identity_mgr_arcs.remove(nodearc_index);
+                identity_mgr_arcs.remove(k);
                 // Remove arc from neighborhood, because it fails.
                 neighborhood_mgr.remove_my_arc(node_arc.neighborhood_arc, false);
                 break;
@@ -2348,13 +2346,17 @@ Command list:
         print(@"handlednics: #$(i): $(n.dev) = $(n.mac) (has $(n.linklocal)).\n");
     }
 
+    string key_for_physical_arc(string mymac, string peermac)
+    {
+        return @"$(mymac)-$(peermac)";
+    }
+
     void arc_added(INeighborhoodArc arc)
     {
-        print(@"arc_added for $(arc.neighbour_nic_addr)\n");
-        print(@" $(arc.nic.dev) ($(arc.nic.mac)) connected to $(arc.neighbour_mac)\n");
-        string k = @"$(arc.nic.mac)-$(arc.neighbour_mac)";
+        string k = key_for_physical_arc(arc.nic.mac, arc.neighbour_mac);
         assert(! (k in neighborhood_arcs.keys));
         neighborhood_arcs[k] = arc;
+        print(@"neighborhood_arc '$(k)': peer_linklocal $(arc.neighbour_nic_addr), cost $(arc.cost)us\n");
     }
 
     void arc_changed(INeighborhoodArc arc)
@@ -2364,32 +2366,24 @@ Command list:
 
     void arc_removing(INeighborhoodArc arc, bool is_still_usable)
     {
-        // Had this arc been added to 'nodearcs'?
-        int nodearc_index = -1;
-        foreach (int i in nodearcs.keys)
+        string k = key_for_physical_arc(arc.nic.mac, arc.neighbour_mac);
+        // Had this arc been added to 'real_arcs'?
+        if ( ! (k in real_arcs.keys)) return;
+        // Has real_arc already been removed from Identities?
+        if (k in identity_mgr_arcs)
         {
-            Arc node_arc = nodearcs[i];
-            if (arc == node_arc.neighborhood_arc)
-            {
-                nodearc_index = i;
-                break;
-            }
+            Arc real_arc = real_arcs[k];
+            identity_mgr.remove_arc(real_arc.idmgmt_arc);
+            identity_mgr_arcs.remove(k);
         }
-        if (nodearc_index == -1) return;
-        // Has node_arc already been removed from Identities?
-        if (nodearc_index in identity_mgr_arcs)
-        {
-            Arc node_arc = nodearcs[nodearc_index];
-            identity_mgr.remove_arc(node_arc.idmgmt_arc);
-            identity_mgr_arcs.remove(nodearc_index);
-        }
-        // Remove arc from nodearcs.
-        nodearcs.unset(nodearc_index);
+        // Remove arc from real_arcs.
+        real_arcs.unset(k);
     }
 
     void arc_removed(INeighborhoodArc arc)
     {
-        string k = @"$(arc.nic.mac)-$(arc.neighbour_mac)";
+        string k = key_for_physical_arc(arc.nic.mac, arc.neighbour_mac);
+        print(@"Neighborhood module: neighborhood_arc `$(k)` has been removed.\n");
         neighborhood_arcs.unset(k);
     }
 
@@ -2728,57 +2722,48 @@ Command list:
         foreach (string k in neighborhood_arcs.keys)
         {
             INeighborhoodArc arc = neighborhood_arcs[k];
-            ret.add(@"arc $(k) is for $(arc.neighbour_nic_addr)");
+            ret.add(@"neighborhood_arc '$(k)': peer_linklocal $(arc.neighbour_nic_addr), cost $(arc.cost)us");
         }
         return ret;
     }
 
-    Gee.List<string> add_node_arc(INeighborhoodArc _arc, int cost)
+    Gee.List<string> add_real_arc(string k, int cost)
     {
+        INeighborhoodArc _arc = neighborhood_arcs[k];
         ArrayList<string> ret = new ArrayList<string>();
-        // Had this arc been already added to 'nodearcs'?
-        foreach (int nodearc_index in nodearcs.keys)
+        // Had this arc been already added to 'real_arcs'?
+        if (k in real_arcs.keys)
         {
-            Arc node_arc = nodearcs[nodearc_index];
-            if (_arc == node_arc.neighborhood_arc)
-            {
-                ret.add("Already there.");
-                return ret;
-            }
+            ret.add("Already there.");
+            return ret;
         }
         Arc arc = new Arc();
         arc.cost = cost;
         arc.neighborhood_arc = _arc;
         arc.idmgmt_arc = new IdmgmtArc(arc);
-        int nodearc_index = nodearc_nextindex++;
-        nodearcs[nodearc_index] = arc;
-        string _dev = arc.idmgmt_arc.get_dev();
-        string _p_ll = arc.idmgmt_arc.get_peer_linklocal();
-        string _p_mac = arc.idmgmt_arc.get_peer_mac();
-        ret.add(@"nodearcs: #$(nodearc_index): from $(_dev) to $(_p_ll) ($(_p_mac)).");
+        real_arcs[k] = arc;
+        print(@"real_arc '$(k)': peer_linklocal $(_arc.neighbour_nic_addr), cost $(_arc.cost)us\n");
         identity_mgr.add_arc(arc.idmgmt_arc);
-        identity_mgr_arcs.add(nodearc_index);
+        identity_mgr_arcs.add(k);
         return ret;
     }
 
-    Gee.List<string> show_nodearcs()
+    Gee.List<string> show_real_arcs()
     {
         ArrayList<string> ret = new ArrayList<string>();
-        foreach (int i in nodearcs.keys)
+        foreach (string k in real_arcs.keys)
         {
-            Arc arc = nodearcs[i];
-            string _dev = arc.idmgmt_arc.get_dev();
-            string _p_ll = arc.idmgmt_arc.get_peer_linklocal();
-            string _p_mac = arc.idmgmt_arc.get_peer_mac();
-            ret.add(@"nodearcs: #$(i): from $(_dev) to $(_p_ll) ($(_p_mac)).");
+            Arc arc = real_arcs[k];
+            INeighborhoodArc _arc = arc.neighborhood_arc;
+            ret.add(@"real_arc '$(k)': peer_linklocal $(_arc.neighbour_nic_addr), cost $(_arc.cost)us\n");
         }
         return ret;
     }
 
-    void change_nodearc(int nodearc_index, int cost)
+    void change_real_arc(string k, int cost)
     {
-        assert(nodearc_index in nodearcs.keys);
-        Arc arc = nodearcs[nodearc_index];
+        assert(k in real_arcs.keys);
+        Arc arc = real_arcs[k];
         arc.cost = cost;
         foreach (int i in local_identities.keys)
         {
@@ -2794,7 +2779,7 @@ Command list:
         }
     }
 
-    void remove_nodearc(int nodearc_index)
+    void remove_real_arc(string k)
     {
         error("not implemented yet");
     }
