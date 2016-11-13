@@ -28,6 +28,7 @@ libmacgetter_la_LIBADD = \
 
 qspnclient_SOURCES =  \
 	proof.vala \
+	ipv4_compute.vala \
 	naddr.vala \
 	network_stack.vala \
 	serialize_helpers.vala \
