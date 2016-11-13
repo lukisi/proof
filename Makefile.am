@@ -15,6 +15,14 @@ noinst_PROGRAMS =  \
 	qspnclient \
 	$(NULL)
 
+TESTS = \
+	test_ipv4compute \
+	$(NULL)
+
+check_PROGRAMS = \
+	test_ipv4compute \
+	$(NULL)
+
 libmacgetter_la_SOURCES = \
 	mac-getter/hw.c \
 	mac-getter/hw.h \
@@ -71,5 +79,28 @@ qspnclient_LDADD = \
 	$(builddir)/neighborhood/libneighborhood.la \
 	$(builddir)/identities/libidentities.la \
 	$(builddir)/qspn/libqspn.la \
+	$(NULL)
+
+test_ipv4compute_SOURCES = \
+	testsuites/ipv4compute/tester.vala \
+	testsuites/ipv4compute/ipv4_compute.vala \
+	$(NULL)
+
+test_ipv4compute_VALAFLAGS = \
+	--pkg gee-0.8 \
+	--pkg ntkd-common \
+	$(NULL)
+
+test_ipv4compute_CPPFLAGS = \
+	-w \
+	$(GOBJECT_CFLAGS) \
+	$(GEE_CFLAGS) \
+	$(NTKDCOMMON_CFLAGS) \
+	$(NULL)
+
+test_ipv4compute_LDADD = \
+	$(GOBJECT_LIBS) \
+	$(GEE_LIBS) \
+	$(NTKDCOMMON_LIBS) \
 	$(NULL)
 
