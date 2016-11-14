@@ -64,7 +64,37 @@ namespace ProofOfConcept
         private static void init_table_names()
         {
             free_tid = new ArrayList<int>();
+            for (int i = 250; i >= 200; i--) free_tid.add(i);
             mac_tid = new HashMap<string, int>();
+        }
+
+        public void get_tid(string peer_mac, out int tid, out string tablename)
+        {
+            tablename = @"ntk_from_$(peer_mac)";
+            if (mac_tid.has_key(peer_mac))
+            {
+                tid = mac_tid[peer_mac];
+                return;
+            }
+            assert(! free_tid.is_empty);
+            tid = free_tid.remove_at(0);
+            mac_tid[peer_mac] = tid;
+            string cmd = @"sed -i 's/$(tid) reserved_ntk_from_$(tid)/$(tid) $(tablename)/' $(RT_TABLES)";
+            // exec: cmd
+            error("not implemented yet");
+        }
+
+        public void release_tid(string peer_mac, int tid)
+        {
+            string tablename = @"ntk_from_$(peer_mac)";
+            assert(! (tid in free_tid));
+            assert(mac_tid.has_key(peer_mac));
+            assert(mac_tid[peer_mac] == tid);
+            free_tid.insert(0, tid);
+            mac_tid.unset(peer_mac);
+            string cmd = @"sed -i 's/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/' $(RT_TABLES)";
+            // exec: cmd
+            error("not implemented yet");
         }
     }
 }
