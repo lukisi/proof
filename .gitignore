@@ -3,6 +3,7 @@ ipv4_compute.c
 network_stack.c
 naddr.c
 serialize_helpers.c
+tester.c
 Makefile.in
 Makefile
 *.lo
