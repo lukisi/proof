@@ -25,20 +25,6 @@ using TaskletSystem;
 
 namespace ProofOfConcept
 {
-    [NoReturn]
-    internal void error_in_command(string cmd, string stdout, string stderr)
-    {
-        print("Error in command:\n");
-        print(@"   $(cmd)\n");
-        print("command stdout =======\n");
-        print(@"$(stdout)\n");
-        print("======================\n");
-        print("command stderr =======\n");
-        print(@"$(stderr)\n");
-        print("======================\n");
-        error(@"Error in command: `$(cmd)`");
-    }
-
     class NetworkStack : Object
     {
         public NetworkStack(string network_namespace, string whole_network)

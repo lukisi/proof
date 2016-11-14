@@ -39,6 +39,7 @@ qspnclient_SOURCES =  \
 	ipv4_compute.vala \
 	naddr.vala \
 	network_stack.vala \
+	commander.vala \
 	serialize_helpers.vala \
 	mac-getter/hw.vapi \
 	identities/identities.vapi \

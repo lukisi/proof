@@ -1,6 +1,7 @@
 proof.c
 ipv4_compute.c
 network_stack.c
+commander.c
 naddr.c
 serialize_helpers.c
 tester.c
