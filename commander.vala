@@ -54,6 +54,32 @@ namespace ProofOfConcept
 
         private DispatchableTasklet command_dispatcher;
 
+        public void single_command(string cmd, bool wait=true)
+        {
+            SingleCommandTasklet ts = new SingleCommandTasklet();
+            ts.cm_t = this;
+            ts.cmd = cmd;
+            command_dispatcher.dispatch(ts, wait);
+        }
+        private void tasklet_single_command(string cmd)
+        {
+            try {
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error("Unable to spawn a command");}
+        }
+        class SingleCommandTasklet : Object, ITaskletSpawnable
+        {
+            public Commander cm_t;
+            public string cmd;
+            public void * func()
+            {
+                cm_t.tasklet_single_command(cmd);
+                return null;
+            }
+        }
+
         /* Table-names management
         ** 
         */
@@ -80,8 +106,7 @@ namespace ProofOfConcept
             tid = free_tid.remove_at(0);
             mac_tid[peer_mac] = tid;
             string cmd = @"sed -i 's/$(tid) reserved_ntk_from_$(tid)/$(tid) $(tablename)/' $(RT_TABLES)";
-            // exec: cmd
-            error("not implemented yet");
+            single_command(cmd);
         }
 
         public void release_tid(string peer_mac, int tid)
@@ -93,8 +118,7 @@ namespace ProofOfConcept
             free_tid.insert(0, tid);
             mac_tid.unset(peer_mac);
             string cmd = @"sed -i 's/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/' $(RT_TABLES)";
-            // exec: cmd
-            error("not implemented yet");
+            single_command(cmd);
         }
     }
 }
