@@ -49,9 +49,32 @@ namespace ProofOfConcept
         {
             init_table_names();
             command_dispatcher = tasklet.create_dispatchable_tasklet();
+            console = "";
+            log_console = false;
+            blocks = new HashMap<int, BeginBlockTasklet>();
+            next_block_id = 0;
         }
 
         private DispatchableTasklet command_dispatcher;
+        private string console;
+        private bool log_console;
+
+        public void start_console_log()
+        {
+            log_console = true;
+        }
+
+        public void stop_console_log()
+        {
+            log_console = false;
+        }
+
+        public void print_console_log()
+        {
+            print(console);
+            print("\n");
+            console = "";
+        }
 
         /* Single command
         ** 
@@ -67,9 +90,16 @@ namespace ProofOfConcept
         private void tasklet_single_command(string cmd)
         {
             try {
+                if (log_console) console += @"$$ $(cmd)\n";
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+                if (log_console)
+                {
+                    console += @"ret: $(com_ret.exit_status)\n";
+                    if (com_ret.stdout != "") console += @"OUT: $(com_ret.stdout)";
+                    if (com_ret.stderr != "") console += @"ERR: $(com_ret.stderr)";
+                }
             } catch (Error e) {error("Unable to spawn a command");}
         }
         class SingleCommandTasklet : Object, ITaskletSpawnable
@@ -88,7 +118,7 @@ namespace ProofOfConcept
         */
 
         private HashMap<int, BeginBlockTasklet> blocks;
-        private int next_block_id = 0;
+        private int next_block_id;
         public int begin_block()
         {
             int block_id = next_block_id++;
