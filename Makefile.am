@@ -91,20 +91,17 @@ test_ipv4compute_SOURCES = \
 
 test_ipv4compute_VALAFLAGS = \
 	--pkg gee-0.8 \
-	--pkg ntkd-common \
 	$(NULL)
 
 test_ipv4compute_CPPFLAGS = \
 	-w \
 	$(GOBJECT_CFLAGS) \
 	$(GEE_CFLAGS) \
-	$(NTKDCOMMON_CFLAGS) \
 	$(NULL)
 
 test_ipv4compute_LDADD = \
 	$(GOBJECT_LIBS) \
 	$(GEE_LIBS) \
-	$(NTKDCOMMON_LIBS) \
 	$(NULL)
 
 test_commander_SOURCES = \

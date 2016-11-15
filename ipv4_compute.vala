@@ -17,7 +17,6 @@
  */
 
 using Gee;
-using Netsukuku;
 
 namespace ProofOfConcept
 {
