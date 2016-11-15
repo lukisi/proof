@@ -326,20 +326,26 @@ Command list:
         foreach (string s in print_local_identity(0)) print(s + "\n");
 
         NetworkStack network_stack = first_identity.network_stack; // first identity in default namespace
-        first_identity.ip_global = ip_global_node(my_naddr.pos);
-        foreach (string dev in real_nics) network_stack.add_address(first_identity.ip_global, dev);
+
+        first_identity.local_ip.global = ip_global_node(my_naddr.pos);
+        foreach (string dev in real_nics)
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"address", @"add", @"$(first_identity.local_ip.global)", @"dev", @"$dev"}));
+        first_identity.local_ip.anonymous = ip_anonymizing_node(my_naddr.pos);
         if (accept_anonymous_requests)
         {
-            first_identity.ip_anonymizing = ip_anonymizing_node(my_naddr.pos);
-            foreach (string dev in real_nics) network_stack.add_address(first_identity.ip_anonymizing, dev);
+            foreach (string dev in real_nics)
+                cm.single_command(new ArrayList<string>.wrap({
+                    @"ip", @"address", @"add", @"$(first_identity.local_ip.anonymous)", @"dev", @"$dev"}));
         }
-        else first_identity.ip_anonymizing = null;
-        first_identity.ip_internal = new ArrayList<string>();
-        for (int j = 0; j <= levels-2; j++)
+        for (int i = levels-1; i >= 1; i--)
         {
-            first_identity.ip_internal.add(ip_internal_node(my_naddr.pos, j+1));
-            foreach (string dev in real_nics) network_stack.add_address(first_identity.ip_internal[j], dev);
+            first_identity.local_ip.intern[i] = ip_internal_node(my_naddr.pos, i);
+            foreach (string dev in real_nics)
+                cm.single_command(new ArrayList<string>.wrap({
+                    @"ip", @"address", @"add", @"$(first_identity.local_ip.intern[i])", @"dev", @"$dev"}));
         }
+
         first_identity.all_dest_set = compute_ip_all_possible_destinations(first_identity.my_naddr);
         foreach (string dest in first_identity.all_dest_set)
             first_identity.network_stack.add_destination(dest);
