@@ -17,10 +17,12 @@ noinst_PROGRAMS =  \
 
 TESTS = \
 	test_ipv4compute \
+	test_commander \
 	$(NULL)
 
 check_PROGRAMS = \
 	test_ipv4compute \
+	test_commander \
 	$(NULL)
 
 libmacgetter_la_SOURCES = \
@@ -103,5 +105,31 @@ test_ipv4compute_LDADD = \
 	$(GOBJECT_LIBS) \
 	$(GEE_LIBS) \
 	$(NTKDCOMMON_LIBS) \
+	$(NULL)
+
+test_commander_SOURCES = \
+	testsuites/commander/tester.vala \
+	testsuites/commander/commander.vala \
+	$(NULL)
+
+test_commander_VALAFLAGS = \
+	--pkg gee-0.8 \
+	--pkg tasklet-system \
+	--pkg pth-tasklet \
+	$(NULL)
+
+test_commander_CPPFLAGS = \
+	-w \
+	$(GOBJECT_CFLAGS) \
+	$(GEE_CFLAGS) \
+	$(TASKLETSYSTEM_CFLAGS) \
+	$(PTHTASKLET_CFLAGS) \
+	$(NULL)
+
+test_commander_LDADD = \
+	$(GOBJECT_LIBS) \
+	$(GEE_LIBS) \
+	$(TASKLETSYSTEM_LIBS) \
+	$(PTHTASKLET_LIBS) \
 	$(NULL)
 

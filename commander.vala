@@ -17,7 +17,6 @@
  */
 
 using Gee;
-using Netsukuku;
 using TaskletSystem;
 
 namespace ProofOfConcept
