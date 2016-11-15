@@ -45,24 +45,24 @@ namespace ProofOfConcept
         {
             cm = Commander.get_singleton();
             cm.stop_console_log();
-            cm.single_command("touch /tmp/test_commander_2");
-            cm.single_command("rm /tmp/test_commander_2");
-            cm.single_command("touch /tmp/test_commander_2_new");
+            cm.single_command(new ArrayList<string>.wrap({"touch", "/tmp/test_commander_2"}));
+            cm.single_command(new ArrayList<string>.wrap({"rm", "/tmp/test_commander_2"}));
         }
 
         public void test_3()
         {
             cm = Commander.get_singleton();
             cm.stop_console_log();
-            cm.single_command("touch /tmp/test_commander_3");
-            cm.single_command("rm /tmp/test_commander_3");
-            cm.single_command("touch '/tmp/test commander 3 new'");
+            cm.single_command(new ArrayList<string>.wrap({"touch", "/tmp/test_commander_3"}));
+            cm.single_command(new ArrayList<string>.wrap({"rm", "/tmp/test_commander_3"}));
+            cm.single_command(new ArrayList<string>.wrap({"touch", "/tmp/test commander 3 new"}));
+            cm.single_command(new ArrayList<string>.wrap({"rm", "/tmp/test commander 3 new"}));
         }
 
         public void test_1()
         {
             cm = Commander.get_singleton();
-            cm.start_console_log();
+            // cm.start_console_log();
             ch1 = tasklet.get_channel();
             ch2 = tasklet.get_channel();
             ch3 = tasklet.get_channel();
@@ -78,8 +78,8 @@ namespace ProofOfConcept
             tasklet.spawn(t2);
             tasklet.spawn(t3);
             ch8.recv();
-            cm.stop_console_log();
-            cm.print_console_log();
+            // cm.stop_console_log();
+            // cm.print_console_log();
         }
 
         public static int main(string[] args)
@@ -112,10 +112,10 @@ namespace ProofOfConcept
             int bid = cm.begin_block();
             ch1.send(0);
             ch2.recv();
-            cm.single_command_in_block(bid, "echo 1");
+            cm.single_command_in_block(bid, new ArrayList<string>.wrap({"echo", "1"}));
             ch3.send(0);
             ch4.recv();
-            cm.single_command_in_block(bid, "echo 2");
+            cm.single_command_in_block(bid, new ArrayList<string>.wrap({"echo", "2"}));
             ch5.send(0);
             ch6.recv();
             cm.end_block(bid);
@@ -132,11 +132,11 @@ namespace ProofOfConcept
             int bid = cm.begin_block();
             ch2.send(0);
             ch5.recv();
-            cm.single_command_in_block(bid, "echo 3");
+            cm.single_command_in_block(bid, new ArrayList<string>.wrap({"echo", "3"}));
             ch6.send(0);
             ch7.recv();
             cm.end_block(bid);
-            cm.single_command("echo 5");
+            cm.single_command(new ArrayList<string>.wrap({"echo", "5"}));
             ch8.send(0);
             return null;
         }
@@ -147,8 +147,8 @@ namespace ProofOfConcept
         public void * func()
         {
             ch3.recv();
-            cm.single_command("echo 4", false);
-            print("0\n");
+            cm.single_command(new ArrayList<string>.wrap({"echo", "4"}), false);
+            // print("0\n");
             ch4.send(0);
             return null;
         }

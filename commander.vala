@@ -35,6 +35,34 @@ namespace ProofOfConcept
         error(@"Error in command: `$(cmd)`");
     }
 
+    [NoReturn]
+    internal void error_in_command_new(ArrayList<string> cmd_args, string stdout, string stderr)
+    {
+        string cmd = cmd_repr(cmd_args);
+        print("Error in command:\n");
+        print(@"   $(cmd)\n");
+        print("command stdout =======\n");
+        print(@"$(stdout)\n");
+        print("======================\n");
+        print("command stderr =======\n");
+        print(@"$(stderr)\n");
+        print("======================\n");
+        error(@"Error in command: `$(cmd)`");
+    }
+
+    internal string cmd_repr(ArrayList<string> cmd_args)
+    {
+        string cmd = ""; string sep = "";
+        foreach (string arg in cmd_args)
+        {
+            cmd += sep;
+            if (" " in arg) cmd += @"'$(arg)'";
+            else cmd += arg;
+            sep = " ";
+        }
+        return cmd;
+    }
+
     class Commander : Object
     {
         public static Commander get_singleton()
@@ -80,20 +108,21 @@ namespace ProofOfConcept
         ** 
         */
 
-        public void single_command(string cmd, bool wait=true)
+        public void single_command(ArrayList<string> cmd_args, bool wait=true)
         {
             SingleCommandTasklet ts = new SingleCommandTasklet();
             ts.cm_t = this;
-            ts.cmd = cmd;
+            ts.cmd_args = cmd_args;
             command_dispatcher.dispatch(ts, wait);
         }
-        private void tasklet_single_command(string cmd)
+        private void tasklet_single_command(ArrayList<string> cmd_args)
         {
             try {
+                string cmd = cmd_repr(cmd_args);
                 if (log_console) console += @"$$ $(cmd)\n";
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
+                TaskletCommandResult com_ret = tasklet.exec_command_argv(cmd_args.to_array());
                 if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
+                    error_in_command_new(cmd_args, com_ret.stdout, com_ret.stderr);
                 if (log_console)
                 {
                     console += @"ret: $(com_ret.exit_status)\n";
@@ -105,10 +134,10 @@ namespace ProofOfConcept
         class SingleCommandTasklet : Object, ITaskletSpawnable
         {
             public Commander cm_t;
-            public string cmd;
+            public ArrayList<string> cmd_args;
             public void * func()
             {
-                cm_t.tasklet_single_command(cmd);
+                cm_t.tasklet_single_command(cmd_args);
                 return null;
             }
         }
@@ -132,17 +161,17 @@ namespace ProofOfConcept
             {
                 this.cm_t = cm_t;
                 ch = tasklet.get_channel();
-                cmds = new ArrayList<string>();
+                cmds = new ArrayList<ArrayList<string>>();
             }
 
             private Commander cm_t;
             private IChannel ch;
-            private ArrayList<string> cmds;
+            private ArrayList<ArrayList<string>> cmds;
             private bool wait;
 
-            public void single_command_in_block(string cmd)
+            public void single_command_in_block(ArrayList<string> cmd_args)
             {
-                cmds.add(cmd);
+                cmds.add(cmd_args);
             }
 
             public void end_block(bool wait)
@@ -162,16 +191,16 @@ namespace ProofOfConcept
             public void * func()
             {
                 ch.recv();
-                foreach (string cmd in cmds) cm_t.tasklet_single_command(cmd);
+                foreach (ArrayList<string> cmd_args in cmds) cm_t.tasklet_single_command(cmd_args);
                 if (wait) ch.send(0);
                 return null;
             }
         }
 
-        public void single_command_in_block(int block_id, string cmd)
+        public void single_command_in_block(int block_id, ArrayList<string> cmd_args)
         {
             assert(blocks.has_key(block_id));
-            blocks[block_id].single_command_in_block(cmd);
+            blocks[block_id].single_command_in_block(cmd_args);
         }
 
         public void end_block(int block_id, bool wait=true)
@@ -206,8 +235,8 @@ namespace ProofOfConcept
             assert(! free_tid.is_empty);
             tid = free_tid.remove_at(0);
             mac_tid[peer_mac] = tid;
-            string cmd = @"sed -i 's/$(tid) reserved_ntk_from_$(tid)/$(tid) $(tablename)/' $(RT_TABLES)";
-            single_command(cmd);
+            single_command(new ArrayList<string>.wrap({
+                "sed", "-i", @"s/$(tid) reserved_ntk_from_$(tid)/$(tid) $(tablename)/", RT_TABLES}));
         }
 
         public void release_tid(string peer_mac, int tid)
@@ -218,8 +247,8 @@ namespace ProofOfConcept
             assert(mac_tid[peer_mac] == tid);
             free_tid.insert(0, tid);
             mac_tid.unset(peer_mac);
-            string cmd = @"sed -i 's/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/' $(RT_TABLES)";
-            single_command(cmd);
+            single_command(new ArrayList<string>.wrap({
+                "sed", "-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES}));
         }
     }
 }
