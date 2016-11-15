@@ -54,6 +54,10 @@ namespace ProofOfConcept
 
         private DispatchableTasklet command_dispatcher;
 
+        /* Single command
+        ** 
+        */
+
         public void single_command(string cmd, bool wait=true)
         {
             SingleCommandTasklet ts = new SingleCommandTasklet();
@@ -78,6 +82,74 @@ namespace ProofOfConcept
                 cm_t.tasklet_single_command(cmd);
                 return null;
             }
+        }
+
+        /* Block of commands
+        ** 
+        */
+
+        private HashMap<int, BeginBlockTasklet> blocks;
+        private int next_block_id = 0;
+        public int begin_block()
+        {
+            int block_id = next_block_id++;
+            blocks[block_id] = new BeginBlockTasklet(this);
+            command_dispatcher.dispatch(blocks[block_id]); // does not wait
+            return block_id;
+        }
+        private class BeginBlockTasklet : Object, ITaskletSpawnable
+        {
+            public BeginBlockTasklet(Commander cm_t)
+            {
+                this.cm_t = cm_t;
+                ch = tasklet.get_channel();
+                cmds = new ArrayList<string>();
+            }
+
+            private Commander cm_t;
+            private IChannel ch;
+            private ArrayList<string> cmds;
+            private bool wait;
+
+            public void single_command_in_block(string cmd)
+            {
+                cmds.add(cmd);
+            }
+
+            public void end_block(bool wait)
+            {
+                this.wait = wait;
+                if (wait)
+                {
+                    ch.send(0);
+                    ch.recv();
+                }
+                else
+                {
+                    ch.send_async(0);
+                }
+            }
+
+            public void * func()
+            {
+                ch.recv();
+                foreach (string cmd in cmds) cm_t.tasklet_single_command(cmd);
+                if (wait) ch.send(0);
+                return null;
+            }
+        }
+
+        public void single_command_in_block(int block_id, string cmd)
+        {
+            assert(blocks.has_key(block_id));
+            blocks[block_id].single_command_in_block(cmd);
+        }
+
+        public void end_block(int block_id, bool wait=true)
+        {
+            assert(blocks.has_key(block_id));
+            blocks[block_id].end_block(wait);
+            blocks.unset(block_id);
         }
 
         /* Table-names management
