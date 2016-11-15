@@ -779,7 +779,7 @@ namespace ProofOfConcept
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-                tasklet_prepare_all_nics();
+                // tasklet_prepare_all_nics();  better don't
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
         class CreateNamespaceTasklet : Object, ITaskletSpawnable

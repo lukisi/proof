@@ -43,7 +43,6 @@ namespace ProofOfConcept
     ArrayList<int> _gsizes;
     ArrayList<int> _g_exp;
     int levels;
-    string ip_whole_network;
     NeighborhoodManager? neighborhood_mgr;
     IdentityManager? identity_mgr;
     ArrayList<string> identity_mgr_arcs; // to memorize the `real_arcs` that have been added to IdentityManager
@@ -209,7 +208,6 @@ Command list:
         foreach (string dev in interfaces) _devs.add(dev);
         if (_naddr.size != _gsizes.size) error("You have to use same number of levels");
         levels = _gsizes.size;
-        ip_whole_network = compute_ip_whole_network();
 
         // Initialize tasklet system
         PthTaskletImplementer.init();
@@ -236,17 +234,29 @@ Command list:
         // start listen TCP
         t_tcp = tcp_listen(dlg, err, ntkd_port);
 
+        string ntklocalhost = ip_internal_node(_naddr, 0);
+        int bid = cm.begin_block();
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
+            {"sysctl", "net.ipv4.ip_forward=1"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
+            {"sysctl", "net.ipv4.conf.all.rp_filter=0"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
+            {"ip", "address", "add", ntklocalhost, "dev", "lo"}));
+        cm.end_block(bid);
+
         real_nics = new ArrayList<string>();
         handlednics = new ArrayList<HandledNic>();
         local_identity_nextindex = 0;
         local_identities = new HashMap<int, IdentityData>();
+
         network_stacks = new HashMap<string, NetworkStack>();
-        network_stacks[""] = new NetworkStack("", ip_whole_network);
-        find_network_stack_for_ns("").prepare_all_nics();
+        network_stacks[""] = new NetworkStack("", "fake_ip_whole_network");
+
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         real_arcs = new HashMap<string, Arc>();
         identityarc_nextindex = 0;
         identityarcs = new HashMap<int, IdentityArc>();
+
         // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
         identity_mgr = null;
@@ -293,6 +303,8 @@ Command list:
         identity_mgr.arc_removed.connect(identity_mgr_arc_removed);
 
         // First identity
+        cm.single_command(new ArrayList<string>.wrap({"ip", "rule", "add", "table", "ntk"}));
+
         NodeID nodeid = identity_mgr.get_main_id();
         int local_identity_index = local_identity_nextindex++;
         IdentityData first_identity = new IdentityData(nodeid);
@@ -644,7 +656,16 @@ Command list:
     void manage_real_nic(string dev)
     {
         real_nics.add(dev);
-        find_network_stack_for_ns("").prepare_nic(dev);
+
+        int bid = cm.begin_block();
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
+            {@"sysctl", @"net.ipv4.conf.$(dev).rp_filter=0"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
+            {@"sysctl", @"net.ipv4.conf.$(dev).arp_ignore=1"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
+            {@"sysctl", @"net.ipv4.conf.$(dev).arp_announce=2"}));
+        cm.end_block(bid);
+
         // Start listen UDP on dev
         t_udp_list.add(udp_listen(dlg, err, ntkd_port, dev));
         // Run monitor
@@ -1493,22 +1514,26 @@ Command list:
     {
         public void add_address(string my_addr, string my_dev)
         {
-            find_network_stack_for_ns("").add_linklocal_address(my_dev, my_addr);
+            cm.single_command(new ArrayList<string>.wrap({
+                "ip", "address", "add", my_addr, "dev", my_dev}));
         }
 
         public void add_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
-            find_network_stack_for_ns("").add_gateway(my_addr, neighbor_addr, my_dev);
+            cm.single_command(new ArrayList<string>.wrap({
+                "ip", "route", "add", neighbor_addr, "dev", my_dev, "src", my_addr}));
         }
 
         public void remove_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
-            find_network_stack_for_ns("").remove_gateway(my_addr, neighbor_addr, my_dev);
+            cm.single_command(new ArrayList<string>.wrap({
+                "ip", "route", "del", neighbor_addr, "dev", my_dev, "src", my_addr}));
         }
 
         public void remove_address(string my_addr, string my_dev)
         {
-            find_network_stack_for_ns("").remove_linklocal_address(my_dev, my_addr);
+            cm.single_command(new ArrayList<string>.wrap({
+                "ip", "address", "del", @"$(my_addr)/32", "dev", my_dev}));
         }
     }
 
@@ -1565,7 +1590,7 @@ Command list:
         public void create_namespace(string ns)
         {
             assert(ns != "");
-            network_stacks[ns] = new NetworkStack(ns, ip_whole_network);
+            network_stacks[ns] = new NetworkStack(ns, "fake_ip_whole_network");
         }
 
         public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
