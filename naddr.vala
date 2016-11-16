@@ -59,6 +59,14 @@ namespace ProofOfConcept
             return virtual_up_to;
         }
 
+        public bool is_real_from_to(int from, int to)
+        {
+            int levels = sizes.size;
+            for (int i = from; i <= to; i++)
+                if (pos[i] >= sizes[i]) return false;
+            return true;
+        }
+
         public bool deserialize_property
         (string property_name,
          out GLib.Value @value,

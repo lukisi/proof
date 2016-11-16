@@ -346,9 +346,45 @@ Command list:
                     @"ip", @"address", @"add", @"$(first_identity.local_ip.intern[i])", @"dev", @"$dev"}));
         }
 
-        first_identity.all_dest_set = compute_ip_all_possible_destinations(first_identity.my_naddr);
-        foreach (string dest in first_identity.all_dest_set)
-            first_identity.network_stack.add_destination(dest);
+        int bid = cm.begin_block();
+        for (int i = levels-1; i >= subnetlevel; i--)
+         for (int j = 0; j < _gsizes[i]; j++)
+        {
+            ArrayList<int> naddr = new ArrayList<int>();
+            naddr.add_all(my_naddr.pos);
+            naddr[i] = j;
+            if (my_naddr.is_real_from_to(i+1, levels-1) && my_naddr.pos[i] != j)
+            {
+                string ipaddr = ip_global_gnode(naddr, i);
+                first_identity.destination_ip[i][j].global = ipaddr;
+                cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+                    @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"ntk"}));
+                ipaddr = ip_anonymizing_gnode(naddr, i);
+                first_identity.destination_ip[i][j].anonymous = ipaddr;
+                cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+                    @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"ntk"}));
+            }
+            else
+            {
+                first_identity.destination_ip[i][j].global = "";
+                first_identity.destination_ip[i][j].anonymous = "";
+            }
+            for (int k = levels-1; k >= i+1; k--)
+            {
+                if (my_naddr.is_real_from_to(i+1, k-1) && my_naddr.pos[i] != j)
+                {
+                    string ipaddr = ip_internal_gnode(naddr, i, k);
+                    first_identity.destination_ip[i][j].intern[k] = ipaddr;
+                    cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"ntk"}));
+                }
+                else
+                {
+                    first_identity.destination_ip[i][j].intern[k] = "";
+                }
+            }
+        }
+        cm.end_block(bid);
 
         qspn_mgr.arc_removed.connect(first_identity.arc_removed);
         qspn_mgr.changed_fp.connect(first_identity.changed_fp);
