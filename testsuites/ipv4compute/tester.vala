@@ -83,7 +83,7 @@ namespace ProofOfConcept
             _g_exp = new ArrayList<int>.wrap({8, 8, 4, 2});
             string i4 = ip_internal_node(new ArrayList<int>.wrap({234, 123, 15, 3}), 3);
             assert(i4 == "10.127.123.234");
-            string i5 = ip_internal_node(new ArrayList<int>.wrap({234, 123, 15, 3}), 0); //localhost
+            string i5 = ip_internal_node(new ArrayList<int>.wrap({234, 123, 15, 3}), 0); // ntklocalhost
             assert(i5 == "10.64.0.0");
         }
 
@@ -112,6 +112,8 @@ namespace ProofOfConcept
             assert(a1 == "10.0.0.92/31");
             string a2 = ip_anonymizing_gnode(new ArrayList<int>.wrap({1, 0, 0, 1}),1);
             assert(a2 == "10.0.0.72/31");
+            string a_range = ip_anonymizing_gnode(new ArrayList<int>.wrap({1, 0, 0, 1}),4); // anonymousrange
+            assert(a_range == "10.0.0.64/27");
             levels = 4;
             _gsizes = new ArrayList<int>.wrap({256, 256, 16, 4});
             _g_exp = new ArrayList<int>.wrap({8, 8, 4, 2});

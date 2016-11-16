@@ -384,6 +384,14 @@ Command list:
         }
         cm.end_block(bid);
 
+        if (! no_anonymize)
+        {
+            string anonymousrange = ip_anonymizing_gnode(_naddr, levels);
+            cm.single_command(new ArrayList<string>.wrap({
+                @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$anonymousrange",
+                @"-j", @"SNAT", @"--to", @"$(first_identity.local_ip.global)"}));
+        }
+
         qspn_mgr.arc_removed.connect(first_identity.arc_removed);
         qspn_mgr.changed_fp.connect(first_identity.changed_fp);
         qspn_mgr.changed_nodes_inside.connect(first_identity.changed_nodes_inside);
