@@ -193,13 +193,4 @@ namespace ProofOfConcept
         string ret = @"10.$(i2).$(i1).$(i0)/$(prefix)";
         return ret;
     }
-
-    string compute_ip_whole_network()  // TODO delete
-    {
-        int sum = 0;
-        for (int k = 0; k <= levels - 1; k++) sum += _g_exp[k];
-        int prefix = 32 - sum - 2;
-        string ret = @"10.0.0.0/$(prefix)";
-        return ret;
-    }
 }

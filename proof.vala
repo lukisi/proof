@@ -325,8 +325,6 @@ Command list:
 
         foreach (string s in print_local_identity(0)) print(s + "\n");
 
-        NetworkStack network_stack = first_identity.network_stack; // first identity in default namespace
-
         first_identity.local_ip.global = ip_global_node(my_naddr.pos);
         foreach (string dev in real_nics)
             cm.single_command(new ArrayList<string>.wrap({
@@ -346,7 +344,7 @@ Command list:
                     @"ip", @"address", @"add", @"$(first_identity.local_ip.intern[i])", @"dev", @"$dev"}));
         }
 
-        int bid = cm.begin_block();
+        bid = cm.begin_block();
         for (int i = levels-1; i >= subnetlevel; i--)
          for (int j = 0; j < _gsizes[i]; j++)
         {
@@ -1023,7 +1021,6 @@ Command list:
         public string ip_global;
         public string ip_anonymizing;
         public ArrayList<string> ip_internal;
-        public Gee.List<string> all_dest_set;
 
         private NetworkStack _network_stack;
         public NetworkStack network_stack {
@@ -2459,83 +2456,6 @@ Command list:
 
     void nic_address_unset(string my_dev, string my_addr)
     {
-    }
-
-    Gee.List<string> compute_ip_all_possible_destinations(Naddr own_naddr)
-    {
-        ArrayList<string> ret = new ArrayList<string>();
-        for (int lvl = 0; lvl < levels; lvl++) for (int pos = 0; pos < _gsizes[lvl]; pos++) if (own_naddr.pos[lvl] != pos)
-        {
-            ret.add_all(compute_ip_one_destination(new HCoord(lvl, pos), own_naddr));
-        }
-        return ret;
-    }
-
-    Gee.List<string> compute_ip_one_destination(HCoord h, Naddr own_naddr)
-    {
-        ArrayList<string> ret = new ArrayList<string>();
-
-        // Compute Netsukuku address of `h`.
-        ArrayList<int> h_addr = new ArrayList<int>();
-        h_addr.add_all(own_naddr.pos);
-        h_addr[h.lvl] = h.pos;
-        for (int i = 0; i < h.lvl; i++) h_addr[i] = -1;
-
-        // Operations now are based on my own Netsukuku address:
-        int real_up_to = own_naddr.get_real_up_to();
-        if (real_up_to == levels-1)
-        {
-            ret.add_all(compute_ip_one_real_destination(h_addr, h.lvl, own_naddr));
-        }
-        else
-        {
-            int virtual_up_to = own_naddr.get_virtual_up_to();
-            if (h.lvl < virtual_up_to)
-            {
-                ret.add_all(compute_ip_one_virtual_destination(h_addr, h.lvl, own_naddr));
-            }
-            else
-            {
-                ret.add_all(compute_ip_one_real_destination(h_addr, h.lvl, own_naddr));
-            }
-        }
-        return ret;
-    }
-
-    Gee.List<string> compute_ip_one_real_destination(ArrayList<int> h_addr, int h_lvl, Naddr own_naddr)
-    {
-        ArrayList<string> ret = new ArrayList<string>();
-        // Global.
-        ret.add(ip_global_gnode(h_addr, h_lvl));
-        // Anonymizing.
-        ret.add(ip_anonymizing_gnode(h_addr, h_lvl));
-        // Internals. In this case they are guaranteed to be valid.
-        for (int t = h_lvl + 1; t <= levels - 1; t++)
-        {
-            ret.add(ip_internal_gnode(h_addr, h_lvl, t));
-        }
-        return ret;
-    }
-
-    Gee.List<string> compute_ip_one_virtual_destination(ArrayList<int> h_addr, int h_lvl, Naddr own_naddr)
-    {
-        ArrayList<string> ret = new ArrayList<string>();
-        // Internals. In this case they MUST be checked.
-        bool invalid_found = false;
-        for (int t = h_lvl + 1; t <= levels - 1; t++)
-        {
-            for (int n_lvl = h_lvl + 1; n_lvl <= t - 1; n_lvl++)
-            {
-                if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                {
-                    invalid_found = true;
-                    break;
-                }
-            }
-            if (invalid_found) break; // The higher levels will be invalid too.
-            ret.add(ip_internal_gnode(h_addr, h_lvl, t));
-        }
-        return ret;
     }
 
     string naddr_repr(Naddr my_naddr)

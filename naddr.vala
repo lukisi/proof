@@ -61,7 +61,6 @@ namespace ProofOfConcept
 
         public bool is_real_from_to(int from, int to)
         {
-            int levels = sizes.size;
             for (int i = from; i <= to; i++)
                 if (pos[i] >= sizes[i]) return false;
             return true;

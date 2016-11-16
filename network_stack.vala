@@ -35,7 +35,6 @@ namespace ProofOfConcept
             if (ns != "") cmd_prefix = @"ip netns exec $(ns) ";
             this.whole_network = whole_network;
             command_dispatcher = tasklet.create_dispatchable_tasklet();
-            current_known_destinations = new ArrayList<string>();
             neighbour_macs = new ArrayList<string>();
             if (ns != "")
             {
@@ -92,19 +91,6 @@ namespace ProofOfConcept
             tasklet_create_table(@"$(maintable)_from_$(neighbour_mac)");
             tasklet_rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
             neighbour_macs.add(neighbour_mac);
-            // add `unreachable` in this new table for each known destination.
-            foreach (string dest in current_known_destinations)
-            {
-                string cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)_from_$(neighbour_mac)";
-                print(@"$(cmd)\n");
-                /*/
-                try {
-                    TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                    if (com_ret.exit_status != 0)
-                        error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-                } catch (Error e) {error("Unable to spawn a command");}
-                /*/
-            }
         }
         class AddNeighbourTasklet : Object, ITaskletSpawnable
         {
@@ -554,39 +540,6 @@ namespace ProofOfConcept
         **
         */
 
-        public void add_address(string address, string dev)
-        {
-            AddAddressTasklet ts = new AddAddressTasklet();
-            ts.t = this;
-            ts.address = address;
-            ts.dev = dev;
-            command_dispatcher.dispatch(ts, true);
-        }
-        private void tasklet_add_address(string address, string dev)
-        {
-            //print(@"Debug: NetworkStack[$(ns)]: add_address($(address), $(dev))\n");return;
-            string cmd = @"$(cmd_prefix)ip address add $(address) dev $(dev)";
-            print(@"$(cmd)\n");
-                /*/
-            try {
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-            } catch (Error e) {error("Unable to spawn a command");}
-                /*/
-        }
-        class AddAddressTasklet : Object, ITaskletSpawnable
-        {
-            public NetworkStack t;
-            public string address;
-            public string dev;
-            public void * func()
-            {
-                t.tasklet_add_address(address, dev);
-                return null;
-            }
-        }
-
         public void remove_address(string address, string dev)
         {
             RemoveAddressTasklet ts = new RemoveAddressTasklet();
@@ -616,98 +569,6 @@ namespace ProofOfConcept
             public void * func()
             {
                 t.tasklet_remove_address(address, dev);
-                return null;
-            }
-        }
-
-        private ArrayList<string> current_known_destinations;
-
-        public void add_destination(string dest)
-        {
-            AddDestinationTasklet ts = new AddDestinationTasklet();
-            ts.t = this;
-            ts.dest = dest;
-            command_dispatcher.dispatch(ts, true);
-        }
-        private void tasklet_add_destination(string dest)
-        {
-            //print(@"Debug: NetworkStack[$(ns)]: add_destination($(dest))\n");return;
-            // add dest unreachable
-            current_known_destinations.add(dest);
-            string cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)";
-            print(@"$(cmd)\n");
-                /*/
-            try {
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-            } catch (Error e) {error("Unable to spawn a command");}
-                /*/
-            foreach (string neighbour_mac in neighbour_macs)
-            {
-                cmd = @"$(cmd_prefix)ip route add unreachable $(dest) table $(maintable)_from_$(neighbour_mac)";
-                print(@"$(cmd)\n");
-                /*/
-                try {
-                    TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                    if (com_ret.exit_status != 0)
-                        error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-                } catch (Error e) {error("Unable to spawn a command");}
-                /*/
-            }
-        }
-        class AddDestinationTasklet : Object, ITaskletSpawnable
-        {
-            public NetworkStack t;
-            public string dest;
-            public void * func()
-            {
-                t.tasklet_add_destination(dest);
-                return null;
-            }
-        }
-
-        public void remove_destination(string dest)
-        {
-            RemoveDestinationTasklet ts = new RemoveDestinationTasklet();
-            ts.t = this;
-            ts.dest = dest;
-            command_dispatcher.dispatch(ts, true);
-        }
-        private void tasklet_remove_destination(string dest)
-        {
-            //print(@"Debug: NetworkStack[$(ns)]: remove_destination($(dest))\n");return;
-            // remove dest
-            current_known_destinations.remove(dest);
-            string cmd = @"$(cmd_prefix)ip route del $(dest) table $(maintable)";
-            print(@"$(cmd)\n");
-                /*/
-            try {
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-            } catch (Error e) {error("Unable to spawn a command");}
-                /*/
-            foreach (string neighbour_mac in neighbour_macs)
-            {
-                cmd = @"$(cmd_prefix)ip route del $(dest) table $(maintable)_from_$(neighbour_mac)";
-                print(@"$(cmd)\n");
-                /*/
-                try {
-                    TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                    if (com_ret.exit_status != 0)
-                        error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-                } catch (Error e) {error("Unable to spawn a command");}
-                /*/
-            }
-        }
-        class RemoveDestinationTasklet : Object, ITaskletSpawnable
-        {
-            public NetworkStack t;
-            public string dest;
-            public void * func()
-            {
-                t.tasklet_remove_destination(dest);
                 return null;
             }
         }
@@ -779,7 +640,6 @@ namespace ProofOfConcept
                 TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-                // tasklet_prepare_all_nics();  better don't
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
         class CreateNamespaceTasklet : Object, ITaskletSpawnable
@@ -816,7 +676,13 @@ namespace ProofOfConcept
                 com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
                     error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-                tasklet_prepare_nic(pseudo_dev);
+
+                // disable rp_filter
+                tasklet_set_sys_ctl(@"net.ipv4.conf.$(pseudo_dev).rp_filter", "0");
+                // arp policies
+                tasklet_set_sys_ctl(@"net.ipv4.conf.$(pseudo_dev).arp_ignore", "1");
+                tasklet_set_sys_ctl(@"net.ipv4.conf.$(pseudo_dev).arp_announce", "2");
+
                 cmd = @"ip netns exec $(ns) ip link set dev $(pseudo_dev) up";
                 print(@"$(cmd)\n");
                 com_ret = tasklet.exec_command(cmd);
@@ -864,37 +730,6 @@ namespace ProofOfConcept
             public void * func()
             {
                 t.tasklet_add_linklocal_address(dev, linklocal);
-                return null;
-            }
-        }
-
-        public void remove_linklocal_address(string dev, string linklocal)
-        {
-            RemoveLinklocalAddressTasklet ts = new RemoveLinklocalAddressTasklet();
-            ts.t = this;
-            ts.dev = dev;
-            ts.linklocal = linklocal;
-            command_dispatcher.dispatch(ts, true);
-        }
-        private void tasklet_remove_linklocal_address(string dev, string linklocal)
-        {
-            // ns may be empty-string.
-            try {
-                string cmd = @"$(cmd_prefix)ip address del $(linklocal)/32 dev $(dev)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
-        }
-        class RemoveLinklocalAddressTasklet : Object, ITaskletSpawnable
-        {
-            public NetworkStack t;
-            public string dev;
-            public string linklocal;
-            public void * func()
-            {
-                t.tasklet_remove_linklocal_address(dev, linklocal);
                 return null;
             }
         }
@@ -1043,56 +878,6 @@ namespace ProofOfConcept
             public void * func()
             {
                 t.tasklet_delete_namespace();
-                return null;
-            }
-        }
-
-        public void prepare_all_nics()
-        {
-            PrepareAllNicsTasklet ts = new PrepareAllNicsTasklet();
-            ts.t = this;
-            command_dispatcher.dispatch(ts, true);
-        }
-        private void tasklet_prepare_all_nics()
-        {
-            // disable rp_filter
-            tasklet_set_sys_ctl("net.ipv4.conf.all.rp_filter", "0");
-            // arp policies
-            tasklet_set_sys_ctl("net.ipv4.conf.all.arp_ignore", "1");
-            tasklet_set_sys_ctl("net.ipv4.conf.all.arp_announce", "2");
-        }
-        class PrepareAllNicsTasklet : Object, ITaskletSpawnable
-        {
-            public NetworkStack t;
-            public void * func()
-            {
-                t.tasklet_prepare_all_nics();
-                return null;
-            }
-        }
-
-        public void prepare_nic(string nic)
-        {
-            PrepareNicTasklet ts = new PrepareNicTasklet();
-            ts.t = this;
-            ts.nic = nic;
-            command_dispatcher.dispatch(ts, true);
-        }
-        private void tasklet_prepare_nic(string nic)
-        {
-            // disable rp_filter
-            tasklet_set_sys_ctl(@"net.ipv4.conf.$(nic).rp_filter", "0");
-            // arp policies
-            tasklet_set_sys_ctl(@"net.ipv4.conf.$(nic).arp_ignore", "1");
-            tasklet_set_sys_ctl(@"net.ipv4.conf.$(nic).arp_announce", "2");
-        }
-        class PrepareNicTasklet : Object, ITaskletSpawnable
-        {
-            public NetworkStack t;
-            public string nic;
-            public void * func()
-            {
-                t.tasklet_prepare_nic(nic);
                 return null;
             }
         }
