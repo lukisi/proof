@@ -147,7 +147,6 @@ namespace ProofOfConcept
             _gsizes = new ArrayList<int>.wrap({2, 2, 2, 4});
             _g_exp = new ArrayList<int>.wrap({1, 1, 1, 2});
             ArrayList<int> lamda_addr = new ArrayList<int>.wrap({0, 0, 1, 1});
-            ArrayList<int> zero_addr = new ArrayList<int>.wrap({0, 0, 0, 0});
             int subnetlevel = 1;
 
             /*

@@ -392,6 +392,44 @@ Command list:
                 @"-j", @"SNAT", @"--to", @"$(first_identity.local_ip.global)"}));
         }
 
+        if (subnetlevel > 0)
+        {
+            string range1 = ip_internal_gnode(_naddr, subnetlevel, subnetlevel);
+            for (int i = subnetlevel; i < levels; i++)
+            {
+                if (i < levels-1)
+                {
+                    string range2 = ip_internal_gnode(_naddr, subnetlevel, i+1);
+                    string range3 = ip_internal_gnode(_naddr, i+1, i+1);
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-A", @"PREROUTING", @"-d", @"$range2",
+                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
+                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                }
+                else
+                {
+                    string range2 = ip_global_gnode(_naddr, subnetlevel);
+                    string range3 = ip_global_gnode(_naddr, levels);
+                    string range4 = ip_anonymizing_gnode(_naddr, subnetlevel);
+                    string range5 = ip_anonymizing_gnode(_naddr, levels);
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-A", @"PREROUTING", @"-d", @"$range2",
+                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
+                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-A", @"PREROUTING", @"-d", @"$range4",
+                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$range5", @"-s", @"$range1",
+                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                }
+            }
+        }
+
         qspn_mgr.arc_removed.connect(first_identity.arc_removed);
         qspn_mgr.changed_fp.connect(first_identity.changed_fp);
         qspn_mgr.changed_nodes_inside.connect(first_identity.changed_nodes_inside);
