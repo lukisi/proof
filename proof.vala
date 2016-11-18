@@ -71,7 +71,7 @@ namespace ProofOfConcept
         subnetlevel = 0; // default
         accept_anonymous_requests = false; // default
         no_anonymize = false; // default
-        OptionContext oc = new OptionContext("<topology> <address>");
+        OptionContext oc = new OptionContext("init <topology> <address> | command ...");
         OptionEntry[] entries = new OptionEntry[5];
         int index = 0;
         entries[index++] = {"subnetlevel", 's', 0, OptionArg.INT, ref subnetlevel, "Level of g-node for autonomous subnet", null};
@@ -249,9 +249,6 @@ Command list:
         local_identity_nextindex = 0;
         local_identities = new HashMap<int, IdentityData>();
 
-        network_stacks = new HashMap<string, NetworkStack>();
-        network_stacks[""] = new NetworkStack("", "fake_ip_whole_network");
-
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         real_arcs = new HashMap<string, Arc>();
         identityarc_nextindex = 0;
@@ -303,7 +300,8 @@ Command list:
         identity_mgr.arc_removed.connect(identity_mgr_arc_removed);
 
         // First identity
-        cm.single_command(new ArrayList<string>.wrap({"ip", "rule", "add", "table", "ntk"}));
+        cm.single_command(new ArrayList<string>.wrap({
+            @"ip", @"rule", @"add", @"table", @"ntk"}));
 
         NodeID nodeid = identity_mgr.get_main_id();
         int local_identity_index = local_identity_nextindex++;
@@ -1675,7 +1673,8 @@ Command list:
         public void create_namespace(string ns)
         {
             assert(ns != "");
-            network_stacks[ns] = new NetworkStack(ns, "fake_ip_whole_network");
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"netns", @"add", @"$ns"}));
         }
 
         public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
