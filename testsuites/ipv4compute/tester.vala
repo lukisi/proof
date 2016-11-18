@@ -141,6 +141,79 @@ namespace ProofOfConcept
             assert(i5 == "10.96.123.0/24");
         }
 
+        public void test_autonomous_subnet()
+        {
+            levels = 4;
+            _gsizes = new ArrayList<int>.wrap({2, 2, 2, 4});
+            _g_exp = new ArrayList<int>.wrap({1, 1, 1, 2});
+            ArrayList<int> lamda_addr = new ArrayList<int>.wrap({0, 0, 1, 1});
+            ArrayList<int> zero_addr = new ArrayList<int>.wrap({0, 0, 0, 0});
+            int subnetlevel = 1;
+
+            /*
+            ip address add 10.0.0.32 dev lo
+
+            ip address add 10.0.0.12 dev eth1
+            ip address add 10.0.0.76 dev eth1
+            ip address add 10.0.0.60 dev eth1
+            ip address add 10.0.0.48 dev eth1
+            ip address add 10.0.0.40 dev eth1
+
+            iptables -t nat -A PREROUTING -d 10.0.0.48/31 -j NETMAP --to 10.0.0.40/31
+            iptables -t nat -A POSTROUTING -d 10.0.0.48/30 -s 10.0.0.40/31 -j NETMAP --to 10.0.0.48/31
+
+            iptables -t nat -A PREROUTING -d 10.0.0.60/31 -j NETMAP --to 10.0.0.40/31
+            iptables -t nat -A POSTROUTING -d 10.0.0.56/29 -s 10.0.0.40/31 -j NETMAP --to 10.0.0.60/31
+
+            iptables -t nat -A PREROUTING -d 10.0.0.12/31 -j NETMAP --to 10.0.0.40/31
+            iptables -t nat -A POSTROUTING -d 10.0.0.0/27  -s 10.0.0.40/31 -j NETMAP --to 10.0.0.12/31
+            iptables -t nat -A PREROUTING -d 10.0.0.76/31 -j NETMAP --to 10.0.0.40/31
+            iptables -t nat -A POSTROUTING -d 10.0.0.64/27 -s 10.0.0.40/31 -j NETMAP --to 10.0.0.12/31
+            */
+
+            // print(@"ip address add $(ip_internal_node(lamda_addr, 0)) dev lo\n");
+            // print("\n");
+            // print(@"ip address add $(ip_global_node(lamda_addr)) dev eth1\n");
+            // print(@"ip address add $(ip_anonymizing_node(lamda_addr)) dev eth1\n");
+            // print(@"ip address add $(ip_internal_node(lamda_addr, 3)) dev eth1\n");
+            // print(@"ip address add $(ip_internal_node(lamda_addr, 2)) dev eth1\n");
+            // print(@"ip address add $(ip_internal_node(lamda_addr, 1)) dev eth1\n");
+            // print("\n");
+
+            string range1 = ip_internal_gnode(lamda_addr, subnetlevel, subnetlevel);
+            assert(range1 == "10.0.0.40/31");
+            for (int i = subnetlevel; i < levels; i++)
+            {
+                if (i < levels-1)
+                {
+                    string range2 = ip_internal_gnode(lamda_addr, subnetlevel, i+1);
+                    if (i == 1) assert(range2 == "10.0.0.48/31");
+                    if (i == 2) assert(range2 == "10.0.0.60/31");
+                    string range3 = ip_internal_gnode(lamda_addr, i+1, i+1);
+                    if (i == 1) assert(range3 == "10.0.0.48/30");
+                    if (i == 2) assert(range3 == "10.0.0.56/29");
+                    // print(@"iptables -t nat -A PREROUTING -d $range2 -j NETMAP --to $range1\n");
+                    // print(@"iptables -t nat -A POSTROUTING -d $range3 -s $range1 -j NETMAP --to $range2\n");
+                    // print("\n");
+                }
+                else
+                {
+                    string range2 = ip_global_gnode(lamda_addr, subnetlevel);
+                    assert(range2 == "10.0.0.12/31");
+                    string range3 = ip_global_gnode(lamda_addr, levels);
+                    assert(range3 == "10.0.0.0/27");
+                    string range4 = ip_anonymizing_gnode(lamda_addr, subnetlevel);
+                    assert(range4 == "10.0.0.76/31");
+                    string range5 = ip_anonymizing_gnode(lamda_addr, levels);
+                    assert(range5 == "10.0.0.64/27");
+                    // print(@"iptables -t nat -A PREROUTING -d $range2 -j NETMAP --to $range1\n");
+                    // print(@"iptables -t nat -A POSTROUTING -d $range3 -s $range1 -j NETMAP --to $range2\n");
+                    // print(@"iptables -t nat -A PREROUTING -d $range4 -j NETMAP --to $range1\n");
+                    // print(@"iptables -t nat -A POSTROUTING -d $range5 -s $range1 -j NETMAP --to $range2\n");
+                }
+            }
+        }
+
         public static int main(string[] args)
         {
             GLib.Test.init(ref args);
@@ -154,6 +227,7 @@ namespace ProofOfConcept
                 x.test_dest_anon();
                 x.test_dest_internal();
                 x.tear_down();
+                x.test_autonomous_subnet();
             });
             GLib.Test.run();
             return 0;

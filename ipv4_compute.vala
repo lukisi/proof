@@ -81,7 +81,7 @@ namespace ProofOfConcept
             assert(n_addr[l] >= 0);
         }
         assert(n_level >= 0);
-        assert(n_level < levels);
+        assert(n_level <= levels);
         int32 ip = 0;
         for (int c = levels - 1; c >= 0; c--)
         {
@@ -171,7 +171,7 @@ namespace ProofOfConcept
         }
         assert(n_level >= 0);
         assert(n_level < levels);
-        assert(inside_level > n_level);
+        assert(inside_level >= n_level);
         assert(inside_level < levels);
         int32 ip = 1;
         for (int c = levels - 1; c >= 0; c--)
