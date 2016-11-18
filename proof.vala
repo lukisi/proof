@@ -2595,7 +2595,7 @@ Command list:
         arc.neighborhood_arc = _arc;
         arc.idmgmt_arc = new IdmgmtArc(arc);
         real_arcs[k] = arc;
-        print(@"real_arc '$(k)': peer_linklocal $(_arc.neighbour_nic_addr), cost $(_arc.cost)us\n");
+        print(@"real_arc '$(k)': peer_linklocal $(_arc.neighbour_nic_addr), cost $(arc.cost)us\n");
         identity_mgr.add_arc(arc.idmgmt_arc);
         identity_mgr_arcs.add(k);
         return ret;
@@ -2607,8 +2607,7 @@ Command list:
         foreach (string k in real_arcs.keys)
         {
             Arc arc = real_arcs[k];
-            INeighborhoodArc _arc = arc.neighborhood_arc;
-            ret.add(@"real_arc '$(k)': peer_linklocal $(_arc.neighbour_nic_addr), cost $(_arc.cost)us\n");
+            ret.add(@"real_arc '$(k)': peer_linklocal $(arc.neighborhood_arc.neighbour_nic_addr), cost $(arc.cost)us\n");
         }
         return ret;
     }
@@ -2618,6 +2617,7 @@ Command list:
         assert(k in real_arcs.keys);
         Arc arc = real_arcs[k];
         arc.cost = cost;
+        print(@"real_arc '$(k)': peer_linklocal $(arc.neighborhood_arc.neighbour_nic_addr), cost $(arc.cost)us\n");
         foreach (int i in local_identities.keys)
         {
             IdentityData identity_data = local_identities[i];
@@ -2634,7 +2634,12 @@ Command list:
 
     void remove_real_arc(string k)
     {
-        error("not implemented yet");
+        assert(k in real_arcs.keys);
+        Arc arc = real_arcs[k];
+        print(@"real_arc '$(k)' removed.\n");
+        identity_mgr.remove_arc(arc.idmgmt_arc);
+        identity_mgr_arcs.remove(k);
+        real_arcs.unset(k);
     }
 
     Gee.List<string> show_identityarcs()
