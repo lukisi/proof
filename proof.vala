@@ -61,8 +61,8 @@ namespace ProofOfConcept
     ServerErrorHandler err;
     ArrayList<ITaskletHandle> t_udp_list;
 
-    const string pipe_response = "/tmp/qpsnclient_response";
-    const string pipe_commands = "/tmp/qpsnclient_commands";
+    const string pipe_response = "/tmp/qspnclient_response";
+    const string pipe_commands = "/tmp/qspnclient_commands";
     int server_fd_commands;
     int client_fd_response;
 
