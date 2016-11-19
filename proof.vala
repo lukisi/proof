@@ -1659,18 +1659,33 @@ Command list:
 
         public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
         {
-            /*
-            find_network_stack_for_ns(ns).create_pseudodev(dev, pseudo_dev, out pseudo_mac);
-            assert(! pseudo_macs.has_key(pseudo_dev));
-            pseudo_macs[pseudo_dev] = pseudo_mac;
-            */
-            error("not implemented yet");
+            assert(ns != "");
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"link", @"add", @"dev", @"$(pseudo_dev)", @"link", @"$(dev)", @"type", @"macvlan"}));
+            pseudo_mac = macgetter.get_mac(pseudo_dev).up();
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"link", @"set", @"dev", @"$(pseudo_dev)", @"netns", @"$(ns)"}));
+            // disable rp_filter
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"netns", @"exec", @"$(ns)", @"sysctl", @"net.ipv4.conf.$(pseudo_dev).rp_filter=0"}));
+            // arp policies
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"netns", @"exec", @"$(ns)", @"sysctl", @"net.ipv4.conf.$(pseudo_dev).arp_ignore=1"}));
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"netns", @"exec", @"$(ns)", @"sysctl", @"net.ipv4.conf.$(pseudo_dev).arp_announce=2"}));
+            // up
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"netns", @"exec", @"$(ns)", @"ip", @"link", @"set", @"dev", @"$(pseudo_dev)", @"up"}));
         }
 
         public void add_address(string ns, string pseudo_dev, string linklocal)
         {
-            error("not implemented yet");
-            // find_network_stack_for_ns(ns).add_linklocal_address(pseudo_dev, linklocal);
+            // ns may be empty-string.
+            ArrayList<string> argv = new ArrayList<string>();
+            if (ns != "") argv.add_all_array({@"ip", @"netns", @"exec", @"$(ns)"});
+            argv.add_all_array({
+                @"ip", @"address", @"add", @"$(linklocal)", @"dev", @"$(pseudo_dev)"});
+            cm.single_command(argv);
         }
 
         public void add_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
