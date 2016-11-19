@@ -50,7 +50,6 @@ namespace ProofOfConcept
     ArrayList<HandledNic> handlednics;
     int local_identity_nextindex;
     HashMap<int, IdentityData> local_identities;
-    HashMap<string, NetworkStack> network_stacks;
     HashMap<string, INeighborhoodArc> neighborhood_arcs;
     HashMap<string, Arc> real_arcs;
     int identityarc_nextindex;
@@ -466,7 +465,7 @@ Command list:
             IdentityData identity_data = local_identities[i];
             if (! identity_data.main_id)
             {
-                identity_data.network_stack.removing_namespace();
+                // TODO remove namespace
                 identity_mgr.remove_identity(identity_data.nodeid);
             }
         }
@@ -478,25 +477,9 @@ Command list:
             IdentityData identity_data = local_identities[i];
             if (identity_data.main_id)
             {
-                NetworkStack main_network_stack = identity_data.network_stack;
-                main_network_stack.stop_management();
-                // Do I have a *real* Netsukuku address?
-                int real_up_to = identity_data.my_naddr.get_real_up_to();
-                if (real_up_to == levels-1)
-                {
-                    foreach (string dev in real_nics)
-                        main_network_stack.remove_address(identity_data.ip_global, dev);
-                    if (accept_anonymous_requests)
-                    {
-                        foreach (string dev in real_nics)
-                            main_network_stack.remove_address(identity_data.ip_anonymizing, dev);
-                    }
-                }
-                for (int j = 0; j <= levels-2 && j <= real_up_to; j++)
-                {
-                    foreach (string dev in real_nics)
-                        main_network_stack.remove_address(identity_data.ip_internal[j], dev);
-                }
+                // TODO remove ntk_from_xxx
+                // TODO remove rules
+                // TODO remove local addresses (global, anon, intern)
             }
         }
         local_identities.clear();
@@ -1067,12 +1050,9 @@ Command list:
         public string ip_anonymizing;
         public ArrayList<string> ip_internal;
 
-        private NetworkStack _network_stack;
         public NetworkStack network_stack {
             get {
-                string ns = identity_mgr.get_namespace(nodeid);
-                _network_stack = find_network_stack_for_ns(ns);
-                return _network_stack;
+                error("do not use network_stack");
             }
         }
 
@@ -1083,8 +1063,12 @@ Command list:
             }
         }
 
+        // handle signals from qspn_manager
+
         public void arc_removed(IQspnArc arc, bool bad_link)
         {
+            error("not implemented yet");
+            /*
             QspnArc _arc = (QspnArc)arc;
             my_arcs.remove(_arc);
             network_stack.remove_neighbour(_arc.peer_mac);
@@ -1097,6 +1081,7 @@ Command list:
             {
                 identity_mgr.remove_identity_arc(_arc.arc.idmgmt_arc, _arc.sourceid, _arc.destid, true);
             }
+            */
         }
 
         public void changed_fp(int l)
@@ -1588,12 +1573,6 @@ Command list:
         }
     }
 
-    NetworkStack find_network_stack_for_ns(string ns)
-    {
-        assert(network_stacks.has_key(ns));
-        return network_stacks[ns];
-    }
-
     class NeighborhoodIPRouteManager : Object, INeighborhoodIPRouteManager
     {
         public void add_address(string my_addr, string my_dev)
@@ -1680,41 +1659,50 @@ Command list:
 
         public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
         {
+            /*
             find_network_stack_for_ns(ns).create_pseudodev(dev, pseudo_dev, out pseudo_mac);
             assert(! pseudo_macs.has_key(pseudo_dev));
             pseudo_macs[pseudo_dev] = pseudo_mac;
+            */
+            error("not implemented yet");
         }
 
         public void add_address(string ns, string pseudo_dev, string linklocal)
         {
-            find_network_stack_for_ns(ns).add_linklocal_address(pseudo_dev, linklocal);
+            error("not implemented yet");
+            // find_network_stack_for_ns(ns).add_linklocal_address(pseudo_dev, linklocal);
         }
 
         public void add_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
         {
-            find_network_stack_for_ns(ns).add_gateway(linklocal_src, linklocal_dst, dev);
+            error("not implemented yet");
+            // find_network_stack_for_ns(ns).add_gateway(linklocal_src, linklocal_dst, dev);
         }
 
         public void remove_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
         {
-            find_network_stack_for_ns(ns).remove_gateway(linklocal_src, linklocal_dst, dev);
+            error("not implemented yet");
+            // find_network_stack_for_ns(ns).remove_gateway(linklocal_src, linklocal_dst, dev);
         }
 
         public void flush_table(string ns)
         {
-            find_network_stack_for_ns(ns).flush_table_main();
+            error("not implemented yet");
+            // find_network_stack_for_ns(ns).flush_table_main();
         }
 
         public void delete_pseudodev(string ns, string pseudo_dev)
         {
             if (pseudo_macs.has_key(pseudo_dev)) pseudo_macs.unset(pseudo_dev);
-            find_network_stack_for_ns(ns).delete_pseudodev(pseudo_dev);
+            error("not implemented yet");
+            // find_network_stack_for_ns(ns).delete_pseudodev(pseudo_dev);
         }
 
         public void delete_namespace(string ns)
         {
-            find_network_stack_for_ns(ns).delete_namespace();
-            network_stacks.unset(ns);
+            assert(ns != "");
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"netns", @"del", @"$ns"}));
         }
     }
 
