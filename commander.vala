@@ -77,14 +77,12 @@ namespace ProofOfConcept
         {
             init_table_names();
             command_dispatcher = tasklet.create_dispatchable_tasklet();
-            console = "";
             log_console = false;
             blocks = new HashMap<int, BeginBlockTasklet>();
             next_block_id = 0;
         }
 
         private DispatchableTasklet command_dispatcher;
-        private string console;
         private bool log_console;
 
         public void start_console_log()
@@ -95,13 +93,6 @@ namespace ProofOfConcept
         public void stop_console_log()
         {
             log_console = false;
-        }
-
-        public void print_console_log()
-        {
-            print(console);
-            print("\n");
-            console = "";
         }
 
         /* Single command
@@ -119,17 +110,17 @@ namespace ProofOfConcept
         {
             try {
                 string cmd = cmd_repr(cmd_args);
-                if (log_console) console += @"$$ $(cmd)\n";
-                TaskletCommandResult com_ret = tasklet.exec_command_argv(cmd_args.to_array());
-                if (com_ret.exit_status != 0)
-                    error_in_command_new(cmd_args, com_ret.stdout, com_ret.stderr);
+                if (log_console) print(@"$$ $(cmd)\n");
+                TaskletCommandResult com_ret = tasklet.exec_command_argv(cmd_args);
                 if (log_console)
                 {
-                    console += @"ret: $(com_ret.exit_status)\n";
-                    if (com_ret.stdout != "") console += @"OUT: $(com_ret.stdout)";
-                    if (com_ret.stderr != "") console += @"ERR: $(com_ret.stderr)";
+                    print(@"ret: $(com_ret.exit_status)\n");
+                    if (com_ret.stdout != "") print(@"OUT: $(com_ret.stdout)");
+                    if (com_ret.stderr != "") print(@"ERR: $(com_ret.stderr)");
                 }
-            } catch (Error e) {error("Unable to spawn a command");}
+                if (com_ret.exit_status != 0)
+                    error_in_command_new(cmd_args, com_ret.stdout, com_ret.stderr);
+            } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
         class SingleCommandTasklet : Object, ITaskletSpawnable
         {

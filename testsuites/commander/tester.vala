@@ -79,7 +79,6 @@ namespace ProofOfConcept
             tasklet.spawn(t3);
             ch8.recv();
             // cm.stop_console_log();
-            // cm.print_console_log();
         }
 
         public static int main(string[] args)

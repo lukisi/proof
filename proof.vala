@@ -230,6 +230,7 @@ Command list:
         t_udp_list = new ArrayList<ITaskletHandle>();
         // Commander
         cm = Commander.get_singleton();
+        cm.start_console_log();
 
         // start listen TCP
         t_tcp = tcp_listen(dlg, err, ntkd_port);
