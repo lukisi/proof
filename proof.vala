@@ -477,9 +477,12 @@ Command list:
             IdentityData identity_data = local_identities[i];
             if (identity_data.main_id)
             {
-                // TODO remove ntk_from_xxx
+                // TODO flush tables (ntk, ntk_from_xxx)
+                // TODO remove ntk_from_xxx from rt_tables
                 // TODO remove rules
                 // TODO remove local addresses (global, anon, intern)
+                // TODO remove SNAT rule
+                // TODO remove NETMAP rules
             }
         }
         local_identities.clear();
@@ -1047,7 +1050,6 @@ Command list:
         public HashMap<int,HashMap<int,DestinationIPSet>> destination_ip;
 
         public string ip_global;
-        public string ip_anonymizing;
         public ArrayList<string> ip_internal;
 
         public NetworkStack network_stack {
@@ -1676,6 +1678,8 @@ Command list:
             // up
             cm.single_command(new ArrayList<string>.wrap({
                 @"ip", @"netns", @"exec", @"$(ns)", @"ip", @"link", @"set", @"dev", @"$(pseudo_dev)", @"up"}));
+            assert(! pseudo_macs.has_key(pseudo_dev));
+            pseudo_macs[pseudo_dev] = pseudo_mac;
         }
 
         public void add_address(string ns, string pseudo_dev, string linklocal)
@@ -1690,27 +1694,37 @@ Command list:
 
         public void add_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
         {
-            error("not implemented yet");
-            // find_network_stack_for_ns(ns).add_gateway(linklocal_src, linklocal_dst, dev);
+            // ns may be empty-string.
+            ArrayList<string> argv = new ArrayList<string>();
+            if (ns != "") argv.add_all_array({@"ip", @"netns", @"exec", @"$(ns)"});
+            argv.add_all_array({
+                @"ip", @"route", @"add", @"$(linklocal_dst)", @"dev", @"$(dev)", @"src", @"$(linklocal_src)"});
+            cm.single_command(argv);
         }
 
         public void remove_gateway(string ns, string linklocal_src, string linklocal_dst, string dev)
         {
-            error("not implemented yet");
-            // find_network_stack_for_ns(ns).remove_gateway(linklocal_src, linklocal_dst, dev);
+            // ns may be empty-string.
+            ArrayList<string> argv = new ArrayList<string>();
+            if (ns != "") argv.add_all_array({@"ip", @"netns", @"exec", @"$(ns)"});
+            argv.add_all_array({
+                @"ip", @"route", @"del", @"$(linklocal_dst)", @"dev", @"$(dev)", @"src", @"$(linklocal_src)"});
+            cm.single_command(argv);
         }
 
         public void flush_table(string ns)
         {
-            error("not implemented yet");
-            // find_network_stack_for_ns(ns).flush_table_main();
+            assert(ns != "");
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"netns", @"exec", @"$(ns)", @"ip", @"route", @"flush", @"table", @"main"}));
         }
 
         public void delete_pseudodev(string ns, string pseudo_dev)
         {
+            assert(ns != "");
             if (pseudo_macs.has_key(pseudo_dev)) pseudo_macs.unset(pseudo_dev);
-            error("not implemented yet");
-            // find_network_stack_for_ns(ns).delete_pseudodev(pseudo_dev);
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"netns", @"exec", @"$(ns)", @"ip", @"link", @"delete", @"$(pseudo_dev)", @"type", @"macvlan"}));
         }
 
         public void delete_namespace(string ns)
