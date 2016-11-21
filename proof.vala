@@ -119,6 +119,12 @@ Command list:
 > show_identityarcs
   List current identity-arcs.
 
+> prepare_enter_net_phase_1
+  Prepare ...
+
+> enter_net_phase_1
+  Finalize ...
+
 > add_qspnarc <local_identity_index> <identityarc_index>
   Add a QspnArc.
 
@@ -935,6 +941,54 @@ Command list:
                             continue;
                         }
                         write_block_response(command_id, show_identityarcs());
+                    }
+                    else if (_args[0] == "prepare_enter_net_phase_1")
+                    {
+                        if (_args.size != 15)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        int local_identity_index = int.parse(_args[1]);
+                        int guest_gnode_level = int.parse(_args[2]);
+                        int host_gnode_level = int.parse(_args[3]);
+                        string host_gnode_address = _args[4];
+                        string host_gnode_data = _args[5];
+                        int in_host_pos1 = int.parse(_args[6]);
+                        int in_host_pos1_eldership = int.parse(_args[7]);
+                        int in_host_pos2 = int.parse(_args[8]);
+                        int in_host_pos2_eldership = int.parse(_args[9]);
+                        int connectivity_pos = int.parse(_args[10]);
+                        int connectivity_pos_eldership = int.parse(_args[11]);
+                        string id_arc_index_list_str = _args[12];
+                        assert(id_arc_index_list_str.has_prefix("["));
+                        assert(id_arc_index_list_str.has_suffix("]"));
+                        id_arc_index_list_str = id_arc_index_list_str.substring(1, id_arc_index_list_str.length-2);
+                        ArrayList<string> id_arc_index_list = new ArrayList<string>();
+                        foreach (string s_piece in id_arc_index_list_str.split(",")) id_arc_index_list.add(s_piece);
+                        int op_id = int.parse(_args[13]);
+                        string prev_op_id_str = _args[14];
+                        int? prev_op_id = null;
+                        if (prev_op_id_str != "null") prev_op_id = int.parse(prev_op_id_str);
+                        prepare_enter_net_phase_1(
+                            local_identity_index,
+                            guest_gnode_level,
+                            host_gnode_level,
+                            host_gnode_address,
+                            host_gnode_data,
+                            in_host_pos1,
+                            in_host_pos1_eldership,
+                            in_host_pos2,
+                            in_host_pos2_eldership,
+                            connectivity_pos,
+                            connectivity_pos_eldership,
+                            id_arc_index_list,
+                            op_id,
+                            prev_op_id);
+                    }
+                    else if (_args[0] == "enter_net_phase_1")
+                    {
+                        error("not implemented yet");
                     }
                     else if (_args[0] == "add_qspnarc")
                     {
@@ -2712,6 +2766,25 @@ Command list:
             ret.add(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).");
         }
         return ret;
+    }
+
+    void prepare_enter_net_phase_1(
+        int local_identity_index,
+        int guest_gnode_level,
+        int host_gnode_level,
+        string host_gnode_address,
+        string host_gnode_data,
+        int in_host_pos1,
+        int in_host_pos1_eldership,
+        int in_host_pos2,
+        int in_host_pos2_eldership,
+        int connectivity_pos,
+        int connectivity_pos_eldership,
+        ArrayList<string> id_arc_index_list,
+        int op_id,
+        int? prev_op_id)
+    {
+        error("not implemented yet");
     }
 
     void add_qspnarc(int local_identity_index, int idarc_index)
