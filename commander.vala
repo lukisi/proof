@@ -75,7 +75,6 @@ namespace ProofOfConcept
 
         private Commander()
         {
-            init_table_names();
             command_dispatcher = tasklet.create_dispatchable_tasklet();
             log_console = false;
             blocks = new HashMap<int, BeginBlockTasklet>();
@@ -143,7 +142,7 @@ namespace ProofOfConcept
         {
             int block_id = next_block_id++;
             blocks[block_id] = new BeginBlockTasklet(this);
-            command_dispatcher.dispatch(blocks[block_id]); // does not wait
+            command_dispatcher.dispatch(blocks[block_id], false, true); // wait for start, not for end
             return block_id;
         }
         private class BeginBlockTasklet : Object, ITaskletSpawnable
@@ -199,47 +198,6 @@ namespace ProofOfConcept
             assert(blocks.has_key(block_id));
             blocks[block_id].end_block(wait);
             blocks.unset(block_id);
-        }
-
-        /* Table-names management
-        ** 
-        */
-
-        private const string RT_TABLES = "/etc/iproute2/rt_tables";
-        private static ArrayList<int> free_tid;
-        private static HashMap<string, int> mac_tid;
-        private static void init_table_names()
-        {
-            free_tid = new ArrayList<int>();
-            for (int i = 250; i >= 200; i--) free_tid.add(i);
-            mac_tid = new HashMap<string, int>();
-        }
-
-        public void get_tid(string peer_mac, out int tid, out string tablename)
-        {
-            tablename = @"ntk_from_$(peer_mac)";
-            if (mac_tid.has_key(peer_mac))
-            {
-                tid = mac_tid[peer_mac];
-                return;
-            }
-            assert(! free_tid.is_empty);
-            tid = free_tid.remove_at(0);
-            mac_tid[peer_mac] = tid;
-            single_command(new ArrayList<string>.wrap({
-                "sed", "-i", @"s/$(tid) reserved_ntk_from_$(tid)/$(tid) $(tablename)/", RT_TABLES}));
-        }
-
-        public void release_tid(string peer_mac, int tid)
-        {
-            string tablename = @"ntk_from_$(peer_mac)";
-            assert(! (tid in free_tid));
-            assert(mac_tid.has_key(peer_mac));
-            assert(mac_tid[peer_mac] == tid);
-            free_tid.insert(0, tid);
-            mac_tid.unset(peer_mac);
-            single_command(new ArrayList<string>.wrap({
-                "sed", "-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES}));
         }
     }
 }

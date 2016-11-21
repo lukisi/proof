@@ -40,6 +40,7 @@ namespace ProofOfConcept
 
     ITasklet tasklet;
     Commander cm;
+    TableNames tn;
     ArrayList<int> _gsizes;
     ArrayList<int> _g_exp;
     int levels;
@@ -230,6 +231,8 @@ Command list:
         // Commander
         cm = Commander.get_singleton();
         cm.start_console_log();
+        // TableNames
+        tn = TableNames.get_singleton(cm);
 
         // start listen TCP
         t_tcp = tcp_listen(dlg, err, ntkd_port);
@@ -466,6 +469,7 @@ Command list:
             if (! identity_data.main_id)
             {
                 // TODO remove namespace
+                // TODO when needed, remove ntk_from_xxx from rt_tables
                 identity_mgr.remove_identity(identity_data.nodeid);
             }
         }
@@ -478,8 +482,8 @@ Command list:
             if (identity_data.main_id)
             {
                 // TODO flush tables (ntk, ntk_from_xxx)
-                // TODO remove ntk_from_xxx from rt_tables
-                // TODO remove rules
+                // TODO remove all ntk_from_xxx from rt_tables and relative rule
+                // TODO remove rule ntk
                 // TODO remove local addresses (global, anon, intern)
                 // TODO remove SNAT rule
                 // TODO remove NETMAP rules

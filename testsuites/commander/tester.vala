@@ -22,14 +22,6 @@ using TaskletSystem;
 namespace ProofOfConcept
 {
     ITasklet tasklet;
-    IChannel ch1;
-    IChannel ch2;
-    IChannel ch3;
-    IChannel ch4;
-    IChannel ch5;
-    IChannel ch6;
-    IChannel ch7;
-    IChannel ch8;
     Commander cm;
     class CommanderTester : Object
     {
@@ -63,21 +55,13 @@ namespace ProofOfConcept
         {
             cm = Commander.get_singleton();
             // cm.start_console_log();
-            ch1 = tasklet.get_channel();
-            ch2 = tasklet.get_channel();
-            ch3 = tasklet.get_channel();
-            ch4 = tasklet.get_channel();
-            ch5 = tasklet.get_channel();
-            ch6 = tasklet.get_channel();
-            ch7 = tasklet.get_channel();
-            ch8 = tasklet.get_channel();
             Tasklet1 t1 = new Tasklet1();
             Tasklet2 t2 = new Tasklet2();
             Tasklet3 t3 = new Tasklet3();
             tasklet.spawn(t1);
             tasklet.spawn(t2);
             tasklet.spawn(t3);
-            ch8.recv();
+            tasklet.ms_wait(250);
             // cm.stop_console_log();
         }
 
@@ -109,16 +93,10 @@ namespace ProofOfConcept
         public void * func()
         {
             int bid = cm.begin_block();
-            ch1.send(0);
-            ch2.recv();
+            tasklet.ms_wait(30);
             cm.single_command_in_block(bid, new ArrayList<string>.wrap({"echo", "1"}));
-            ch3.send(0);
-            ch4.recv();
             cm.single_command_in_block(bid, new ArrayList<string>.wrap({"echo", "2"}));
-            ch5.send(0);
-            ch6.recv();
             cm.end_block(bid);
-            ch7.send(0);
             return null;
         }
     }
@@ -127,16 +105,12 @@ namespace ProofOfConcept
     {
         public void * func()
         {
-            ch1.recv();
+            tasklet.ms_wait(10);
             int bid = cm.begin_block();
-            ch2.send(0);
-            ch5.recv();
+            tasklet.ms_wait(20);
             cm.single_command_in_block(bid, new ArrayList<string>.wrap({"echo", "3"}));
-            ch6.send(0);
-            ch7.recv();
             cm.end_block(bid);
             cm.single_command(new ArrayList<string>.wrap({"echo", "5"}));
-            ch8.send(0);
             return null;
         }
     }
@@ -145,10 +119,9 @@ namespace ProofOfConcept
     {
         public void * func()
         {
-            ch3.recv();
+            tasklet.ms_wait(20);
             cm.single_command(new ArrayList<string>.wrap({"echo", "4"}), false);
             // print("0\n");
-            ch4.send(0);
             return null;
         }
     }
