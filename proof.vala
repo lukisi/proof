@@ -119,14 +119,8 @@ Command list:
 > show_identityarcs
   List current identity-arcs.
 
-> show_ntkaddress <local_identity_index>
-  Show address and elderships of one of my identities.
-
 > add_qspnarc <local_identity_index> <identityarc_index>
   Add a QspnArc.
-
-> remove_outer_arcs <local_identity_index>
-  Remove superfluous arcs of a connectivity identity.
 
 > check_connectivity <local_identity_index>
   Checks whether a connectivity identity is still necessary.
@@ -942,21 +936,6 @@ Command list:
                         }
                         write_block_response(command_id, show_identityarcs());
                     }
-                    else if (_args[0] == "show_ntkaddress")
-                    {
-                        if (_args.size != 2)
-                        {
-                            write_oneline_response(command_id, @"Bad arguments number.", 1);
-                            continue;
-                        }
-                        int local_identity_index = int.parse(_args[1]);
-                        if (! (local_identity_index in local_identities.keys))
-                        {
-                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
-                            continue;
-                        }
-                        write_block_response(command_id, show_ntkaddress(local_identity_index));
-                    }
                     else if (_args[0] == "add_qspnarc")
                     {
                         if (_args.size != 3)
@@ -967,22 +946,6 @@ Command list:
                         int local_identity_index = int.parse(_args[1]);
                         int idarc_index = int.parse(_args[2]);
                         add_qspnarc(local_identity_index, idarc_index);
-                        write_empty_response(command_id);
-                    }
-                    else if (_args[0] == "remove_outer_arcs")
-                    {
-                        if (_args.size != 2)
-                        {
-                            write_oneline_response(command_id, @"Bad arguments number.", 1);
-                            continue;
-                        }
-                        int local_identity_index = int.parse(_args[1]);
-                        if (! (local_identity_index in local_identities.keys))
-                        {
-                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
-                            continue;
-                        }
-                        remove_outer_arcs(local_identity_index);
                         write_empty_response(command_id);
                     }
                     else if (_args[0] == "check_connectivity")
@@ -2751,17 +2714,6 @@ Command list:
         return ret;
     }
 
-    Gee.List<string> show_ntkaddress(int local_identity_index)
-    {
-        ArrayList<string> ret = new ArrayList<string>();
-        Naddr my_naddr = local_identities[local_identity_index].my_naddr;
-        Fingerprint my_fp = local_identities[local_identity_index].my_fp;
-        string my_naddr_str = naddr_repr(my_naddr);
-        string my_elderships_str = fp_elderships_repr(my_fp);
-        ret.add(@"my_naddr = $(my_naddr_str), elderships = $(my_elderships_str), fingerprint = $(my_fp.id).");
-        return ret;
-    }
-
     void add_qspnarc(int local_identity_index, int idarc_index)
     {
         IdentityData identity = local_identities[local_identity_index];
@@ -2783,13 +2735,6 @@ Command list:
         print(@"Debug: IdentityData #$(identity.local_identity_index): call update_all_destinations for add_qspnarc.\n");
         identity.update_all_destinations();
         print(@"Debug: IdentityData #$(identity.local_identity_index): done update_all_destinations for add_qspnarc.\n");
-    }
-
-    void remove_outer_arcs(int local_identity_index)
-    {
-        NodeID id = local_identities[local_identity_index].nodeid;
-        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
-        qspn_mgr.remove_outer_arcs();
     }
 
     Gee.List<string> check_connectivity(int local_identity_index)
