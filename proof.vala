@@ -56,6 +56,26 @@ namespace ProofOfConcept
     int identityarc_nextindex;
     HashMap<int, IdentityArc> identityarcs;
 
+    IdentityData find_local_identity(NodeID node_id)
+    {
+        foreach (int k in local_identities.keys)
+        {
+            NodeID local_nodeid = local_identities[k].nodeid;
+            if (local_nodeid.equals(node_id)) return local_identities[k];
+        }
+        error("IdentityData not found in local_identities");
+    }
+
+    IdentityArc find_identity_arc(IIdmgmtIdentityArc id_arc)
+    {
+        foreach (int k in identityarcs.keys)
+        {
+            IdentityArc ia = identityarcs[k];
+            if (ia.id_arc == id_arc) return ia;
+        }
+        error("IdentityArc not found in identityarcs");
+    }
+
     AddressManagerForNode node_skeleton;
     ServerDelegate dlg;
     ServerErrorHandler err;
@@ -1056,6 +1076,16 @@ Command list:
         public IIdmgmtIdentityArc id_arc;
         public string peer_mac;
         public string peer_linklocal;
+        public QspnArc? qspn_arc;
+        public IdentityArc(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc, string peer_mac, string peer_linklocal)
+        {
+            this.arc = arc;
+            this.id = id;
+            this.id_arc = id_arc;
+            this.peer_mac = peer_mac;
+            this.peer_linklocal = peer_linklocal;
+            qspn_arc = null;
+        }
     }
 
     class NeighborData : Object
@@ -2382,12 +2412,7 @@ Command list:
     void identity_arc_added(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
         print("An identity-arc has been added.\n");
-        IdentityArc ia = new IdentityArc();
-        ia.arc = arc;
-        ia.id = id;
-        ia.id_arc = id_arc;
-        ia.peer_mac = id_arc.get_peer_mac();
-        ia.peer_linklocal = id_arc.get_peer_linklocal();
+        IdentityArc ia = new IdentityArc(arc, id, id_arc, id_arc.get_peer_mac(), id_arc.get_peer_linklocal());
         int identityarc_index = identityarc_nextindex++;
         identityarcs[identityarc_index] = ia;
         string ns = identity_mgr.get_namespace(ia.id);
@@ -2438,35 +2463,28 @@ Command list:
         // This should be the same instance.
         assert(ia.id_arc == id_arc);
         // Retrieve my identity.
-        foreach (int i in local_identities.keys)
+        IdentityData _id = find_local_identity(id);
+        // Retrieve qspn_arc if there was one for this identity-arc.
+        foreach (QspnArc qspn_arc in _id.my_arcs)
         {
-            IdentityData _id = local_identities[i];
-            if (_id.nodeid.equals(id))
+            if (qspn_arc.arc.idmgmt_arc == arc &&
+                qspn_arc.sourceid.equals(id) &&
+                qspn_arc.destid.equals(peer_nodeid))
             {
-                // Retrieve qspn_arc if there was one for this identity-arc.
-                foreach (QspnArc qspn_arc in _id.my_arcs)
-                {
-                    if (qspn_arc.arc.idmgmt_arc == arc &&
-                        qspn_arc.sourceid.equals(id) &&
-                        qspn_arc.destid.equals(peer_nodeid))
-                    {
-                        // TODO This has to be done only if this identity is not doing add_identity.
-                        // Update this qspn_arc
-                        qspn_arc.peer_mac = ia.peer_mac;
-                        // Create a new table for neighbour, with an `unreachable` for all known destinations.
-                        _id.network_stack.add_neighbour(qspn_arc.peer_mac);
-                        // Remove the table `ntk_from_old_mac`. It may reappear afterwards, that would be
-                        //  a definitely new neighbour node.
-                        _id.network_stack.remove_neighbour(old_mac);
-                        // In new table `ntk_from_newmac` update all routes.
-                        // In other tables, update all routes that have the new peer_linklocal as gateway.
-                        // Indeed, update best route for all known destinations.
-                        print(@"Debug: IdentityData #$(_id.local_identity_index): call update_all_destinations for identity_arc_changed.\n");
-                        _id.update_all_destinations();
-                        print(@"Debug: IdentityData #$(_id.local_identity_index): done update_all_destinations for identity_arc_changed.\n");
-                    }
-                }
-                break;
+                // TODO This has to be done only if this identity is not doing add_identity.
+                // Update this qspn_arc
+                qspn_arc.peer_mac = ia.peer_mac;
+                // Create a new table for neighbour, with an `unreachable` for all known destinations.
+                _id.network_stack.add_neighbour(qspn_arc.peer_mac);
+                // Remove the table `ntk_from_old_mac`. It may reappear afterwards, that would be
+                //  a definitely new neighbour node.
+                _id.network_stack.remove_neighbour(old_mac);
+                // In new table `ntk_from_newmac` update all routes.
+                // In other tables, update all routes that have the new peer_linklocal as gateway.
+                // Indeed, update best route for all known destinations.
+                print(@"Debug: IdentityData #$(_id.local_identity_index): call update_all_destinations for identity_arc_changed.\n");
+                _id.update_all_destinations();
+                print(@"Debug: IdentityData #$(_id.local_identity_index): done update_all_destinations for identity_arc_changed.\n");
             }
         }
     }
@@ -2474,25 +2492,18 @@ Command list:
     void identity_arc_removing(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
     {
         // Retrieve my identity.
-        foreach (int i in local_identities.keys)
+        IdentityData _id = find_local_identity(id);
+        // Retrieve qspn_arc if still there.
+        foreach (QspnArc qspn_arc in _id.my_arcs)
         {
-            IdentityData _id = local_identities[i];
-            if (_id.nodeid.equals(id))
+            if (qspn_arc.arc.idmgmt_arc == arc &&
+                qspn_arc.sourceid.equals(id) &&
+                qspn_arc.destid.equals(peer_nodeid))
             {
-                // Retrieve qspn_arc if still there.
-                foreach (QspnArc qspn_arc in _id.my_arcs)
-                {
-                    if (qspn_arc.arc.idmgmt_arc == arc &&
-                        qspn_arc.sourceid.equals(id) &&
-                        qspn_arc.destid.equals(peer_nodeid))
-                    {
-                        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
-                        qspn_mgr.arc_remove(qspn_arc);
-                        _id.my_arcs.remove(qspn_arc);
-                        _id.network_stack.remove_neighbour(qspn_arc.peer_mac);
-                    }
-                }
-                break;
+                QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
+                qspn_mgr.arc_remove(qspn_arc);
+                _id.my_arcs.remove(qspn_arc);
+                _id.network_stack.remove_neighbour(qspn_arc.peer_mac);
             }
         }
     }
@@ -2725,15 +2736,15 @@ Command list:
         Arc arc = real_arcs[k];
         arc.cost = cost;
         print(@"real_arc '$(k)': peer_linklocal $(arc.neighborhood_arc.neighbour_nic_addr), cost $(arc.cost)us\n");
-        foreach (int i in local_identities.keys)
+        foreach (NodeID node_id in identity_mgr.get_id_list())
         {
-            IdentityData identity_data = local_identities[i];
-            foreach (QspnArc qspn_arc in identity_data.my_arcs)
+            foreach (IIdmgmtIdentityArc id_arc in identity_mgr.get_identity_arcs(arc.idmgmt_arc, node_id))
             {
-                if (arc == qspn_arc.arc)
+                IdentityArc ia = find_identity_arc(id_arc);
+                if (ia.qspn_arc != null)
                 {
-                    QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
-                    qspn_mgr.arc_is_changed(qspn_arc);
+                    QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(node_id, "qspn");
+                    qspn_mgr.arc_is_changed(ia.qspn_arc);
                 }
             }
         }
@@ -2784,6 +2795,14 @@ Command list:
         int op_id,
         int? prev_op_id)
     {
+        
+        error("not implemented yet");
+    }
+
+    void enter_net_phase_1(
+        int local_identity_index,
+        int op_id)
+    {
         error("not implemented yet");
     }
 
@@ -2800,9 +2819,9 @@ Command list:
         IdmgmtArc __arc = (IdmgmtArc)ia.arc;
         Arc _arc = __arc.arc;
         string peer_mac = ia.id_arc.get_peer_mac();
-        QspnArc arc = new QspnArc(_arc, sourceid, destid, peer_mac);
-        qspn_mgr.arc_add(arc);
-        identity.my_arcs.add(arc);
+        ia.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
+        qspn_mgr.arc_add(ia.qspn_arc);
+        identity.my_arcs.add(ia.qspn_arc);
         if (! (peer_mac in identity.network_stack.current_neighbours))
             identity.network_stack.add_neighbour(peer_mac);
         print(@"Debug: IdentityData #$(identity.local_identity_index): call update_all_destinations for add_qspnarc.\n");
