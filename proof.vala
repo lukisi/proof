@@ -276,6 +276,7 @@ Command list:
         real_arcs = new HashMap<string, Arc>();
         identityarc_nextindex = 0;
         identityarcs = new HashMap<int, IdentityArc>();
+        pending_prepared_enter_net_operations = new HashMap<string,PreparedEnterNet>();
 
         // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
@@ -1005,10 +1006,21 @@ Command list:
                             id_arc_index_list,
                             op_id,
                             prev_op_id);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "enter_net_phase_1")
                     {
-                        error("not implemented yet");
+                        if (_args.size != 3)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        int local_identity_index = int.parse(_args[1]);
+                        int op_id = int.parse(_args[2]);
+                        enter_net_phase_1(
+                            local_identity_index,
+                            op_id);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "add_qspnarc")
                     {
@@ -2794,14 +2806,58 @@ Command list:
         int op_id,
         int? prev_op_id)
     {
-        
-        error("not implemented yet");
+        string k = @"$(local_identity_index)+$(op_id)";
+        assert(! (k in pending_prepared_enter_net_operations.keys));
+        PreparedEnterNet pending = new PreparedEnterNet();
+        pending.local_identity_index = local_identity_index;
+        pending.guest_gnode_level = guest_gnode_level;
+        pending.host_gnode_level = host_gnode_level;
+        pending.host_gnode_address = host_gnode_address;
+        pending.host_gnode_data = host_gnode_data;
+        pending.in_host_pos1 = in_host_pos1;
+        pending.in_host_pos1_eldership = in_host_pos1_eldership;
+        pending.in_host_pos2 = in_host_pos2;
+        pending.in_host_pos2_eldership = in_host_pos2_eldership;
+        pending.connectivity_pos = connectivity_pos;
+        pending.connectivity_pos_eldership = connectivity_pos_eldership;
+        pending.id_arc_index_list = new ArrayList<string>();
+        pending.id_arc_index_list.add_all(id_arc_index_list);
+        pending.op_id = op_id;
+        pending.prev_op_id = prev_op_id;
+        pending_prepared_enter_net_operations[k] = pending;
+
+        IdentityData id = local_identities[local_identity_index];
+        NodeID old_id = id.nodeid;
+        identity_mgr.prepare_add_identity(op_id, old_id);
     }
+
+    class PreparedEnterNet : Object
+    {
+        public int local_identity_index;
+        public int guest_gnode_level;
+        public int host_gnode_level;
+        public string host_gnode_address;
+        public string host_gnode_data;
+        public int in_host_pos1;
+        public int in_host_pos1_eldership;
+        public int in_host_pos2;
+        public int in_host_pos2_eldership;
+        public int connectivity_pos;
+        public int connectivity_pos_eldership;
+        public ArrayList<string> id_arc_index_list;
+        public int op_id;
+        public int? prev_op_id;
+    }
+    HashMap<string,PreparedEnterNet> pending_prepared_enter_net_operations;
 
     void enter_net_phase_1(
         int local_identity_index,
         int op_id)
     {
+        string k = @"$(local_identity_index)+$(op_id)";
+        assert(k in pending_prepared_enter_net_operations.keys);
+        PreparedEnterNet pending = pending_prepared_enter_net_operations[k];
+
         error("not implemented yet");
     }
 
