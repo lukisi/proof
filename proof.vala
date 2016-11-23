@@ -486,7 +486,9 @@ Command list:
         // TODO cleanup
 
         // Remove identities and their network namespaces and linklocal addresses.
-        foreach (int i in local_identities.keys)
+        ArrayList<int> local_identities_keys = new ArrayList<int>();
+        local_identities_keys.add_all(local_identities.keys);
+        foreach (int i in local_identities_keys)
         {
             IdentityData identity_data = local_identities[i];
             if (! identity_data.main_id)
@@ -494,93 +496,91 @@ Command list:
                 // TODO remove namespace
                 // TODO when needed, remove ntk_from_xxx from rt_tables
                 identity_mgr.remove_identity(identity_data.nodeid);
+                local_identities.unset(i);
             }
         }
 
+        assert(local_identities.size == 1);
+        int kk = -1;
+        foreach (int k in local_identities.keys) kk = k;
+        IdentityData identity_data = local_identities[kk];
+        assert(identity_data.main_id);
         // Cleanup addresses and routes that were added previously in order to
         //  obey to the qspn_mgr which is now in default network namespace.
-        foreach (int k in local_identities.keys)
+        // TODO foreach table ntk_from_xxx: remove rule, flush, remove from rt_tables
+        // remove rule ntk
+        cm.single_command(new ArrayList<string>.wrap({
+            @"ip", @"rule", @"del", @"table", @"ntk"}));
+        // flush table ntk
+        cm.single_command(new ArrayList<string>.wrap({
+            @"ip", @"route", @"flush", @"table", @"ntk"}));
+        // remove local addresses (global, anon, intern, localhost)
+        if (identity_data.local_ip.global != "")
+            foreach (string dev in real_nics)
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"address", @"del", @"$(identity_data.local_ip.global)/32", @"dev", @"$dev"}));
+        if (identity_data.local_ip.anonymous != "" && accept_anonymous_requests)
+            foreach (string dev in real_nics)
+            cm.single_command(new ArrayList<string>.wrap({
+                @"ip", @"address", @"del", @"$(identity_data.local_ip.anonymous)/32", @"dev", @"$dev"}));
+        for (int i = levels-1; i >= 1; i--)
         {
-            IdentityData identity_data = local_identities[k];
-            if (identity_data.main_id)
+            if (identity_data.local_ip.intern[i] != "")
+                foreach (string dev in real_nics)
+                cm.single_command(new ArrayList<string>.wrap({
+                    @"ip", @"address", @"del", @"$(identity_data.local_ip.intern[i])/32", @"dev", @"$dev"}));
+        }
+        cm.single_command(new ArrayList<string>.wrap(
+            {"ip", "address", "del", @"$(ntklocalhost)/32", "dev", "lo"}));
+
+        // remove SNAT rule
+        if (! no_anonymize && identity_data.local_ip.global != "")
+        {
+            string anonymousrange = ip_anonymizing_gnode(identity_data.my_naddr.pos, levels);
+            cm.single_command(new ArrayList<string>.wrap({
+                @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$anonymousrange",
+                @"-j", @"SNAT", @"--to", @"$(first_identity.local_ip.global)"}));
+        }
+
+        // remove NETMAP rules
+        if (subnetlevel > 0)
+        {
+            string range1 = ip_internal_gnode(_naddr, subnetlevel, subnetlevel);
+            for (int i = subnetlevel; i < levels; i++)
             {
-                // TODO foreach table ntk_from_xxx: remove rule, flush, remove from rt_tables
-                // remove rule ntk
-                cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"rule", @"del", @"table", @"ntk"}));
-                // flush table ntk
-                cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"route", @"flush", @"table", @"ntk"}));
-                // remove local addresses (global, anon, intern, localhost)
-                if (identity_data.local_ip.global != "")
-                    foreach (string dev in real_nics)
-                    cm.single_command(new ArrayList<string>.wrap({
-                        @"ip", @"address", @"del", @"$(identity_data.local_ip.global)/32", @"dev", @"$dev"}));
-                if (identity_data.local_ip.anonymous != "" && accept_anonymous_requests)
-                    foreach (string dev in real_nics)
-                    cm.single_command(new ArrayList<string>.wrap({
-                        @"ip", @"address", @"del", @"$(identity_data.local_ip.anonymous)/32", @"dev", @"$dev"}));
-                for (int i = levels-1; i >= 1; i--)
+                if (identity_data.my_naddr.pos[i] >= _gsizes[i]) break;
+                if (i < levels-1)
                 {
-                    if (identity_data.local_ip.intern[i] != "")
-                        foreach (string dev in real_nics)
-                        cm.single_command(new ArrayList<string>.wrap({
-                            @"ip", @"address", @"del", @"$(identity_data.local_ip.intern[i])/32", @"dev", @"$dev"}));
+                    string range2 = ip_internal_gnode(_naddr, subnetlevel, i+1);
+                    string range3 = ip_internal_gnode(_naddr, i+1, i+1);
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$range2",
+                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
+                        @"-j", @"NETMAP", @"--to", @"$range2"}));
                 }
-                cm.single_command(new ArrayList<string>.wrap(
-                    {"ip", "address", "del", @"$(ntklocalhost)/32", "dev", "lo"}));
-
-                // remove SNAT rule
-                if (! no_anonymize && identity_data.local_ip.global != "")
+                else
                 {
-                    string anonymousrange = ip_anonymizing_gnode(identity_data.my_naddr.pos, levels);
+                    string range2 = ip_global_gnode(_naddr, subnetlevel);
+                    string range3 = ip_global_gnode(_naddr, levels);
+                    string range4 = ip_anonymizing_gnode(_naddr, subnetlevel);
+                    string range5 = ip_anonymizing_gnode(_naddr, levels);
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$anonymousrange",
-                        @"-j", @"SNAT", @"--to", @"$(first_identity.local_ip.global)"}));
-                }
-
-                // remove NETMAP rules
-                if (subnetlevel > 0)
-                {
-                    string range1 = ip_internal_gnode(_naddr, subnetlevel, subnetlevel);
-                    for (int i = subnetlevel; i < levels; i++)
-                    {
-                        if (identity_data.my_naddr.pos[i] >= _gsizes[i]) break;
-                        if (i < levels-1)
-                        {
-                            string range2 = ip_internal_gnode(_naddr, subnetlevel, i+1);
-                            string range3 = ip_internal_gnode(_naddr, i+1, i+1);
-                            cm.single_command(new ArrayList<string>.wrap({
-                                @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$range2",
-                                @"-j", @"NETMAP", @"--to", @"$range1"}));
-                            cm.single_command(new ArrayList<string>.wrap({
-                                @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
-                                @"-j", @"NETMAP", @"--to", @"$range2"}));
-                        }
-                        else
-                        {
-                            string range2 = ip_global_gnode(_naddr, subnetlevel);
-                            string range3 = ip_global_gnode(_naddr, levels);
-                            string range4 = ip_anonymizing_gnode(_naddr, subnetlevel);
-                            string range5 = ip_anonymizing_gnode(_naddr, levels);
-                            cm.single_command(new ArrayList<string>.wrap({
-                                @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$range2",
-                                @"-j", @"NETMAP", @"--to", @"$range1"}));
-                            cm.single_command(new ArrayList<string>.wrap({
-                                @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
-                                @"-j", @"NETMAP", @"--to", @"$range2"}));
-                            if (accept_anonymous_requests) cm.single_command(new ArrayList<string>.wrap({
-                                @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$range4",
-                                @"-j", @"NETMAP", @"--to", @"$range1"}));
-                            cm.single_command(new ArrayList<string>.wrap({
-                                @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$range5", @"-s", @"$range1",
-                                @"-j", @"NETMAP", @"--to", @"$range2"}));
-                        }
-                    }
+                        @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$range2",
+                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
+                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                    if (accept_anonymous_requests) cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$range4",
+                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$range5", @"-s", @"$range1",
+                        @"-j", @"NETMAP", @"--to", @"$range2"}));
                 }
             }
         }
-        local_identities.clear();
 
         // First, we call stop_monitor_all of NeighborhoodManager.
         neighborhood_mgr.stop_monitor_all();
