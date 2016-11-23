@@ -1192,8 +1192,7 @@ Command list:
 
         public bool main_id {
             get {
-                string ns = identity_mgr.get_namespace(nodeid);
-                return ns == "";
+                return network_namespace == "";
             }
         }
 
@@ -2425,11 +2424,11 @@ Command list:
     {
         print("An identity-arc has been added.\n");
         IdentityData identity_data = find_local_identity(id);
+        string ns = identity_data.network_namespace;
         IdentityArc ia = new IdentityArc(arc, id, id_arc, id_arc.get_peer_mac(), id_arc.get_peer_linklocal());
         int identityarc_index = identityarc_nextindex++;
         identityarcs[identityarc_index] = ia;
         identity_data.my_identityarcs.add(ia);
-        string ns = identity_mgr.get_namespace(ia.id);
         string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
         print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
@@ -2439,6 +2438,8 @@ Command list:
 
     void identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
+        // Retrieve my identity.
+        IdentityData identity_data = find_local_identity(id);
         print("An identity-arc has been changed.\n");
         int identityarc_index = -1;
         foreach (int i in identityarcs.keys)
@@ -2466,7 +2467,7 @@ Command list:
         string old_linklocal = ia.peer_linklocal;
         ia.peer_mac = id_arc.get_peer_mac();
         ia.peer_linklocal = id_arc.get_peer_linklocal();
-        string ns = identity_mgr.get_namespace(ia.id);
+        string ns = identity_data.network_namespace;
         string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
         print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
@@ -2475,8 +2476,6 @@ Command list:
         print(@"                  before the change, the link was to $(old_linklocal) == $(old_mac).\n");
         // This should be the same instance.
         assert(ia.id_arc == id_arc);
-        // Retrieve my identity.
-        IdentityData _id = find_local_identity(id);
         // Retrieve qspn_arc if there was one for this identity-arc.
         if (ia.qspn_arc != null)
         {
@@ -2484,25 +2483,25 @@ Command list:
             // Update this qspn_arc
             ia.qspn_arc.peer_mac = ia.peer_mac;
             // Create a new table for neighbour, with an `unreachable` for all known destinations.
-            _id.network_stack.add_neighbour(ia.qspn_arc.peer_mac);
+            identity_data.network_stack.add_neighbour(ia.qspn_arc.peer_mac);
             // Remove the table `ntk_from_old_mac`. It may reappear afterwards, that would be
             //  a definitely new neighbour node.
-            _id.network_stack.remove_neighbour(old_mac);
+            identity_data.network_stack.remove_neighbour(old_mac);
             // In new table `ntk_from_newmac` update all routes.
             // In other tables, update all routes that have the new peer_linklocal as gateway.
             // Indeed, update best route for all known destinations.
-            print(@"Debug: IdentityData #$(_id.local_identity_index): call update_all_destinations for identity_arc_changed.\n");
-            _id.update_all_destinations();
-            print(@"Debug: IdentityData #$(_id.local_identity_index): done update_all_destinations for identity_arc_changed.\n");
+            print(@"Debug: IdentityData #$(identity_data.local_identity_index): call update_all_destinations for identity_arc_changed.\n");
+            identity_data.update_all_destinations();
+            print(@"Debug: IdentityData #$(identity_data.local_identity_index): done update_all_destinations for identity_arc_changed.\n");
         }
     }
 
     void identity_arc_removing(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
     {
         // Retrieve my identity.
-        IdentityData _id = find_local_identity(id);
+        IdentityData identity_data = find_local_identity(id);
         // Retrieve qspn_arc if still there.
-        foreach (IdentityArc ia in _id.my_identityarcs)
+        foreach (IdentityArc ia in identity_data.my_identityarcs)
             if (ia.arc == arc)
             if (ia.qspn_arc != null)
             if (ia.qspn_arc.destid.equals(peer_nodeid))
@@ -2519,7 +2518,7 @@ Command list:
     {
         print("An identity-arc has been removed.\n");
         // Retrieve my identity.
-        IdentityData _id = find_local_identity(id);
+        IdentityData identity_data = find_local_identity(id);
         // Retrieve my identity_arc.
         int identityarc_index = -1;
         foreach (int i in identityarcs.keys)
@@ -2543,14 +2542,14 @@ Command list:
             return;
         }
         IdentityArc ia = identityarcs[identityarc_index];
-        string ns = identity_mgr.get_namespace(ia.id);
+        string ns = identity_data.network_namespace;
         string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
         print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
         print(@"                  id-id: from $(id.id) to $(ia.id_arc.get_peer_nodeid().id).\n");
         print(@"                  my id handles $(pseudodev) on '$(ns)'.\n");
         print(@"                  on the other side this identityarc links to $(ia.peer_linklocal) == $(ia.peer_mac).\n");
         identityarcs.unset(identityarc_index);
-        _id.my_identityarcs.remove(ia);
+        identity_data.my_identityarcs.remove(ia);
     }
 
     void identity_mgr_arc_removed(IIdmgmtArc arc)
@@ -2779,11 +2778,13 @@ Command list:
             IdentityArc ia = identityarcs[i];
             IIdmgmtArc arc = ia.arc;
             NodeID id = ia.id;
+            // Retrieve my identity.
+            IdentityData identity_data = find_local_identity(id);
             IIdmgmtIdentityArc id_arc = ia.id_arc;
             ret.add(@"identityarcs: #$(i): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),");
             ret.add(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).");
             string peer_ll = ia.id_arc.get_peer_linklocal();
-            string ns = identity_mgr.get_namespace(ia.id);
+            string ns = identity_data.network_namespace;
             string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
             ret.add(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).");
         }
@@ -2851,12 +2852,55 @@ Command list:
     HashMap<string,PreparedEnterNet> pending_prepared_enter_net_operations;
 
     void enter_net_phase_1(
-        int local_identity_index,
+        int old_local_identity_index,
         int op_id)
     {
-        string k = @"$(local_identity_index)+$(op_id)";
+        string k = @"$(old_local_identity_index)+$(op_id)";
         assert(k in pending_prepared_enter_net_operations.keys);
-        PreparedEnterNet pending = pending_prepared_enter_net_operations[k];
+        PreparedEnterNet op = pending_prepared_enter_net_operations[k];
+
+        IdentityData old_identity_data = local_identities[old_local_identity_index];
+        NodeID old_id = old_identity_data.nodeid;
+        NodeID new_id = identity_mgr.add_identity(op_id, old_id);
+        int local_identity_index = local_identity_nextindex++;
+        IdentityData new_identity_data = new IdentityData(new_id);
+        local_identities[local_identity_index] = new_identity_data;
+        new_identity_data.local_identity_index = local_identity_index;
+        new_identity_data.copy_of_identity = old_identity_data;
+        new_identity_data.connectivity_from_level = old_identity_data.connectivity_from_level;
+        new_identity_data.connectivity_to_level = old_identity_data.connectivity_to_level;
+        old_identity_data.connectivity_from_level = /*TODO*/0;
+        old_identity_data.connectivity_to_level = /*TODO*/0;
+
+        // TODO Spostamento delle rotte della vecchia identità
+
+        // New qspn manager
+        Naddr new_id_naddr = null; // TODO
+        ArrayList<IQspnArc> internal_arc_set = null; // TODO
+        ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = null; // TODO
+        ArrayList<IQspnArc> external_arc_set = null; // TODO
+        QspnManager.PreviousArcToNewArcDelegate old_arc_to_new_arc = (/*IQspnArc*/ old_arc) => {
+            IQspnArc? ret = null;
+            // TODO get new arc
+            return ret;
+        };
+        Fingerprint new_id_fp = null; // TODO
+        QspnManager qspn_mgr = new QspnManager.enter_net(new_id_naddr,
+            internal_arc_set,
+            internal_arc_peer_naddr_set,
+            external_arc_set,
+            old_arc_to_new_arc,
+            new_id_fp,
+            new QspnStubFactory(local_identity_index),
+            /*hooking_gnode_level*/ op.guest_gnode_level,
+            /*into_gnode_level*/ op.host_gnode_level,
+            /*previous_identity*/ (QspnManager)(identity_mgr.get_identity_module(old_id, "qspn")));
+
+        identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
+        new_identity_data.my_naddr = new_id_naddr;
+        new_identity_data.my_fp = new_id_fp;
+        new_identity_data.ready = false;
+        new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
         error("not implemented yet");
     }
