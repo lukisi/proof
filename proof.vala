@@ -2911,9 +2911,9 @@ Command list:
         int old_local_identity_index,
         int op_id)
     {
-        string k = @"$(old_local_identity_index)+$(op_id)";
-        assert(k in pending_prepared_enter_net_operations.keys);
-        PreparedEnterNet op = pending_prepared_enter_net_operations[k];
+        string kk = @"$(old_local_identity_index)+$(op_id)";
+        assert(kk in pending_prepared_enter_net_operations.keys);
+        PreparedEnterNet op = pending_prepared_enter_net_operations[kk];
 
         IdentityData old_identity_data = local_identities[old_local_identity_index];
         NodeID old_id = old_identity_data.nodeid;
@@ -2963,8 +2963,62 @@ Command list:
         old_destination_ip_set = copy_destination_ip_set(old_identity_data.destination_ip_set);
         compute_destination_ip_set(old_identity_data.destination_ip_set, my_naddr_conn);
 
+        ArrayList<string> prefix_cmd_old_ns = new ArrayList<string>();
+        if (old_ns != "") prefix_cmd_old_ns.add_all_array({
+            @"ip", @"netns", @"exec", @"$old_ns"});
+        ArrayList<string> prefix_cmd_new_ns = new ArrayList<string>.wrap({
+            @"ip", @"netns", @"exec", @"$new_ns"});
 
+        // Search qspn-arc of old identity
+        foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+        {
+            // TODO
+        }
 
+        // Remove old destination IPs from all tables in old network namespace
+        int bid = cm.begin_block();
+        ArrayList<string> tablenames = new ArrayList<string>();
+        if (old_ns == "") tablenames.add("ntk");
+        // Add a table for each qspn-arc of old identity
+        foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+        {
+            int tid;
+            string tablename;
+            tn.get_table(ia.peer_mac, out tid, out tablename);
+            // Note: Member peer_mac is not changed yet (in case of a g-node migration)
+            // It is the old one. Whilst ia.id_arc.get_peer_mac() might differ.
+            tablenames.add(tablename);
+        }
+        foreach (string tablename in tablenames)
+         for (int i = levels-1; i >= subnetlevel; i--)
+         for (int j = 0; j < _gsizes[i]; j++)
+        {
+            if (old_destination_ip_set[i][j].global != "")
+            {
+                string ipaddr = old_destination_ip_set[i][j].global;
+                ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                cmd.add_all_array({
+                    @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                cm.single_command_in_block(bid, cmd);
+                ipaddr = old_destination_ip_set[i][j].anonymous;
+                cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                cmd.add_all_array({
+                    @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                cm.single_command_in_block(bid, cmd);
+            }
+            for (int k = levels-1; k >= i+1; k--)
+            {
+                if (old_destination_ip_set[i][j].intern[k] != "")
+                {
+                    string ipaddr = old_destination_ip_set[i][j].intern[k];
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                    cm.single_command_in_block(bid, cmd);
+                }
+            }
+        }
+        cm.end_block(bid);
 
         // New qspn manager
         Naddr new_id_naddr = null; // TODO
