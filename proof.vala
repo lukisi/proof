@@ -337,7 +337,7 @@ Command list:
 
         NodeID nodeid = identity_mgr.get_main_id();
         int local_identity_index;
-        IdentityData first_identity = find_or_create_local_identity(nodeid, out local_identity_index);
+        IdentityData first_identity_data = find_or_create_local_identity(nodeid, out local_identity_index);
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
         Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
@@ -346,51 +346,51 @@ Command list:
             my_fp,
             new QspnStubFactory(local_identity_index));
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
-        first_identity.my_naddr = my_naddr;
-        first_identity.my_fp = my_fp;
-        first_identity.ready = true;
-        first_identity.addr_man = new AddressManagerForIdentity(qspn_mgr);
+        first_identity_data.my_naddr = my_naddr;
+        first_identity_data.my_fp = my_fp;
+        first_identity_data.ready = true;
+        first_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
         foreach (string s in print_local_identity(0)) print(s + "\n");
 
-        first_identity.local_ip.global = ip_global_node(my_naddr.pos);
+        first_identity_data.local_ip_set.global = ip_global_node(my_naddr.pos);
         foreach (string dev in real_nics)
             cm.single_command(new ArrayList<string>.wrap({
-                @"ip", @"address", @"add", @"$(first_identity.local_ip.global)", @"dev", @"$dev"}));
-        first_identity.local_ip.anonymous = ip_anonymizing_node(my_naddr.pos);
+                @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.global)", @"dev", @"$dev"}));
+        first_identity_data.local_ip_set.anonymous = ip_anonymizing_node(my_naddr.pos);
         if (accept_anonymous_requests)
         {
             foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"address", @"add", @"$(first_identity.local_ip.anonymous)", @"dev", @"$dev"}));
+                    @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.anonymous)", @"dev", @"$dev"}));
         }
         for (int i = levels-1; i >= 1; i--)
         {
-            first_identity.local_ip.intern[i] = ip_internal_node(my_naddr.pos, i);
+            first_identity_data.local_ip_set.intern[i] = ip_internal_node(my_naddr.pos, i);
             foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"address", @"add", @"$(first_identity.local_ip.intern[i])", @"dev", @"$dev"}));
+                    @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.intern[i])", @"dev", @"$dev"}));
         }
 
         bid = cm.begin_block();
-        compute_destination_ip_set(first_identity.destination_ip, my_naddr);
+        compute_destination_ip_set(first_identity_data.destination_ip_set, my_naddr);
         for (int i = levels-1; i >= subnetlevel; i--)
          for (int j = 0; j < _gsizes[i]; j++)
         {
-            if (first_identity.destination_ip[i][j].global != "")
+            if (first_identity_data.destination_ip_set[i][j].global != "")
             {
-                string ipaddr = first_identity.destination_ip[i][j].global;
+                string ipaddr = first_identity_data.destination_ip_set[i][j].global;
                 cm.single_command_in_block(bid, new ArrayList<string>.wrap({
                     @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"ntk"}));
-                ipaddr = first_identity.destination_ip[i][j].anonymous;
+                ipaddr = first_identity_data.destination_ip_set[i][j].anonymous;
                 cm.single_command_in_block(bid, new ArrayList<string>.wrap({
                     @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"ntk"}));
             }
             for (int k = levels-1; k >= i+1; k--)
             {
-                if (first_identity.destination_ip[i][j].intern[k] != "")
+                if (first_identity_data.destination_ip_set[i][j].intern[k] != "")
                 {
-                    string ipaddr = first_identity.destination_ip[i][j].intern[k];
+                    string ipaddr = first_identity_data.destination_ip_set[i][j].intern[k];
                     cm.single_command_in_block(bid, new ArrayList<string>.wrap({
                         @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"ntk"}));
                 }
@@ -403,7 +403,7 @@ Command list:
             string anonymousrange = ip_anonymizing_gnode(_naddr, levels);
             cm.single_command(new ArrayList<string>.wrap({
                 @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$anonymousrange",
-                @"-j", @"SNAT", @"--to", @"$(first_identity.local_ip.global)"}));
+                @"-j", @"SNAT", @"--to", @"$(first_identity_data.local_ip_set.global)"}));
         }
 
         if (subnetlevel > 0)
@@ -444,18 +444,18 @@ Command list:
             }
         }
 
-        qspn_mgr.arc_removed.connect(first_identity.arc_removed);
-        qspn_mgr.changed_fp.connect(first_identity.changed_fp);
-        qspn_mgr.changed_nodes_inside.connect(first_identity.changed_nodes_inside);
-        qspn_mgr.destination_added.connect(first_identity.destination_added);
-        qspn_mgr.destination_removed.connect(first_identity.destination_removed);
-        qspn_mgr.gnode_splitted.connect(first_identity.gnode_splitted);
-        qspn_mgr.path_added.connect(first_identity.path_added);
-        qspn_mgr.path_changed.connect(first_identity.path_changed);
-        qspn_mgr.path_removed.connect(first_identity.path_removed);
-        qspn_mgr.presence_notified.connect(first_identity.presence_notified);
-        qspn_mgr.qspn_bootstrap_complete.connect(first_identity.qspn_bootstrap_complete);
-        qspn_mgr.remove_identity.connect(first_identity.remove_identity);
+        qspn_mgr.arc_removed.connect(first_identity_data.arc_removed);
+        qspn_mgr.changed_fp.connect(first_identity_data.changed_fp);
+        qspn_mgr.changed_nodes_inside.connect(first_identity_data.changed_nodes_inside);
+        qspn_mgr.destination_added.connect(first_identity_data.destination_added);
+        qspn_mgr.destination_removed.connect(first_identity_data.destination_removed);
+        qspn_mgr.gnode_splitted.connect(first_identity_data.gnode_splitted);
+        qspn_mgr.path_added.connect(first_identity_data.path_added);
+        qspn_mgr.path_changed.connect(first_identity_data.path_changed);
+        qspn_mgr.path_removed.connect(first_identity_data.path_removed);
+        qspn_mgr.presence_notified.connect(first_identity_data.presence_notified);
+        qspn_mgr.qspn_bootstrap_complete.connect(first_identity_data.qspn_bootstrap_complete);
+        qspn_mgr.remove_identity.connect(first_identity_data.remove_identity);
 
         // end startup
 
@@ -507,31 +507,31 @@ Command list:
         cm.single_command(new ArrayList<string>.wrap({
             @"ip", @"route", @"flush", @"table", @"ntk"}));
         // remove local addresses (global, anon, intern, localhost)
-        if (identity_data.local_ip.global != "")
+        if (identity_data.local_ip_set.global != "")
             foreach (string dev in real_nics)
             cm.single_command(new ArrayList<string>.wrap({
-                @"ip", @"address", @"del", @"$(identity_data.local_ip.global)/32", @"dev", @"$dev"}));
-        if (identity_data.local_ip.anonymous != "" && accept_anonymous_requests)
+                @"ip", @"address", @"del", @"$(identity_data.local_ip_set.global)/32", @"dev", @"$dev"}));
+        if (identity_data.local_ip_set.anonymous != "" && accept_anonymous_requests)
             foreach (string dev in real_nics)
             cm.single_command(new ArrayList<string>.wrap({
-                @"ip", @"address", @"del", @"$(identity_data.local_ip.anonymous)/32", @"dev", @"$dev"}));
+                @"ip", @"address", @"del", @"$(identity_data.local_ip_set.anonymous)/32", @"dev", @"$dev"}));
         for (int i = levels-1; i >= 1; i--)
         {
-            if (identity_data.local_ip.intern[i] != "")
+            if (identity_data.local_ip_set.intern[i] != "")
                 foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"address", @"del", @"$(identity_data.local_ip.intern[i])/32", @"dev", @"$dev"}));
+                    @"ip", @"address", @"del", @"$(identity_data.local_ip_set.intern[i])/32", @"dev", @"$dev"}));
         }
         cm.single_command(new ArrayList<string>.wrap(
             {"ip", "address", "del", @"$(ntklocalhost)/32", "dev", "lo"}));
 
         // remove SNAT rule
-        if (! no_anonymize && identity_data.local_ip.global != "")
+        if (! no_anonymize && identity_data.local_ip_set.global != "")
         {
             string anonymousrange = ip_anonymizing_gnode(identity_data.my_naddr.pos, levels);
             cm.single_command(new ArrayList<string>.wrap({
                 @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$anonymousrange",
-                @"-j", @"SNAT", @"--to", @"$(identity_data.local_ip.global)"}));
+                @"-j", @"SNAT", @"--to", @"$(identity_data.local_ip_set.global)"}));
         }
 
         // remove NETMAP rules
@@ -1157,7 +1157,7 @@ Command list:
         return ret;
     }
 
-    void compute_destination_ip_set(HashMap<int,HashMap<int,DestinationIPSet>> destination_ip, Naddr my_naddr)
+    void compute_destination_ip_set(HashMap<int,HashMap<int,DestinationIPSet>> destination_ip_set, Naddr my_naddr)
     {
         for (int i = subnetlevel; i < levels; i++)
          for (int j = 0; j < _gsizes[i]; j++)
@@ -1167,23 +1167,23 @@ Command list:
             naddr[i] = j;
             if (my_naddr.is_real_from_to(i+1, levels-1) && my_naddr.pos[i] != j)
             {
-                destination_ip[i][j].global = ip_global_gnode(naddr, i);
-                destination_ip[i][j].anonymous = ip_anonymizing_gnode(naddr, i);
+                destination_ip_set[i][j].global = ip_global_gnode(naddr, i);
+                destination_ip_set[i][j].anonymous = ip_anonymizing_gnode(naddr, i);
             }
             else
             {
-                destination_ip[i][j].global = "";
-                destination_ip[i][j].anonymous = "";
+                destination_ip_set[i][j].global = "";
+                destination_ip_set[i][j].anonymous = "";
             }
             for (int k = i + 1; k < levels; k++)
             {
                 if (my_naddr.is_real_from_to(i+1, k-1) && my_naddr.pos[i] != j)
                 {
-                    destination_ip[i][j].intern[k] = ip_internal_gnode(naddr, i, k);
+                    destination_ip_set[i][j].intern[k] = ip_internal_gnode(naddr, i, k);
                 }
                 else
                 {
-                    destination_ip[i][j].intern[k] = "";
+                    destination_ip_set[i][j].intern[k] = "";
                 }
             }
         }
@@ -1200,13 +1200,13 @@ Command list:
             connectivity_to_level = 0;
             copy_of_identity = null;
 
-            local_ip = new LocalIPSet();
-            local_ip.global = "";
-            local_ip.anonymous = "";
-            local_ip.intern = new HashMap<int,string>();
-            for (int j = 1; j < levels; j++) local_ip.intern[j] = "";
+            local_ip_set = new LocalIPSet();
+            local_ip_set.global = "";
+            local_ip_set.anonymous = "";
+            local_ip_set.intern = new HashMap<int,string>();
+            for (int j = 1; j < levels; j++) local_ip_set.intern[j] = "";
 
-            destination_ip = init_destination_ip_set();
+            destination_ip_set = init_destination_ip_set();
         }
 
         public NodeID nodeid;
@@ -1229,8 +1229,8 @@ Command list:
         public int connectivity_from_level;
         public int connectivity_to_level;
 
-        public LocalIPSet local_ip;
-        public HashMap<int,HashMap<int,DestinationIPSet>> destination_ip;
+        public LocalIPSet local_ip_set;
+        public HashMap<int,HashMap<int,DestinationIPSet>> destination_ip_set;
 
         public string ip_global;
         public ArrayList<string> ip_internal;
@@ -2959,9 +2959,9 @@ Command list:
         _naddr_conn.add_all(old_identity_data.my_naddr.pos);
         _naddr_conn[op.guest_gnode_level] = op.connectivity_pos;
         Naddr my_naddr_conn = new Naddr(_naddr_conn.to_array(), _gsizes.to_array());
-        HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip;
-        old_destination_ip = copy_destination_ip_set(old_identity_data.destination_ip);
-        compute_destination_ip_set(old_identity_data.destination_ip, my_naddr_conn);
+        HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
+        old_destination_ip_set = copy_destination_ip_set(old_identity_data.destination_ip_set);
+        compute_destination_ip_set(old_identity_data.destination_ip_set, my_naddr_conn);
 
 
 
