@@ -56,14 +56,22 @@ namespace ProofOfConcept
     int identityarc_nextindex;
     HashMap<int, IdentityArc> identityarcs;
 
-    IdentityData find_local_identity(NodeID node_id)
+    IdentityData find_or_create_local_identity(NodeID node_id, out int local_identity_index)
     {
         foreach (int k in local_identities.keys)
         {
             NodeID local_nodeid = local_identities[k].nodeid;
-            if (local_nodeid.equals(node_id)) return local_identities[k];
+            if (local_nodeid.equals(node_id))
+            {
+                local_identity_index = k;
+                return local_identities[k];
+            }
         }
-        error("IdentityData not found in local_identities");
+        local_identity_index = local_identity_nextindex++;
+        IdentityData ret = new IdentityData(node_id);
+        local_identities[local_identity_index] = ret;
+        ret.local_identity_index = local_identity_index;
+        return ret;
     }
 
     IdentityArc find_identity_arc(IIdmgmtIdentityArc id_arc)
@@ -328,10 +336,8 @@ Command list:
             @"ip", @"rule", @"add", @"table", @"ntk"}));
 
         NodeID nodeid = identity_mgr.get_main_id();
-        int local_identity_index = local_identity_nextindex++;
-        IdentityData first_identity = new IdentityData(nodeid);
-        local_identities[local_identity_index] = first_identity;
-        first_identity.local_identity_index = local_identity_index;
+        int local_identity_index;
+        IdentityData first_identity = find_or_create_local_identity(nodeid, out local_identity_index);
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
         Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
@@ -2423,7 +2429,8 @@ Command list:
     void identity_arc_added(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
         print("An identity-arc has been added.\n");
-        IdentityData identity_data = find_local_identity(id);
+        int local_identity_index;
+        IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
         string ns = identity_data.network_namespace;
         IdentityArc ia = new IdentityArc(arc, id, id_arc, id_arc.get_peer_mac(), id_arc.get_peer_linklocal());
         int identityarc_index = identityarc_nextindex++;
@@ -2439,7 +2446,8 @@ Command list:
     void identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
         // Retrieve my identity.
-        IdentityData identity_data = find_local_identity(id);
+        int local_identity_index;
+        IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
         print("An identity-arc has been changed.\n");
         int identityarc_index = -1;
         foreach (int i in identityarcs.keys)
@@ -2499,7 +2507,8 @@ Command list:
     void identity_arc_removing(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
     {
         // Retrieve my identity.
-        IdentityData identity_data = find_local_identity(id);
+        int local_identity_index;
+        IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
         // Retrieve qspn_arc if still there.
         foreach (IdentityArc ia in identity_data.my_identityarcs)
             if (ia.arc == arc)
@@ -2518,7 +2527,8 @@ Command list:
     {
         print("An identity-arc has been removed.\n");
         // Retrieve my identity.
-        IdentityData identity_data = find_local_identity(id);
+        int local_identity_index;
+        IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
         // Retrieve my identity_arc.
         int identityarc_index = -1;
         foreach (int i in identityarcs.keys)
@@ -2779,7 +2789,8 @@ Command list:
             IIdmgmtArc arc = ia.arc;
             NodeID id = ia.id;
             // Retrieve my identity.
-            IdentityData identity_data = find_local_identity(id);
+            int local_identity_index;
+            IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
             IIdmgmtIdentityArc id_arc = ia.id_arc;
             ret.add(@"identityarcs: #$(i): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),");
             ret.add(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).");
@@ -2862,15 +2873,36 @@ Command list:
         IdentityData old_identity_data = local_identities[old_local_identity_index];
         NodeID old_id = old_identity_data.nodeid;
         NodeID new_id = identity_mgr.add_identity(op_id, old_id);
-        int local_identity_index = local_identity_nextindex++;
-        IdentityData new_identity_data = new IdentityData(new_id);
-        local_identities[local_identity_index] = new_identity_data;
-        new_identity_data.local_identity_index = local_identity_index;
+        // This produced some signal `identity_arc_added`: hence some IdentityArc instances have been created
+        //  and stored in `new_identity_data.my_identityarcs`.
+        int local_identity_index;
+        IdentityData new_identity_data = find_or_create_local_identity(new_id, out local_identity_index);
         new_identity_data.copy_of_identity = old_identity_data;
         new_identity_data.connectivity_from_level = old_identity_data.connectivity_from_level;
         new_identity_data.connectivity_to_level = old_identity_data.connectivity_to_level;
         old_identity_data.connectivity_from_level = /*TODO*/0;
         old_identity_data.connectivity_to_level = /*TODO*/0;
+
+        HashMap<IdentityArc, IdentityArc> old_to_new_id_arc = new HashMap<IdentityArc, IdentityArc>();
+        foreach (IdentityArc w0 in old_identity_data.my_identityarcs)
+        {
+            bool check_peer_mac = true;
+            if (w0.peer_mac == w0.id_arc.get_peer_mac()) check_peer_mac = false;
+            foreach (IdentityArc w1 in new_identity_data.my_identityarcs)
+            {
+                if (w1.arc != w0.arc) continue;
+                if (check_peer_mac)
+                {
+                    if (w1.peer_mac != w0.id_arc.get_peer_mac()) continue;
+                }
+                else
+                {
+                    if (! w1.id_arc.get_peer_nodeid().equals(w0.id_arc.get_peer_nodeid())) continue;
+                }
+                old_to_new_id_arc[w0] = w1;
+                break;
+            }
+        }
 
         // TODO Spostamento delle rotte della vecchia identità
 
