@@ -56,18 +56,17 @@ namespace ProofOfConcept
     int identityarc_nextindex;
     HashMap<int, IdentityArc> identityarcs;
 
-    IdentityData find_or_create_local_identity(NodeID node_id, out int local_identity_index)
+    IdentityData find_or_create_local_identity(NodeID node_id)
     {
         foreach (int k in local_identities.keys)
         {
             NodeID local_nodeid = local_identities[k].nodeid;
             if (local_nodeid.equals(node_id))
             {
-                local_identity_index = k;
                 return local_identities[k];
             }
         }
-        local_identity_index = local_identity_nextindex++;
+        int local_identity_index = local_identity_nextindex++;
         IdentityData ret = new IdentityData(node_id);
         local_identities[local_identity_index] = ret;
         ret.local_identity_index = local_identity_index;
@@ -292,15 +291,14 @@ namespace ProofOfConcept
             @"ip", @"rule", @"add", @"table", @"ntk"}));
 
         NodeID nodeid = identity_mgr.get_main_id();
-        int local_identity_index;
-        IdentityData first_identity_data = find_or_create_local_identity(nodeid, out local_identity_index);
+        IdentityData first_identity_data = find_or_create_local_identity(nodeid);
         // First qspn manager
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
         Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
         Fingerprint my_fp = new Fingerprint(_elderships.to_array());
         QspnManager qspn_mgr = new QspnManager.create_net(my_naddr,
             my_fp,
-            new QspnStubFactory(local_identity_index));
+            new QspnStubFactory(first_identity_data));
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
         first_identity_data.my_naddr = my_naddr;
         first_identity_data.my_fp = my_fp;
@@ -1812,20 +1810,20 @@ namespace ProofOfConcept
 
     class NeighborhoodMissingArcHandler : Object, INeighborhoodMissingArcHandler
     {
-        public NeighborhoodMissingArcHandler.from_qspn(IQspnMissingArcHandler qspn_missing, int local_identity_index)
+        public NeighborhoodMissingArcHandler.from_qspn(IQspnMissingArcHandler qspn_missing, IdentityData identity_data)
         {
             this.qspn_missing = qspn_missing;
-            this.local_identity_index = local_identity_index;
+            this.identity_data = identity_data;
         }
         private IQspnMissingArcHandler? qspn_missing;
-        private int local_identity_index;
+        private weak IdentityData identity_data;
 
         public void missing(INeighborhoodArc arc)
         {
             if (qspn_missing != null)
             {
                 // from a INeighborhoodArc get a list of QspnArc
-                foreach (IdentityArc ia in local_identities[local_identity_index].my_identityarcs) if (ia.qspn_arc != null)
+                foreach (IdentityArc ia in identity_data.my_identityarcs) if (ia.qspn_arc != null)
                     if (ia.qspn_arc.arc.neighborhood_arc == arc)
                         qspn_missing.i_qspn_missing(ia.qspn_arc);
             }
@@ -1834,11 +1832,11 @@ namespace ProofOfConcept
 
     class QspnStubFactory : Object, IQspnStubFactory
     {
-        public QspnStubFactory(int local_identity_index)
+        public QspnStubFactory(IdentityData identity_data)
         {
-            this.local_identity_index = local_identity_index;
+            this.identity_data = identity_data;
         }
-        private int local_identity_index;
+        private weak IdentityData identity_data;
 
         /* This "holder" class is needed because the QspnManagerRemote class provided by
          * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
@@ -1919,7 +1917,7 @@ namespace ProofOfConcept
             INeighborhoodMissingArcHandler? n_missing_handler = null;
             if (missing_handler != null)
             {
-                n_missing_handler = new NeighborhoodMissingArcHandler.from_qspn(missing_handler, local_identity_index);
+                n_missing_handler = new NeighborhoodMissingArcHandler.from_qspn(missing_handler, identity_data);
             }
             IAddressManagerStub addrstub = 
                 neighborhood_mgr.get_stub_identity_aware_broadcast(
@@ -2202,8 +2200,7 @@ namespace ProofOfConcept
     void identity_arc_added(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
         print("An identity-arc has been added.\n");
-        int local_identity_index;
-        IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
+        IdentityData identity_data = find_or_create_local_identity(id);
         string ns = identity_data.network_namespace;
         IdentityArc ia = new IdentityArc(arc, id, id_arc, id_arc.get_peer_mac(), id_arc.get_peer_linklocal());
         int identityarc_index = identityarc_nextindex++;
@@ -2219,8 +2216,7 @@ namespace ProofOfConcept
     void identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
     {
         // Retrieve my identity.
-        int local_identity_index;
-        IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
+        IdentityData identity_data = find_or_create_local_identity(id);
         print("An identity-arc has been changed.\n");
         int identityarc_index = -1;
         foreach (int i in identityarcs.keys)
@@ -2280,8 +2276,7 @@ namespace ProofOfConcept
     void identity_arc_removing(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
     {
         // Retrieve my identity.
-        int local_identity_index;
-        IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
+        IdentityData identity_data = find_or_create_local_identity(id);
         // Retrieve qspn_arc if still there.
         foreach (IdentityArc ia in identity_data.my_identityarcs)
             if (ia.arc == arc)
@@ -2300,8 +2295,7 @@ namespace ProofOfConcept
     {
         print("An identity-arc has been removed.\n");
         // Retrieve my identity.
-        int local_identity_index;
-        IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
+        IdentityData identity_data = find_or_create_local_identity(id);
         // Retrieve my identity_arc.
         int identityarc_index = -1;
         foreach (int i in identityarcs.keys)

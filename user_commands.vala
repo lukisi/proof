@@ -446,8 +446,7 @@ Command list:
             IIdmgmtArc arc = ia.arc;
             NodeID id = ia.id;
             // Retrieve my identity.
-            int local_identity_index;
-            IdentityData identity_data = find_or_create_local_identity(id, out local_identity_index);
+            IdentityData identity_data = find_or_create_local_identity(id);
             IIdmgmtIdentityArc id_arc = ia.id_arc;
             ret.add(@"identityarcs: #$(i): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),");
             ret.add(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).");
@@ -532,8 +531,7 @@ Command list:
         NodeID new_id = identity_mgr.add_identity(op_id, old_id);
         // This produced some signal `identity_arc_added`: hence some IdentityArc instances have been created
         //  and stored in `new_identity_data.my_identityarcs`.
-        int local_identity_index;
-        IdentityData new_identity_data = find_or_create_local_identity(new_id, out local_identity_index);
+        IdentityData new_identity_data = find_or_create_local_identity(new_id);
         new_identity_data.copy_of_identity = old_identity_data;
         new_identity_data.connectivity_from_level = old_identity_data.connectivity_from_level;
         new_identity_data.connectivity_to_level = old_identity_data.connectivity_to_level;
@@ -679,7 +677,7 @@ Command list:
             external_arc_set,
             old_arc_to_new_arc,
             new_id_fp,
-            new QspnStubFactory(local_identity_index),
+            new QspnStubFactory(new_identity_data),
             /*hooking_gnode_level*/ op.guest_gnode_level,
             /*into_gnode_level*/ op.host_gnode_level,
             /*previous_identity*/ (QspnManager)(identity_mgr.get_identity_module(old_id, "qspn")));
