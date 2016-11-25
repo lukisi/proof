@@ -249,12 +249,12 @@ namespace ProofOfConcept
             new NeighborhoodIPRouteManager());
         node_skeleton.neighborhood_mgr = neighborhood_mgr;
         // connect signals
-        neighborhood_mgr.nic_address_set.connect(nic_address_set);
-        neighborhood_mgr.arc_added.connect(arc_added);
-        neighborhood_mgr.arc_changed.connect(arc_changed);
-        neighborhood_mgr.arc_removing.connect(arc_removing);
-        neighborhood_mgr.arc_removed.connect(arc_removed);
-        neighborhood_mgr.nic_address_unset.connect(nic_address_unset);
+        neighborhood_mgr.nic_address_set.connect(neighborhood_nic_address_set);
+        neighborhood_mgr.arc_added.connect(neighborhood_arc_added);
+        neighborhood_mgr.arc_changed.connect(neighborhood_arc_changed);
+        neighborhood_mgr.arc_removing.connect(neighborhood_arc_removing);
+        neighborhood_mgr.arc_removed.connect(neighborhood_arc_removed);
+        neighborhood_mgr.nic_address_unset.connect(neighborhood_nic_address_unset);
         foreach (string dev in _devs) manage_real_nic(dev);
         // Here (for each dev) the linklocal address has been added, and the signal handler for
         //  nic_address_set has been processed, so we have in `handlednics` the informations
@@ -1678,69 +1678,6 @@ namespace ProofOfConcept
                 break;
             }
         }
-    }
-
-    void nic_address_set(string my_dev, string my_addr)
-    {
-        if (identity_mgr != null)
-        {
-            print(@"Warning: Signal `nic_address_set($(my_dev),$(my_addr))` when module Identities is already initialized.\n");
-            print(@"         This should not happen and will be ignored.\n");
-            return;
-        }
-        string my_mac = macgetter.get_mac(my_dev).up();
-        HandledNic n = new HandledNic();
-        n.dev = my_dev;
-        n.mac = my_mac;
-        n.linklocal = my_addr;
-        handlednics.add(n);
-        int i = handlednics.size - 1;
-        print(@"handlednics: #$(i): $(n.dev) = $(n.mac) (has $(n.linklocal)).\n");
-    }
-
-    string key_for_physical_arc(string mymac, string peermac)
-    {
-        return @"$(mymac)-$(peermac)";
-    }
-
-    void arc_added(INeighborhoodArc arc)
-    {
-        string k = key_for_physical_arc(arc.nic.mac, arc.neighbour_mac);
-        assert(! (k in neighborhood_arcs.keys));
-        neighborhood_arcs[k] = arc;
-        print(@"neighborhood_arc '$(k)': peer_linklocal $(arc.neighbour_nic_addr), cost $(arc.cost)us\n");
-    }
-
-    void arc_changed(INeighborhoodArc arc)
-    {
-        //print(@"arc_changed (no effect) for $(arc.neighbour_nic_addr)\n");
-    }
-
-    void arc_removing(INeighborhoodArc arc, bool is_still_usable)
-    {
-        string k = key_for_physical_arc(arc.nic.mac, arc.neighbour_mac);
-        // Had this arc been added to 'real_arcs'?
-        if ( ! (k in real_arcs.keys)) return;
-        // Has real_arc already been removed from Identities?
-        if (k in identity_mgr_arcs)
-        {
-            Arc real_arc = real_arcs[k];
-            identity_mgr.remove_arc(real_arc.idmgmt_arc);
-            identity_mgr_arcs.remove(k);
-        }
-        // Remove arc from real_arcs.
-        real_arcs.unset(k);
-    }
-
-    void arc_removed(INeighborhoodArc arc)
-    {
-        string k = key_for_physical_arc(arc.nic.mac, arc.neighbour_mac);
-        print(@"Neighborhood module: neighborhood_arc `$(k)` has been removed.\n");
-        neighborhood_arcs.unset(k);
-    }
-
-    void nic_address_unset(string my_dev, string my_addr)
-    {
     }
 }
 
