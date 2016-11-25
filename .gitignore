@@ -1,10 +1,14 @@
 proof.c
 ipv4_compute.c
+naddr.c
 network_stack.c
 commander.c
 table_names.c
 user_commands.c
-naddr.c
+ipc_ui.c
+qspn_signal_handlers.c
+neighborhood_signal_handlers.c
+identities_signal_handlers.c
 serialize_helpers.c
 tester.c
 Makefile.in

@@ -559,7 +559,8 @@ Command list:
             }
         }
 
-        // TODO Spostamento delle rotte della vecchia identità
+        // Move routes of old identity into new network namespace
+
         string old_ns = new_identity_data.network_namespace;
         string new_ns = old_identity_data.network_namespace;
         ArrayList<int> _naddr_old = new ArrayList<int>();
@@ -659,6 +660,8 @@ Command list:
                         @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.intern[i])/32", @"dev", @"$dev"}));
             }
         }
+
+        // TODO Popolamento nuove rotte della nuova identità
 
         // New qspn manager
         Naddr new_id_naddr = null; // TODO
