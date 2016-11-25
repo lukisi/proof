@@ -886,6 +886,149 @@ namespace ProofOfConcept
         }
     }
 
+    class NeighborhoodNetworkInterface : Object, INeighborhoodNetworkInterface
+    {
+        public NeighborhoodNetworkInterface(string dev)
+        {
+            _dev = dev;
+            _mac = macgetter.get_mac(dev).up();
+        }
+        private string _dev;
+        private string _mac;
+
+        public string dev {
+            get {
+                return _dev;
+            }
+        }
+
+        public string mac {
+            get {
+                return _mac;
+            }
+        }
+
+        public long measure_rtt(string peer_addr, string peer_mac, string my_dev, string my_addr) throws NeighborhoodGetRttError
+        {
+            TaskletCommandResult com_ret;
+            try {
+                //print(@"ping -n -q -c 1 $(peer_addr)\n");
+                com_ret = tasklet.exec_command(@"ping -n -q -c 1 $(peer_addr)");
+            } catch (Error e) {
+                throw new NeighborhoodGetRttError.GENERIC(@"Unable to spawn a command: $(e.message)");
+            }
+            if (com_ret.exit_status != 0)
+                throw new NeighborhoodGetRttError.GENERIC(@"ping: error $(com_ret.stdout)");
+            foreach (string line in com_ret.stdout.split("\n"))
+            {
+                /*  """rtt min/avg/max/mdev = 2.854/2.854/2.854/0.000 ms"""  */
+                if (line.has_prefix("rtt ") && line.has_suffix(" ms"))
+                {
+                    string s2 = line.substring(line.index_of(" = ") + 3);
+                    string s3 = s2.substring(0, s2.index_of("/"));
+                    double x;
+                    bool res = double.try_parse (s3, out x);
+                    if (res)
+                    {
+                        long ret = (long)(x * 1000);
+                        //print(@" returned $(ret) microseconds.\n");
+                        return ret;
+                    }
+                }
+            }
+            throw new NeighborhoodGetRttError.GENERIC(@"could not parse $(com_ret.stdout)");
+        }
+    }
+
+    class NeighborhoodMissingArcHandler : Object, INeighborhoodMissingArcHandler
+    {
+        public NeighborhoodMissingArcHandler.from_qspn(IQspnMissingArcHandler qspn_missing, IdentityData identity_data)
+        {
+            this.qspn_missing = qspn_missing;
+            this.identity_data = identity_data;
+        }
+        private IQspnMissingArcHandler? qspn_missing;
+        private weak IdentityData identity_data;
+
+        public void missing(INeighborhoodArc arc)
+        {
+            if (qspn_missing != null)
+            {
+                // from a INeighborhoodArc get a list of QspnArc
+                foreach (IdentityArc ia in identity_data.my_identityarcs) if (ia.qspn_arc != null)
+                    if (ia.qspn_arc.arc.neighborhood_arc == arc)
+                        qspn_missing.i_qspn_missing(ia.qspn_arc);
+            }
+        }
+    }
+
+    IAddressManagerSkeleton?
+    get_identity_skeleton(
+        NodeID source_id,
+        NodeID unicast_id,
+        string peer_address)
+    {
+        foreach (int local_identity_index in local_identities.keys)
+        {
+            NodeID local_nodeid = local_identities[local_identity_index].nodeid;
+            if (local_nodeid.equals(unicast_id))
+            {
+                foreach (int identityarc_index in identityarcs.keys)
+                {
+                    IdentityArc ia = identityarcs[identityarc_index];
+                    IdmgmtArc __arc = (IdmgmtArc)ia.arc;
+                    Arc _arc = __arc.arc;
+                    if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address)
+                    {
+                        if (ia.id.equals(local_nodeid))
+                        {
+                            if (ia.id_arc.get_peer_nodeid().equals(source_id))
+                            {
+                                return local_identities[local_identity_index].addr_man;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    Gee.List<IAddressManagerSkeleton>
+    get_identity_skeleton_set(
+        NodeID source_id,
+        Gee.List<NodeID> broadcast_set,
+        string peer_address,
+        string dev)
+    {
+        ArrayList<IAddressManagerSkeleton> ret = new ArrayList<IAddressManagerSkeleton>();
+        foreach (int local_identity_index in local_identities.keys)
+        {
+            NodeID local_nodeid = local_identities[local_identity_index].nodeid;
+            if (local_nodeid in broadcast_set)
+            {
+                foreach (int identityarc_index in identityarcs.keys)
+                {
+                    IdentityArc ia = identityarcs[identityarc_index];
+                    IdmgmtArc __arc = (IdmgmtArc)ia.arc;
+                    Arc _arc = __arc.arc;
+                    if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address
+                        && _arc.neighborhood_arc.nic.dev == dev)
+                    {
+                        if (ia.id.equals(local_nodeid))
+                        {
+                            if (ia.id_arc.get_peer_nodeid().equals(source_id))
+                            {
+                                ret.add(local_identities[local_identity_index].addr_man);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return ret;
+    }
+
     class IdmgmtNetnsManager : Object, IIdmgmtNetnsManager
     {
         private HashMap<string, string> pseudo_macs;
@@ -1085,82 +1228,6 @@ namespace ProofOfConcept
         public string get_peer_linklocal()
         {
             return arc.neighborhood_arc.neighbour_nic_addr;
-        }
-    }
-
-    class NeighborhoodNetworkInterface : Object, INeighborhoodNetworkInterface
-    {
-        public NeighborhoodNetworkInterface(string dev)
-        {
-            _dev = dev;
-            _mac = macgetter.get_mac(dev).up();
-        }
-        private string _dev;
-        private string _mac;
-
-        public string dev {
-            get {
-                return _dev;
-            }
-        }
-
-        public string mac {
-            get {
-                return _mac;
-            }
-        }
-
-        public long measure_rtt(string peer_addr, string peer_mac, string my_dev, string my_addr) throws NeighborhoodGetRttError
-        {
-            TaskletCommandResult com_ret;
-            try {
-                //print(@"ping -n -q -c 1 $(peer_addr)\n");
-                com_ret = tasklet.exec_command(@"ping -n -q -c 1 $(peer_addr)");
-            } catch (Error e) {
-                throw new NeighborhoodGetRttError.GENERIC(@"Unable to spawn a command: $(e.message)");
-            }
-            if (com_ret.exit_status != 0)
-                throw new NeighborhoodGetRttError.GENERIC(@"ping: error $(com_ret.stdout)");
-            foreach (string line in com_ret.stdout.split("\n"))
-            {
-                /*  """rtt min/avg/max/mdev = 2.854/2.854/2.854/0.000 ms"""  */
-                if (line.has_prefix("rtt ") && line.has_suffix(" ms"))
-                {
-                    string s2 = line.substring(line.index_of(" = ") + 3);
-                    string s3 = s2.substring(0, s2.index_of("/"));
-                    double x;
-                    bool res = double.try_parse (s3, out x);
-                    if (res)
-                    {
-                        long ret = (long)(x * 1000);
-                        //print(@" returned $(ret) microseconds.\n");
-                        return ret;
-                    }
-                }
-            }
-            throw new NeighborhoodGetRttError.GENERIC(@"could not parse $(com_ret.stdout)");
-        }
-    }
-
-    class NeighborhoodMissingArcHandler : Object, INeighborhoodMissingArcHandler
-    {
-        public NeighborhoodMissingArcHandler.from_qspn(IQspnMissingArcHandler qspn_missing, IdentityData identity_data)
-        {
-            this.qspn_missing = qspn_missing;
-            this.identity_data = identity_data;
-        }
-        private IQspnMissingArcHandler? qspn_missing;
-        private weak IdentityData identity_data;
-
-        public void missing(INeighborhoodArc arc)
-        {
-            if (qspn_missing != null)
-            {
-                // from a INeighborhoodArc get a list of QspnArc
-                foreach (IdentityArc ia in identity_data.my_identityarcs) if (ia.qspn_arc != null)
-                    if (ia.qspn_arc.arc.neighborhood_arc == arc)
-                        qspn_missing.i_qspn_missing(ia.qspn_arc);
-            }
         }
     }
 
@@ -1462,73 +1529,6 @@ namespace ProofOfConcept
         {
             error("not in this test");
         }
-    }
-
-    IAddressManagerSkeleton?
-    get_identity_skeleton(
-        NodeID source_id,
-        NodeID unicast_id,
-        string peer_address)
-    {
-        foreach (int local_identity_index in local_identities.keys)
-        {
-            NodeID local_nodeid = local_identities[local_identity_index].nodeid;
-            if (local_nodeid.equals(unicast_id))
-            {
-                foreach (int identityarc_index in identityarcs.keys)
-                {
-                    IdentityArc ia = identityarcs[identityarc_index];
-                    IdmgmtArc __arc = (IdmgmtArc)ia.arc;
-                    Arc _arc = __arc.arc;
-                    if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address)
-                    {
-                        if (ia.id.equals(local_nodeid))
-                        {
-                            if (ia.id_arc.get_peer_nodeid().equals(source_id))
-                            {
-                                return local_identities[local_identity_index].addr_man;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    Gee.List<IAddressManagerSkeleton>
-    get_identity_skeleton_set(
-        NodeID source_id,
-        Gee.List<NodeID> broadcast_set,
-        string peer_address,
-        string dev)
-    {
-        ArrayList<IAddressManagerSkeleton> ret = new ArrayList<IAddressManagerSkeleton>();
-        foreach (int local_identity_index in local_identities.keys)
-        {
-            NodeID local_nodeid = local_identities[local_identity_index].nodeid;
-            if (local_nodeid in broadcast_set)
-            {
-                foreach (int identityarc_index in identityarcs.keys)
-                {
-                    IdentityArc ia = identityarcs[identityarc_index];
-                    IdmgmtArc __arc = (IdmgmtArc)ia.arc;
-                    Arc _arc = __arc.arc;
-                    if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address
-                        && _arc.neighborhood_arc.nic.dev == dev)
-                    {
-                        if (ia.id.equals(local_nodeid))
-                        {
-                            if (ia.id_arc.get_peer_nodeid().equals(source_id))
-                            {
-                                ret.add(local_identities[local_identity_index].addr_man);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return ret;
     }
 }
 
