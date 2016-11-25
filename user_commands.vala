@@ -349,13 +349,13 @@ Command list:
     Gee.List<string> print_local_identity(int index)
     {
         ArrayList<string> ret = new ArrayList<string>();
-        IdentityData identity = local_identities[index];
-        string my_naddr_str = naddr_repr(identity.my_naddr);
-        string my_elderships_str = fp_elderships_repr(identity.my_fp);
-        string my_fp0 = @"$(identity.my_fp.id)";
+        IdentityData identity_data = local_identities[index];
+        string my_naddr_str = naddr_repr(identity_data.my_naddr);
+        string my_elderships_str = fp_elderships_repr(identity_data.my_fp);
+        string my_fp0 = @"$(identity_data.my_fp.id)";
         string l0 = @"local_identity #$(index):";
         l0 += @" address $(my_naddr_str), elderships $(my_elderships_str),";
-        string network_namespace_str = identity.network_namespace;
+        string network_namespace_str = identity_data.network_namespace;
         if (network_namespace_str == "") network_namespace_str = "default";
         l0 += @" namespace $(network_namespace_str),";
         string l1 = @"                   fp0 $(my_fp0).";
@@ -696,8 +696,8 @@ Command list:
 
     void add_qspnarc(int local_identity_index, int idarc_index)
     {
-        IdentityData identity = local_identities[local_identity_index];
-        NodeID id = identity.nodeid;
+        IdentityData identity_data = local_identities[local_identity_index];
+        NodeID id = identity_data.nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
 
         assert(idarc_index in identityarcs.keys);
@@ -709,11 +709,11 @@ Command list:
         string peer_mac = ia.id_arc.get_peer_mac();
         ia.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
         qspn_mgr.arc_add(ia.qspn_arc);
-        if (! (peer_mac in identity.network_stack.current_neighbours))
-            identity.network_stack.add_neighbour(peer_mac);
-        print(@"Debug: IdentityData #$(identity.local_identity_index): call update_all_destinations for add_qspnarc.\n");
-        identity.update_all_destinations();
-        print(@"Debug: IdentityData #$(identity.local_identity_index): done update_all_destinations for add_qspnarc.\n");
+        if (! (peer_mac in identity_data.network_stack.current_neighbours))
+            identity_data.network_stack.add_neighbour(peer_mac);
+        print(@"Debug: IdentityData #$(identity_data.local_identity_index): call update_all_destinations for add_qspnarc.\n");
+        update_best_paths_forall_destinations_per_identity(identity_data);
+        print(@"Debug: IdentityData #$(identity_data.local_identity_index): done update_all_destinations for add_qspnarc.\n");
     }
 
     Gee.List<string> check_connectivity(int local_identity_index)
