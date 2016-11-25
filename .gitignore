@@ -3,6 +3,7 @@ ipv4_compute.c
 network_stack.c
 commander.c
 table_names.c
+user_commands.c
 naddr.c
 serialize_helpers.c
 tester.c
