@@ -506,6 +506,16 @@ Command list:
         // flush table ntk
         cm.single_command(new ArrayList<string>.wrap({
             @"ip", @"route", @"flush", @"table", @"ntk"}));
+
+        // remove SNAT rule
+        if (! no_anonymize && identity_data.local_ip_set.global != "")
+        {
+            string anonymousrange = ip_anonymizing_gnode(identity_data.my_naddr.pos, levels);
+            cm.single_command(new ArrayList<string>.wrap({
+                @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$anonymousrange",
+                @"-j", @"SNAT", @"--to", @"$(identity_data.local_ip_set.global)"}));
+        }
+
         // remove local addresses (global, anon, intern, localhost)
         if (identity_data.local_ip_set.global != "")
             foreach (string dev in real_nics)
@@ -524,15 +534,6 @@ Command list:
         }
         cm.single_command(new ArrayList<string>.wrap(
             {"ip", "address", "del", @"$(ntklocalhost)/32", "dev", "lo"}));
-
-        // remove SNAT rule
-        if (! no_anonymize && identity_data.local_ip_set.global != "")
-        {
-            string anonymousrange = ip_anonymizing_gnode(identity_data.my_naddr.pos, levels);
-            cm.single_command(new ArrayList<string>.wrap({
-                @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$anonymousrange",
-                @"-j", @"SNAT", @"--to", @"$(identity_data.local_ip_set.global)"}));
-        }
 
         // remove NETMAP rules
         if (subnetlevel > 0)
@@ -3019,6 +3020,36 @@ Command list:
             }
         }
         cm.end_block(bid);
+
+        // Remove addresses
+        if (old_ns == "")
+        {
+            // remove SNAT rule
+            if (! no_anonymize && old_identity_data.local_ip_set.global != "")
+            {
+                string anonymousrange = ip_anonymizing_gnode(old_identity_data.my_naddr.pos, levels);
+                cm.single_command(new ArrayList<string>.wrap({
+                    @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$anonymousrange",
+                    @"-j", @"SNAT", @"--to", @"$(old_identity_data.local_ip_set.global)"}));
+            }
+
+            // remove local addresses (global, anon, intern)
+            if (old_identity_data.local_ip_set.global != "")
+                foreach (string dev in real_nics)
+                cm.single_command(new ArrayList<string>.wrap({
+                    @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.global)/32", @"dev", @"$dev"}));
+            if (old_identity_data.local_ip_set.anonymous != "" && accept_anonymous_requests)
+                foreach (string dev in real_nics)
+                cm.single_command(new ArrayList<string>.wrap({
+                    @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.anonymous)/32", @"dev", @"$dev"}));
+            for (int i = levels-1; i > op.guest_gnode_level; i--)
+            {
+                if (old_identity_data.local_ip_set.intern[i] != "")
+                    foreach (string dev in real_nics)
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.intern[i])/32", @"dev", @"$dev"}));
+            }
+        }
 
         // New qspn manager
         Naddr new_id_naddr = null; // TODO
