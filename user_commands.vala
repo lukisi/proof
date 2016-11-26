@@ -535,8 +535,11 @@ Command list:
         new_identity_data.copy_of_identity = old_identity_data;
         new_identity_data.connectivity_from_level = old_identity_data.connectivity_from_level;
         new_identity_data.connectivity_to_level = old_identity_data.connectivity_to_level;
-        old_identity_data.connectivity_from_level = /*TODO*/0;
-        old_identity_data.connectivity_to_level = /*TODO*/0;
+
+        old_identity_data.connectivity_from_level = op.guest_gnode_level + 1;
+        old_identity_data.connectivity_to_level = levels - 1;
+        // Anyway, in the scenario of enter_net, there is no need to call `make_connectivity` on
+        //  the QspnManager of old_identity_data.
 
         HashMap<IdentityArc, IdentityArc> old_to_new_id_arc = new HashMap<IdentityArc, IdentityArc>();
         foreach (IdentityArc w0 in old_identity_data.my_identityarcs)
@@ -764,29 +767,87 @@ Command list:
             }
             return null;
         };
-        Fingerprint new_id_fp = null; // TODO
+
+        // new elderships = op.host_gnode_elderships + op.in_host_pos1_eldership
+        //                + 0 * (op.host_gnode_level - 1 - op.guest_gnode_level)
+        //                + old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level)
+        ArrayList<int> _elderships = new ArrayList<int>();
+        foreach (string s_piece in op.host_gnode_elderships.split(".")) _elderships.insert(0, int.parse(s_piece));
+        _elderships.insert(0, op.in_host_pos1_eldership);
+        for (int jj = 0; jj < op.host_gnode_level - 1 - op.guest_gnode_level; jj++) _elderships.insert(0, 0);
+        _elderships.insert_all(0, old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level));
+        Fingerprint my_fp_new = new Fingerprint(_elderships.to_array(), old_identity_data.my_fp.id);
         QspnManager qspn_mgr = new QspnManager.enter_net(
             my_naddr_new,
             internal_arc_set,
             internal_arc_peer_naddr_set,
             external_arc_set,
             old_arc_to_new_arc,
-            new_id_fp,
+            my_fp_new,
             new QspnStubFactory(new_identity_data),
             /*hooking_gnode_level*/ op.guest_gnode_level,
             /*into_gnode_level*/ op.host_gnode_level,
             /*previous_identity*/ (QspnManager)(identity_mgr.get_identity_module(old_id, "qspn")));
-
-        // TODO Creazione e popolamento iniziale di tabelle per l'inoltro
-
-
-
-
         identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
         new_identity_data.my_naddr = my_naddr_new;
-        new_identity_data.my_fp = new_id_fp;
+        new_identity_data.my_fp = my_fp_new;
         new_identity_data.ready = false;
         new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
+
+        // Add new destination IPs into new forwarding-tables in old network namespace
+        bid = cm.begin_block();
+        foreach (IdentityArc ia in new_identity_data.my_identityarcs)
+         if (ia.qspn_arc != null)
+         if (ia.qspn_arc in external_arc_set)
+        {
+            string mac = ia.peer_mac; // the value is up to date in the IdentityArc of new identity.
+            int tid;
+            string tablename;
+            tn.get_table(ia.peer_mac, out tid, out tablename);
+
+            ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+            cmd.add_all_array({
+                @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
+                @"-m", @"mac", @"--mac-source", @"$mac",
+                @"-j", @"MARK", @"--set-mark", @"$tid"});
+            cm.single_command_in_block(bid, cmd);
+
+            for (int i = levels-1; i >= subnetlevel; i--)
+             for (int j = 0; j < _gsizes[i]; j++)
+            {
+                if (new_identity_data.destination_ip_set[i][j].global != "")
+                {
+                    string ipaddr = new_identity_data.destination_ip_set[i][j].global;
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                    cm.single_command_in_block(bid, cmd);
+                    ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                    cm.single_command_in_block(bid, cmd);
+                }
+                for (int k = levels-1; k >= i+1; k--)
+                {
+                    if (new_identity_data.destination_ip_set[i][j].intern[k] != "")
+                    {
+                        string ipaddr = new_identity_data.destination_ip_set[i][j].intern[k];
+                        cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                        cm.single_command_in_block(bid, cmd);
+                    }
+                }
+            }
+        }
+        cm.end_block(bid);
+
+        // TODO Comando add_qspn_arc
+
+
+
+
 
         error("not implemented yet");
     }
