@@ -217,8 +217,8 @@ Command list:
                         assert(id_arc_index_list_str.has_prefix("["));
                         assert(id_arc_index_list_str.has_suffix("]"));
                         id_arc_index_list_str = id_arc_index_list_str.substring(1, id_arc_index_list_str.length-2);
-                        ArrayList<string> id_arc_index_list = new ArrayList<string>();
-                        foreach (string s_piece in id_arc_index_list_str.split(",")) id_arc_index_list.add(s_piece);
+                        ArrayList<int> id_arc_index_list = new ArrayList<int>();
+                        foreach (string s_piece in id_arc_index_list_str.split(",")) id_arc_index_list.add(int.parse(s_piece));
                         int op_id = int.parse(_args[13]);
                         string prev_op_id_str = _args[14];
                         int? prev_op_id = null;
@@ -470,7 +470,7 @@ Command list:
         int in_host_pos2_eldership,
         int connectivity_pos,
         int connectivity_pos_eldership,
-        ArrayList<string> id_arc_index_list,
+        ArrayList<int> id_arc_index_list,
         int op_id,
         int? prev_op_id)
     {
@@ -488,7 +488,7 @@ Command list:
         pending.in_host_pos2_eldership = in_host_pos2_eldership;
         pending.connectivity_pos = connectivity_pos;
         pending.connectivity_pos_eldership = connectivity_pos_eldership;
-        pending.id_arc_index_list = new ArrayList<string>();
+        pending.id_arc_index_list = new ArrayList<int>();
         pending.id_arc_index_list.add_all(id_arc_index_list);
         pending.op_id = op_id;
         pending.prev_op_id = prev_op_id;
@@ -512,7 +512,7 @@ Command list:
         public int in_host_pos2_eldership;
         public int connectivity_pos;
         public int connectivity_pos_eldership;
-        public ArrayList<string> id_arc_index_list;
+        public ArrayList<int> id_arc_index_list;
         public int op_id;
         public int? prev_op_id;
     }
@@ -716,9 +716,39 @@ Command list:
         cm.end_block(bid);
 
         // New qspn manager
-        ArrayList<IQspnArc> internal_arc_set = null; // TODO
-        ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = null; // TODO
-        ArrayList<IQspnArc> external_arc_set = null; // TODO
+        ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
+        ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = new ArrayList<IQspnNaddr>();
+        foreach (IdentityArc w0 in old_identity_data.my_identityarcs)
+        {
+            if (w0.peer_mac != w0.id_arc.get_peer_mac())
+            {
+                // It is an internal arc
+                IdentityArc w1 = old_to_new_id_arc[w0]; // w1 is already in new_identity_data.my_identityarcs
+                NodeID destid = w1.id_arc.get_peer_nodeid();
+                NodeID sourceid = w1.id; // == new_id
+                IdmgmtArc __arc = (IdmgmtArc)w1.arc;
+                Arc _arc = __arc.arc;
+                string peer_mac = w1.id_arc.get_peer_mac();
+                w1.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
+                internal_arc_set.add(w1.qspn_arc);
+                Naddr w1_peer_naddr = null;
+                // TODO get peer_naddr of w0 and transform into the one of w1.
+                internal_arc_peer_naddr_set.add(w1_peer_naddr);
+            }
+        }
+        ArrayList<IQspnArc> external_arc_set = new ArrayList<IQspnArc>();
+        foreach (int w0_index in op.id_arc_index_list)
+        {
+            IdentityArc w0 = identityarcs[w0_index];
+            IdentityArc w1 = old_to_new_id_arc[w0]; // w1 is already in new_identity_data.my_identityarcs
+            NodeID destid = w1.id_arc.get_peer_nodeid();
+            NodeID sourceid = w1.id; // == new_id
+            IdmgmtArc __arc = (IdmgmtArc)w1.arc;
+            Arc _arc = __arc.arc;
+            string peer_mac = w1.id_arc.get_peer_mac();
+            w1.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
+            external_arc_set.add(w1.qspn_arc);
+        }
         QspnManager.PreviousArcToNewArcDelegate old_arc_to_new_arc = (/*IQspnArc*/ old_arc) => {
             // return IQspnArc or null.
             foreach (IdentityArc old_identity_arc in old_to_new_id_arc.keys)
