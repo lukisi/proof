@@ -206,7 +206,7 @@ Command list:
                         int guest_gnode_level = int.parse(_args[2]);
                         int host_gnode_level = int.parse(_args[3]);
                         string host_gnode_address = _args[4];
-                        string host_gnode_data = _args[5];
+                        string host_gnode_elderships = _args[5];
                         int in_host_pos1 = int.parse(_args[6]);
                         int in_host_pos1_eldership = int.parse(_args[7]);
                         int in_host_pos2 = int.parse(_args[8]);
@@ -228,7 +228,7 @@ Command list:
                             guest_gnode_level,
                             host_gnode_level,
                             host_gnode_address,
-                            host_gnode_data,
+                            host_gnode_elderships,
                             in_host_pos1,
                             in_host_pos1_eldership,
                             in_host_pos2,
@@ -463,7 +463,7 @@ Command list:
         int guest_gnode_level,
         int host_gnode_level,
         string host_gnode_address,
-        string host_gnode_data,
+        string host_gnode_elderships,
         int in_host_pos1,
         int in_host_pos1_eldership,
         int in_host_pos2,
@@ -481,7 +481,7 @@ Command list:
         pending.guest_gnode_level = guest_gnode_level;
         pending.host_gnode_level = host_gnode_level;
         pending.host_gnode_address = host_gnode_address;
-        pending.host_gnode_data = host_gnode_data;
+        pending.host_gnode_elderships = host_gnode_elderships;
         pending.in_host_pos1 = in_host_pos1;
         pending.in_host_pos1_eldership = in_host_pos1_eldership;
         pending.in_host_pos2 = in_host_pos2;
@@ -505,7 +505,7 @@ Command list:
         public int guest_gnode_level;
         public int host_gnode_level;
         public string host_gnode_address;
-        public string host_gnode_data;
+        public string host_gnode_elderships;
         public int in_host_pos1;
         public int in_host_pos1_eldership;
         public int in_host_pos2;
@@ -663,11 +663,12 @@ Command list:
 
         // Add routes of new identity into old network namespace
 
-        // new address = op.host_gnode_address + op.in_host_pos1 + old_identity_data.my_naddr.pos.slice(0, op.guest_gnode_level)
+        // new address = op.host_gnode_address + op.in_host_pos1
+        //             + old_identity_data.my_naddr.pos.slice(0, op.host_gnode_level-1)
         ArrayList<int> _naddr_new = new ArrayList<int>();
         foreach (string s_piece in op.host_gnode_address.split(".")) _naddr_new.insert(0, int.parse(s_piece));
         _naddr_new.insert(0, op.in_host_pos1);
-        _naddr_new.insert_all(0, old_identity_data.my_naddr.pos.slice(0, op.guest_gnode_level));
+        _naddr_new.insert_all(0, old_identity_data.my_naddr.pos.slice(0, op.host_gnode_level-1));
         Naddr my_naddr_new = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
         compute_destination_ip_set(new_identity_data.destination_ip_set, my_naddr_new);
 
