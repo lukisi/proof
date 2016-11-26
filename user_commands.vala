@@ -661,20 +661,76 @@ Command list:
             }
         }
 
-        // TODO Popolamento nuove rotte della nuova identità
+        // Add routes of new identity into old network namespace
+
+        // new address = op.host_gnode_address + op.in_host_pos1 + old_identity_data.my_naddr.pos.slice(0, op.guest_gnode_level)
+        ArrayList<int> _naddr_new = new ArrayList<int>();
+        foreach (string s_piece in op.host_gnode_address.split(".")) _naddr_new.insert(0, int.parse(s_piece));
+        _naddr_new.insert(0, op.in_host_pos1);
+        _naddr_new.insert_all(0, old_identity_data.my_naddr.pos.slice(0, op.guest_gnode_level));
+        Naddr my_naddr_new = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
+        compute_destination_ip_set(new_identity_data.destination_ip_set, my_naddr_new);
+
+        // Add new destination IPs into all tables in old network namespace
+        bid = cm.begin_block();
+        tablenames = new ArrayList<string>();
+        if (old_ns == "") tablenames.add("ntk");
+        // Add a table for each qspn-arc of new identity
+        foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+        {
+            int tid;
+            string tablename;
+            tn.get_table(ia.id_arc.get_peer_mac(), out tid, out tablename);
+            // Note: This time we use the new MAC.
+            tablenames.add(tablename);
+        }
+        foreach (string tablename in tablenames)
+         for (int i = levels-1; i >= subnetlevel; i--)
+         for (int j = 0; j < _gsizes[i]; j++)
+        {
+            if (new_identity_data.destination_ip_set[i][j].global != "")
+            {
+                string ipaddr = new_identity_data.destination_ip_set[i][j].global;
+                ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                cmd.add_all_array({
+                    @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                cm.single_command_in_block(bid, cmd);
+                ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
+                cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                cmd.add_all_array({
+                    @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                cm.single_command_in_block(bid, cmd);
+            }
+            for (int k = levels-1; k >= i+1; k--)
+            {
+                if (new_identity_data.destination_ip_set[i][j].intern[k] != "")
+                {
+                    string ipaddr = new_identity_data.destination_ip_set[i][j].intern[k];
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                    cm.single_command_in_block(bid, cmd);
+                }
+            }
+        }
+        cm.end_block(bid);
 
         // New qspn manager
-        Naddr new_id_naddr = null; // TODO
         ArrayList<IQspnArc> internal_arc_set = null; // TODO
         ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = null; // TODO
         ArrayList<IQspnArc> external_arc_set = null; // TODO
         QspnManager.PreviousArcToNewArcDelegate old_arc_to_new_arc = (/*IQspnArc*/ old_arc) => {
-            IQspnArc? ret = null;
-            // TODO get new arc
-            return ret;
+            // return IQspnArc or null.
+            foreach (IdentityArc old_identity_arc in old_to_new_id_arc.keys)
+            {
+                if (old_identity_arc.qspn_arc == old_arc)
+                    return old_to_new_id_arc[old_identity_arc].qspn_arc;
+            }
+            return null;
         };
         Fingerprint new_id_fp = null; // TODO
-        QspnManager qspn_mgr = new QspnManager.enter_net(new_id_naddr,
+        QspnManager qspn_mgr = new QspnManager.enter_net(
+            my_naddr_new,
             internal_arc_set,
             internal_arc_peer_naddr_set,
             external_arc_set,
@@ -685,8 +741,13 @@ Command list:
             /*into_gnode_level*/ op.host_gnode_level,
             /*previous_identity*/ (QspnManager)(identity_mgr.get_identity_module(old_id, "qspn")));
 
+        // TODO Creazione e popolamento iniziale di tabelle per l'inoltro
+
+
+
+
         identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
-        new_identity_data.my_naddr = new_id_naddr;
+        new_identity_data.my_naddr = my_naddr_new;
         new_identity_data.my_fp = new_id_fp;
         new_identity_data.ready = false;
         new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
