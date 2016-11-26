@@ -596,8 +596,8 @@ Command list:
             int tid;
             string tablename;
             tn.get_table(ia.peer_mac, out tid, out tablename);
-            // Note: Member peer_mac is not changed yet (in case of a g-node migration)
-            // It is the old one. Whilst ia.id_arc.get_peer_mac() might differ.
+            // Note: Member peer_mac is not changed yet. It is the old one.
+            // Whilst ia.id_arc.get_peer_mac() might differ. If it was a g-node migration that includes this neighbor.
             tablenames.add(tablename);
         }
         foreach (string tablename in tablenames)
@@ -675,14 +675,19 @@ Command list:
         bid = cm.begin_block();
         tablenames = new ArrayList<string>();
         if (old_ns == "") tablenames.add("ntk");
-        // Add a table for each qspn-arc of new identity
+        // Add a table for each qspn-arc of old identity that will be also in new identity
         foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
         {
-            int tid;
-            string tablename;
-            tn.get_table(ia.id_arc.get_peer_mac(), out tid, out tablename);
-            // Note: This time we use the new MAC.
-            tablenames.add(tablename);
+            // Note: Member peer_mac is not changed yet. It is the old one.
+            // Whilst ia.id_arc.get_peer_mac() might differ. If it was a g-node migration that includes this neighbor.
+            // Hence, if they differ we have to use it.
+            if (ia.peer_mac != ia.id_arc.get_peer_mac())
+            {
+                int tid;
+                string tablename;
+                tn.get_table(ia.peer_mac, out tid, out tablename);
+                tablenames.add(tablename);
+            }
         }
         foreach (string tablename in tablenames)
          for (int i = levels-1; i >= subnetlevel; i--)
