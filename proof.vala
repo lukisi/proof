@@ -291,7 +291,8 @@ namespace ProofOfConcept
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
         Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
         Fingerprint my_fp = new Fingerprint(_elderships.to_array());
-        QspnManager qspn_mgr = new QspnManager.create_net(my_naddr,
+        QspnManager qspn_mgr = new QspnManager.create_net(
+            my_naddr,
             my_fp,
             new QspnStubFactory(first_identity_data));
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
@@ -970,22 +971,19 @@ namespace ProofOfConcept
     {
         foreach (int local_identity_index in local_identities.keys)
         {
-            NodeID local_nodeid = local_identities[local_identity_index].nodeid;
+            IdentityData local_identity_data = local_identities[local_identity_index];
+            NodeID local_nodeid = local_identity_data.nodeid;
             if (local_nodeid.equals(unicast_id))
             {
-                foreach (int identityarc_index in identityarcs.keys)
+                foreach (IdentityArc ia in local_identity_data.my_identityarcs)
                 {
-                    IdentityArc ia = identityarcs[identityarc_index];
                     IdmgmtArc __arc = (IdmgmtArc)ia.arc;
                     Arc _arc = __arc.arc;
                     if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address)
                     {
-                        if (ia.id.equals(local_nodeid))
+                        if (ia.id_arc.get_peer_nodeid().equals(source_id))
                         {
-                            if (ia.id_arc.get_peer_nodeid().equals(source_id))
-                            {
-                                return local_identities[local_identity_index].addr_man;
-                            }
+                            return local_identity_data.addr_man;
                         }
                     }
                 }
@@ -1004,23 +1002,20 @@ namespace ProofOfConcept
         ArrayList<IAddressManagerSkeleton> ret = new ArrayList<IAddressManagerSkeleton>();
         foreach (int local_identity_index in local_identities.keys)
         {
-            NodeID local_nodeid = local_identities[local_identity_index].nodeid;
+            IdentityData local_identity_data = local_identities[local_identity_index];
+            NodeID local_nodeid = local_identity_data.nodeid;
             if (local_nodeid in broadcast_set)
             {
-                foreach (int identityarc_index in identityarcs.keys)
+                foreach (IdentityArc ia in local_identity_data.my_identityarcs)
                 {
-                    IdentityArc ia = identityarcs[identityarc_index];
                     IdmgmtArc __arc = (IdmgmtArc)ia.arc;
                     Arc _arc = __arc.arc;
                     if (_arc.neighborhood_arc.neighbour_nic_addr == peer_address
                         && _arc.neighborhood_arc.nic.dev == dev)
                     {
-                        if (ia.id.equals(local_nodeid))
+                        if (ia.id_arc.get_peer_nodeid().equals(source_id))
                         {
-                            if (ia.id_arc.get_peer_nodeid().equals(source_id))
-                            {
-                                ret.add(local_identities[local_identity_index].addr_man);
-                            }
+                            ret.add(local_identity_data.addr_man);
                         }
                     }
                 }
