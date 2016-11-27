@@ -38,6 +38,7 @@ libmacgetter_la_LIBADD = \
 
 qspnclient_SOURCES =  \
 	proof.vala \
+	best_routes.vala \
 	ipv4_compute.vala \
 	naddr.vala \
 	network_stack.vala \

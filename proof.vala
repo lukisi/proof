@@ -600,18 +600,6 @@ namespace ProofOfConcept
         }
     }
 
-    class NeighborData : Object
-    {
-        public string mac;
-        public HCoord h;
-    }
-
-    class BestRoute : Object
-    {
-        public string gw;
-        public string dev;
-    }
-
     class LocalIPSet : Object
     {
         public string global;

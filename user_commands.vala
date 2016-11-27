@@ -844,6 +844,68 @@ Command list:
         cm.end_block(bid);
 
         // TODO Cambio di indirizzo della nuova identità
+        if (op.prev_op_id == null)
+        {
+            // Immediately change address.
+            int ch_level = op.host_gnode_level-1;
+            int ch_pos = op.in_host_pos2;
+            int ch_eldership = op.in_host_pos2_eldership;
+
+            ArrayList<int> _naddr_new_2 = new ArrayList<int>();
+            _naddr_new_2.add_all(my_naddr_new.pos);
+            _naddr_new_2[ch_level] = ch_pos;
+            Naddr my_naddr_new_2 = new Naddr(_naddr_new_2.to_array(), _gsizes.to_array());
+            new_identity_data.my_naddr = my_naddr_new_2;
+
+            ArrayList<int> _elderships_2 = new ArrayList<int>();
+            _elderships_2.add_all(my_fp_new.elderships);
+            _elderships_2[ch_level] = ch_eldership;
+            Fingerprint my_fp_new_2 = new Fingerprint(_elderships_2.to_array(), my_fp_new.id);
+
+            qspn_mgr.make_real(my_naddr_new_2);
+            // TODO Method `make_real` must change also elderships of fingerprint
+
+            // tablenames = set of tables in old network namespace
+            HashMap<int,HashMap<int,DestinationIPSet>> prev_new_identity_destination_ip_set;
+            prev_new_identity_destination_ip_set = copy_destination_ip_set(new_identity_data.destination_ip_set);
+            compute_destination_ip_set(new_identity_data.destination_ip_set, my_naddr_new_2);
+            for (int i = levels-1; i >= subnetlevel; i--)
+             for (int j = 0; j < _gsizes[i]; j++)
+            {
+                if (new_identity_data.destination_ip_set[i][j].global != "" &&
+                    prev_new_identity_destination_ip_set[i][j].global == "")
+                {
+                    // TODO add route and change it (foreach tablename in tablenames)
+                    // TODO same for new_identity_data.destination_ip_set[i][j].anonymous
+                }
+                else if (new_identity_data.destination_ip_set[i][j].global == "" &&
+                    prev_new_identity_destination_ip_set[i][j].global != "")
+                {
+                    // TODO delete route (foreach tablename in tablenames)
+                    // TODO same for new_identity_data.destination_ip_set[i][j].anonymous
+                }
+                for (int k = levels-1; k >= i+1; k--)
+                {
+                    if (new_identity_data.destination_ip_set[i][j].intern[k] != "" &&
+                        new_identity_data.destination_ip_set[i][j].intern[k] == "")
+                    {
+                        // TODO add route and change it (foreach tablename in tablenames)
+                    }
+                    else if (new_identity_data.destination_ip_set[i][j].intern[k] == "" &&
+                        new_identity_data.destination_ip_set[i][j].intern[k] != "")
+                    {
+                        // TODO delete route (foreach tablename in tablenames)
+                    }
+                }
+            }
+
+            if (old_ns == "")
+            {
+                // TODO aggiungi indirizzi IP locali (interni, globale, anon)
+                // TODO aggiungi regola SNAT
+                // TODO update table ntk
+            }
+        }
 
 
 
