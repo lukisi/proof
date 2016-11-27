@@ -56,7 +56,7 @@ Command list:
 > enter_net_phase_1
   Finalize ...
 
-> add_qspnarc <local_identity_index> <identityarc_index>
+> add_qspn_arc <local_identity_index> <peer_mac>
   Add a QspnArc.
 
 > check_connectivity <local_identity_index>
@@ -135,7 +135,7 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        string k = key_for_physical_arc(_args[1], _args[2]);
+                        string k = key_for_physical_arc(_args[1].up(), _args[2].up());
                         int i_cost = int.parse(_args[3]);
                         if (! (k in neighborhood_arcs.keys))
                         {
@@ -160,7 +160,7 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        string k = key_for_physical_arc(_args[1], _args[2]);
+                        string k = key_for_physical_arc(_args[1].up(), _args[2].up());
                         int i_cost = int.parse(_args[3]);
                         if (! (k in real_arcs.keys))
                         {
@@ -177,7 +177,7 @@ Command list:
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        string k = key_for_physical_arc(_args[1], _args[2]);
+                        string k = key_for_physical_arc(_args[1].up(), _args[2].up());
                         if (! (k in real_arcs.keys))
                         {
                             write_oneline_response(command_id, @"wrong MAC pair '$(k)'", 1);
@@ -254,7 +254,7 @@ Command list:
                             op_id);
                         write_empty_response(command_id);
                     }
-                    else if (_args[0] == "add_qspnarc")
+                    else if (_args[0] == "add_qspn_arc")
                     {
                         if (_args.size != 3)
                         {
@@ -262,8 +262,8 @@ Command list:
                             continue;
                         }
                         int local_identity_index = int.parse(_args[1]);
-                        int idarc_index = int.parse(_args[2]);
-                        add_qspnarc(local_identity_index, idarc_index);
+                        string peer_mac = _args[2].up();
+                        add_qspn_arc(local_identity_index, peer_mac);
                         write_empty_response(command_id);
                     }
                     else if (_args[0] == "check_connectivity")
@@ -843,7 +843,7 @@ Command list:
         }
         cm.end_block(bid);
 
-        // TODO Comando add_qspn_arc
+        // TODO Cambio di indirizzo della nuova identità
 
 
 
@@ -852,26 +852,71 @@ Command list:
         error("not implemented yet");
     }
 
-    void add_qspnarc(int local_identity_index, int idarc_index)
+    void add_qspn_arc(int local_identity_index, string peer_mac)
     {
         IdentityData identity_data = local_identities[local_identity_index];
-        NodeID id = identity_data.nodeid;
-        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
+        NodeID sourceid = identity_data.nodeid;
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(sourceid, "qspn");
 
-        assert(idarc_index in identityarcs.keys);
-        IdentityArc ia = identityarcs[idarc_index];
-        NodeID destid = ia.id_arc.get_peer_nodeid();
-        NodeID sourceid = ia.id;
-        IdmgmtArc __arc = (IdmgmtArc)ia.arc;
-        Arc _arc = __arc.arc;
-        string peer_mac = ia.id_arc.get_peer_mac();
-        ia.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
-        qspn_mgr.arc_add(ia.qspn_arc);
-        if (! (peer_mac in identity_data.network_stack.current_neighbours))
-            identity_data.network_stack.add_neighbour(peer_mac);
-        print(@"Debug: IdentityData #$(identity_data.local_identity_index): call update_all_destinations for add_qspnarc.\n");
-        update_best_paths_forall_destinations_per_identity(identity_data);
-        print(@"Debug: IdentityData #$(identity_data.local_identity_index): done update_all_destinations for add_qspnarc.\n");
+        foreach (IdentityArc ia in identity_data.my_identityarcs)
+         if (ia.peer_mac == peer_mac)
+        {
+            NodeID destid = ia.id_arc.get_peer_nodeid();
+            IdmgmtArc _arc = (IdmgmtArc)ia.arc;
+            Arc arc = _arc.arc;
+            ia.qspn_arc = new QspnArc(arc, sourceid, destid, peer_mac);
+            qspn_mgr.arc_add(ia.qspn_arc);
+            int tid;
+            string tablename;
+            tn.get_table(peer_mac, out tid, out tablename);
+
+            // Add new forwarding-table
+            int bid = cm.begin_block();
+            string ns = identity_data.network_namespace;
+            ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
+            if (ns != "") prefix_cmd_ns.add_all_array({
+                @"ip", @"netns", @"exec", @"$ns"});
+            ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+            cmd.add_all_array({
+                @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
+                @"-m", @"mac", @"--mac-source", @"$peer_mac",
+                @"-j", @"MARK", @"--set-mark", @"$tid"});
+            cm.single_command_in_block(bid, cmd);
+
+            for (int i = levels-1; i >= subnetlevel; i--)
+             for (int j = 0; j < _gsizes[i]; j++)
+            {
+                if (identity_data.destination_ip_set[i][j].global != "")
+                {
+                    string ipaddr = identity_data.destination_ip_set[i][j].global;
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                    cm.single_command_in_block(bid, cmd);
+                    ipaddr = identity_data.destination_ip_set[i][j].anonymous;
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                    cm.single_command_in_block(bid, cmd);
+                }
+                for (int k = levels-1; k >= i+1; k--)
+                {
+                    if (identity_data.destination_ip_set[i][j].intern[k] != "")
+                    {
+                        string ipaddr = identity_data.destination_ip_set[i][j].intern[k];
+                        cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                        cm.single_command_in_block(bid, cmd);
+                    }
+                }
+            }
+            cm.end_block(bid);
+
+            print(@"Debug: IdentityData #$(identity_data.local_identity_index): call update_all_destinations for add_qspn_arc.\n");
+            update_best_paths_forall_destinations_per_identity(identity_data);
+            print(@"Debug: IdentityData #$(identity_data.local_identity_index): done update_all_destinations for add_qspn_arc.\n");
+        }
     }
 
     Gee.List<string> check_connectivity(int local_identity_index)
