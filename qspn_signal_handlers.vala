@@ -73,17 +73,23 @@ namespace ProofOfConcept
 
     void per_identity_qspn_path_added(IdentityData id, IQspnNodePath p)
     {
-        update_best_paths_per_identity(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord());
+        int bid = cm.begin_block();
+        update_best_paths_per_identity(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        cm.end_block(bid);
     }
 
     void per_identity_qspn_path_changed(IdentityData id, IQspnNodePath p)
     {
-        update_best_paths_per_identity(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord());
+        int bid = cm.begin_block();
+        update_best_paths_per_identity(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        cm.end_block(bid);
     }
 
     void per_identity_qspn_path_removed(IdentityData id, IQspnNodePath p)
     {
-        update_best_paths_per_identity(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord());
+        int bid = cm.begin_block();
+        update_best_paths_per_identity(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        cm.end_block(bid);
     }
 
     void per_identity_qspn_presence_notified(IdentityData id)
@@ -101,8 +107,14 @@ namespace ProofOfConcept
 
     void update_best_paths_forall_destinations_per_identity(IdentityData id)
     {
-        for (int lvl = 0; lvl < levels; lvl++) for (int pos = 0; pos < _gsizes[lvl]; pos++) if (id.my_naddr.pos[lvl] != pos)
-            update_best_paths_per_identity(id, new HCoord(lvl, pos));
+        int bid = cm.begin_block();
+        for (int lvl = subnetlevel; lvl < levels; lvl++)
+         for (int pos = 0; pos < _gsizes[lvl]; pos++)
+         if (id.my_naddr.pos[lvl] != pos)
+        {
+            update_best_paths_per_identity(id, new HCoord(lvl, pos), bid);
+        }
+        cm.end_block(bid);
     }
 
     void per_identity_qspn_remove_identity(IdentityData id)

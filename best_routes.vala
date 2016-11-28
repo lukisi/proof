@@ -37,7 +37,7 @@ namespace ProofOfConcept
         public string dev;
     }
 
-    void update_best_paths_per_identity(IdentityData id, HCoord h)
+    void update_best_paths_per_identity(IdentityData id, HCoord h, int bid)
     {
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
         if (h.pos >= _gsizes[h.lvl]) return; // ignore virtual destination.
@@ -76,322 +76,142 @@ namespace ProofOfConcept
         // Find best routes towards `h` for table 'ntk' and for tables 'ntk_from_<MAC>'
         HashMap<string, BestRoute> best_routes = find_best_route_foreach_table(paths, neighbors);
 
-        // Operations now are based on type of my_naddr:
-        // Is this the main ID? Do I have a *real* Netsukuku address?
-        int real_up_to = id.my_naddr.get_real_up_to();
-        int virtual_up_to = id.my_naddr.get_virtual_up_to();
-        if (id.main_id)
+        // Update best route in each table of our network namespace
+        string ns = id.network_namespace;
+        ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
+        if (ns != "") prefix_cmd_ns.add_all_array({
+            @"ip", @"netns", @"exec", @"$ns"});
+        DestinationIPSet h_ip_set = id.destination_ip_set[h.lvl][h.pos];
+        if (h_ip_set.global != "")
         {
-            if (real_up_to == levels-1)
+            assert(h_ip_set.anonymous != "");
+            if (id.network_namespace == "")
             {
-                // Compute IP dest addresses and src addresses.
-                ArrayList<string> ip_dest_set = new ArrayList<string>();
-                ArrayList<string> ip_src_set = new ArrayList<string>();
-                // Global.
-                ip_dest_set.add(ip_global_gnode(h_addr, h.lvl));
-                ip_src_set.add(id.ip_global);
-                // Anonymizing.
-                ip_dest_set.add(ip_anonymizing_gnode(h_addr, h.lvl));
-                ip_src_set.add(id.ip_global);
-                // Internals. In this case they are guaranteed to be valid.
-                for (int t = h.lvl + 1; t <= levels - 1; t++)
+                string tablename = "ntk";
+                if (best_routes.has_key("main"))
                 {
-                    ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
-                    ip_src_set.add(id.ip_internal[t-1]);
-                }
-
-                for (int i = 0; i < ip_dest_set.size; i++)
-                {
-                    string d_x = ip_dest_set[i];
-                    string n_x = ip_src_set[i];
-                    // For packets in egress:
-                    if (best_routes.has_key("main"))
-                        id.network_stack.change_best_path(d_x,
-                                best_routes["main"].dev,
-                                best_routes["main"].gw,
-                                n_x,
-                                null);
-                    else id.network_stack.change_best_path(d_x, null, null, null, null);
-                    // For packets in forward, received from a known MAC:
-                    foreach (NeighborData neighbor in neighbors)
-                    {
-                        if (best_routes.has_key(neighbor.mac))
-                        {
-                            id.network_stack.change_best_path(d_x,
-                                best_routes[neighbor.mac].dev,
-                                best_routes[neighbor.mac].gw,
-                                null,
-                                neighbor.mac);
-                        }
-                        else
-                        {
-                            // set unreachable
-                            id.network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
-                        }
-                    }
-                    // For packets in forward, received from a unknown MAC:
-                    /* No need because the system uses the same as per packets in egress */
-                }
-            }
-            else
-            {
-                if (h.lvl <= real_up_to)
-                {
-                    // Compute IP dest addresses and src addresses.
-                    ArrayList<string> ip_dest_set = new ArrayList<string>();
-                    ArrayList<string> ip_src_set = new ArrayList<string>();
-                    // Internals. In this case they MUST be checked.
-                    bool invalid_found = false;
-                    for (int t = h.lvl + 1; t <= levels - 1; t++)
-                    {
-                        for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                        {
-                            if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                            {
-                                invalid_found = true;
-                                break;
-                            }
-                        }
-                        if (invalid_found) break; // The higher levels will be invalid too.
-                        ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
-                        ip_src_set.add(id.ip_internal[t-1]);
-                    }
-
-                    for (int i = 0; i < ip_dest_set.size; i++)
-                    {
-                        string d_x = ip_dest_set[i];
-                        string n_x = ip_src_set[i];
-                        // For packets in egress:
-                        if (best_routes.has_key("main"))
-                            id.network_stack.change_best_path(d_x,
-                                    best_routes["main"].dev,
-                                    best_routes["main"].gw,
-                                    n_x,
-                                    null);
-                        else id.network_stack.change_best_path(d_x, null, null, null, null);
-                        // For packets in forward, received from a known MAC:
-                        foreach (NeighborData neighbor in neighbors)
-                        {
-                            if (best_routes.has_key(neighbor.mac))
-                            {
-                                id.network_stack.change_best_path(d_x,
-                                    best_routes[neighbor.mac].dev,
-                                    best_routes[neighbor.mac].gw,
-                                    null,
-                                    neighbor.mac);
-                            }
-                            else
-                            {
-                                // set unreachable
-                                id.network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
-                            }
-                        }
-                        // For packets in forward, received from a unknown MAC:
-                        /* No need because the system uses the same as per packets in egress */
-                    }
-                }
-                else if (h.lvl < virtual_up_to)
-                {
-                    // Compute IP dest addresses (in this case no src addresses).
-                    ArrayList<string> ip_dest_set = new ArrayList<string>();
-                    // Internals. In this case they MUST be checked.
-                    bool invalid_found = false;
-                    for (int t = h.lvl + 1; t <= levels - 1; t++)
-                    {
-                        for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                        {
-                            if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                            {
-                                invalid_found = true;
-                                break;
-                            }
-                        }
-                        if (invalid_found) break; // The higher levels will be invalid too.
-                        ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
-                    }
-
-                    for (int i = 0; i < ip_dest_set.size; i++)
-                    {
-                        string d_x = ip_dest_set[i];
-
-                        // For packets in egress:
-                        /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
-                        // For packets in forward, received from a known MAC:
-                        foreach (NeighborData neighbor in neighbors)
-                        {
-                            if (best_routes.has_key(neighbor.mac))
-                            {
-                                id.network_stack.change_best_path(d_x,
-                                    best_routes[neighbor.mac].dev,
-                                    best_routes[neighbor.mac].gw,
-                                    null,
-                                    neighbor.mac);
-                            }
-                            else
-                            {
-                                // set unreachable
-                                id.network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
-                            }
-                        }
-                        // For packets in forward, received from a unknown MAC:
-                        if (best_routes.has_key("main"))
-                            id.network_stack.change_best_path(d_x,
-                                    best_routes["main"].dev,
-                                    best_routes["main"].gw,
-                                    null,
-                                    null);
-                        else id.network_stack.change_best_path(d_x, null, null, null, null);
-                    }
+                    // set route global
+                    BestRoute best = best_routes["main"];
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"change",
+                        @"$(h_ip_set.global)", @"table", @"$(tablename)", @"via", @"$(best.gw)", @"dev", @"$(best.dev)"});
+                    if (id.local_ip_set.global != "") cmd.add_all_array({@"src", @"$(id.local_ip_set.global)"});
+                    cm.single_command_in_block(bid, cmd);
+                    // set route anonymous
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"change",
+                        @"$(h_ip_set.anonymous)", @"table", @"$(tablename)", @"via", @"$(best.gw)", @"dev", @"$(best.dev)"});
+                    if (id.local_ip_set.global != "") cmd.add_all_array({@"src", @"$(id.local_ip_set.global)"});
+                    cm.single_command_in_block(bid, cmd);
                 }
                 else
                 {
-                    // Compute IP dest addresses (in this case no src addresses).
-                    ArrayList<string> ip_dest_set = new ArrayList<string>();
-                    // Global.
-                    ip_dest_set.add(ip_global_gnode(h_addr, h.lvl));
-                    // Anonymizing.
-                    ip_dest_set.add(ip_anonymizing_gnode(h_addr, h.lvl));
-                    // Internals. In this case they are guaranteed to be valid.
-                    for (int t = h.lvl + 1; t <= levels - 1; t++)
-                    {
-                        ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
-                    }
-
-                    for (int i = 0; i < ip_dest_set.size; i++)
-                    {
-                        string d_x = ip_dest_set[i];
-
-                        // For packets in egress:
-                        /* Nothing: We are the main identity, but we don't have a valid src IP at this level. */
-                        // For packets in forward, received from a known MAC:
-                        foreach (NeighborData neighbor in neighbors)
-                        {
-                            if (best_routes.has_key(neighbor.mac))
-                            {
-                                id.network_stack.change_best_path(d_x,
-                                    best_routes[neighbor.mac].dev,
-                                    best_routes[neighbor.mac].gw,
-                                    null,
-                                    neighbor.mac);
-                            }
-                            else
-                            {
-                                // set unreachable
-                                id.network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
-                            }
-                        }
-                        // For packets in forward, received from a unknown MAC:
-                        if (best_routes.has_key("main"))
-                            id.network_stack.change_best_path(d_x,
-                                    best_routes["main"].dev,
-                                    best_routes["main"].gw,
-                                    null,
-                                    null);
-                        else id.network_stack.change_best_path(d_x, null, null, null, null);
-                    }
+                    // set unreachable global
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"change",
+                        @"unreachable", @"$(h_ip_set.global)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid, cmd);
+                    // set unreachable anonymous
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"change",
+                        @"unreachable", @"$(h_ip_set.anonymous)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid, cmd);
+                }
+            }
+            foreach (NeighborData neighbor in neighbors)
+            {
+                int tid;
+                string tablename;
+                tn.get_table(neighbor.mac, out tid, out tablename);
+                if (best_routes.has_key(neighbor.mac))
+                {
+                    // set route global
+                    BestRoute best = best_routes[neighbor.mac];
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"change",
+                        @"$(h_ip_set.global)", @"table", @"$(tablename)", @"via", @"$(best.gw)", @"dev", @"$(best.dev)"});
+                    cm.single_command_in_block(bid, cmd);
+                    // set route anonymous
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"change",
+                        @"$(h_ip_set.anonymous)", @"table", @"$(tablename)", @"via", @"$(best.gw)", @"dev", @"$(best.dev)"});
+                    cm.single_command_in_block(bid, cmd);
+                }
+                else
+                {
+                    // set unreachable global
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"change",
+                        @"unreachable", @"$(h_ip_set.global)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid, cmd);
+                    // set unreachable anonymous
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"change",
+                        @"unreachable", @"$(h_ip_set.anonymous)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid, cmd);
                 }
             }
         }
-        else
+        for (int k = levels - 1; k < h.lvl; k++)
         {
-            if (h.lvl < virtual_up_to)
+            if (h_ip_set.intern[k] != "")
             {
-                // Compute IP dest addresses (in this case no src addresses).
-                ArrayList<string> ip_dest_set = new ArrayList<string>();
-                // Internals. In this case they MUST be checked.
-                bool invalid_found = false;
-                for (int t = h.lvl + 1; t <= levels - 1; t++)
+                if (id.network_namespace == "")
                 {
-                    for (int n_lvl = h.lvl + 1; n_lvl <= t - 1; n_lvl++)
-                    {
-                        if (h_addr[n_lvl] >= _gsizes[n_lvl])
-                        {
-                            invalid_found = true;
-                            break;
-                        }
-                    }
-                    if (invalid_found) break; // The higher levels will be invalid too.
-                    ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
-                }
-
-                for (int i = 0; i < ip_dest_set.size; i++)
-                {
-                    string d_x = ip_dest_set[i];
-
-                    // For packets in egress:
-                    /* Nothing: We are the not main identity. */
-                    // For packets in forward, received from a known MAC:
-                    foreach (NeighborData neighbor in neighbors)
-                    {
-                        if (best_routes.has_key(neighbor.mac))
-                        {
-                            id.network_stack.change_best_path(d_x,
-                                best_routes[neighbor.mac].dev,
-                                best_routes[neighbor.mac].gw,
-                                null,
-                                neighbor.mac);
-                        }
-                        else
-                        {
-                            // set unreachable
-                            id.network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
-                        }
-                    }
-                    // For packets in forward, received from a unknown MAC:
+                    string tablename = "ntk";
                     if (best_routes.has_key("main"))
-                        id.network_stack.change_best_path(d_x,
-                                best_routes["main"].dev,
-                                best_routes["main"].gw,
-                                null,
-                                null);
-                    else id.network_stack.change_best_path(d_x, null, null, null, null);
-                }
-            }
-            else
-            {
-                // Compute IP dest addresses (in this case no src addresses).
-                ArrayList<string> ip_dest_set = new ArrayList<string>();
-                // Global.
-                ip_dest_set.add(ip_global_gnode(h_addr, h.lvl));
-                // Anonymizing.
-                ip_dest_set.add(ip_anonymizing_gnode(h_addr, h.lvl));
-                // Internals. In this case they are guaranteed to be valid.
-                for (int t = h.lvl + 1; t <= levels - 1; t++)
-                {
-                    ip_dest_set.add(ip_internal_gnode(h_addr, h.lvl, t));
-                }
-
-                for (int i = 0; i < ip_dest_set.size; i++)
-                {
-                    string d_x = ip_dest_set[i];
-
-                    // For packets in egress:
-                    /* Nothing: We are the not main identity. */
-                    // For packets in forward, received from a known MAC:
-                    foreach (NeighborData neighbor in neighbors)
                     {
-                        if (best_routes.has_key(neighbor.mac))
-                        {
-                            id.network_stack.change_best_path(d_x,
-                                best_routes[neighbor.mac].dev,
-                                best_routes[neighbor.mac].gw,
-                                null,
-                                neighbor.mac);
-                        }
-                        else
-                        {
-                            // set unreachable
-                            id.network_stack.change_best_path(d_x, null, null, null, neighbor.mac);
-                        }
+                        // set route intern
+                        BestRoute best = best_routes["main"];
+                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"change",
+                            @"$(h_ip_set.intern[k])", @"table", @"$(tablename)", @"via", @"$(best.gw)", @"dev", @"$(best.dev)"});
+                        if (id.local_ip_set.intern[k] != "") cmd.add_all_array({@"src", @"$(id.local_ip_set.intern[k])"});
+                        cm.single_command_in_block(bid, cmd);
                     }
-                    // For packets in forward, received from a unknown MAC:
-                    if (best_routes.has_key("main"))
-                        id.network_stack.change_best_path(d_x,
-                                best_routes["main"].dev,
-                                best_routes["main"].gw,
-                                null,
-                                null);
-                    else id.network_stack.change_best_path(d_x, null, null, null, null);
+                    else
+                    {
+                        // set unreachable intern
+                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"change",
+                            @"unreachable", @"$(h_ip_set.intern[k])", @"table", @"$(tablename)"});
+                        cm.single_command_in_block(bid, cmd);
+                    }
+                }
+                foreach (NeighborData neighbor in neighbors)
+                {
+                    int tid;
+                    string tablename;
+                    tn.get_table(neighbor.mac, out tid, out tablename);
+                    if (best_routes.has_key(neighbor.mac))
+                    {
+                        // set route intern
+                        BestRoute best = best_routes[neighbor.mac];
+                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"change",
+                            @"$(h_ip_set.intern[k])", @"table", @"$(tablename)", @"via", @"$(best.gw)", @"dev", @"$(best.dev)"});
+                        cm.single_command_in_block(bid, cmd);
+                    }
+                    else
+                    {
+                        // set unreachable intern
+                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"change",
+                            @"unreachable", @"$(h_ip_set.intern[k])", @"table", @"$(tablename)"});
+                        cm.single_command_in_block(bid, cmd);
+                    }
                 }
             }
         }

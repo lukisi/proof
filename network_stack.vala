@@ -488,60 +488,6 @@ namespace ProofOfConcept
             } catch (Error e) {error("Unable to spawn a command");}
         }
 
-        /* Update best path to `dest`.
-        ** `neighbour_mac` is null if this is the main best-path.
-        ** `dev` and `gw` are null if this path is unreachable.
-        ** `src` is null if this path doesn't have a src IP.
-        */
-        public void change_best_path(string dest, string? dev, string? gw, string? src, string? neighbour_mac)
-        {
-            ChangeBestPathTasklet ts = new ChangeBestPathTasklet();
-            ts.t = this;
-            ts.dest = dest;
-            ts.dev = dev;
-            ts.gw = gw;
-            ts.src = src;
-            ts.neighbour_mac = neighbour_mac;
-            command_dispatcher.dispatch(ts, true);
-        }
-        private void tasklet_change_best_path(string dest, string? dev, string? gw, string? src, string? neighbour_mac)
-        {
-            //print(@"Debug: NetworkStack[$(ns)]: change_best_path($(dest), ..., $(neighbour_mac==null?"null":neighbour_mac))\n");return;
-            // change route to dest.
-            string table = maintable;
-            if (neighbour_mac != null) table = @"$(maintable)_from_$(neighbour_mac)";
-            string route_solution = @"unreachable $(dest) table $(table)";
-            if (gw != null)
-            {
-                assert(dev != null);
-                route_solution = @"$(dest) table $(table) via $(gw) dev $(dev)";
-                if (src != null) route_solution = @"$(route_solution) src $(src)";
-            }
-            string cmd = @"$(cmd_prefix)ip route change $(route_solution)";
-            print(@"$(cmd)\n");
-                /*/
-            try {
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-            } catch (Error e) {error("Unable to spawn a command");}
-                /*/
-        }
-        class ChangeBestPathTasklet : Object, ITaskletSpawnable
-        {
-            public NetworkStack t;
-            public string dest;
-            public string? dev;
-            public string? gw;
-            public string? src;
-            public string? neighbour_mac;
-            public void * func()
-            {
-                t.tasklet_change_best_path(dest, dev, gw, src, neighbour_mac);
-                return null;
-            }
-        }
-
         /* Gateways management
         **
         */
