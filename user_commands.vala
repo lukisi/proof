@@ -794,6 +794,20 @@ Command list:
         new_identity_data.ready = false;
         new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
+        qspn_mgr.arc_removed.connect(new_identity_data.arc_removed);
+        qspn_mgr.changed_fp.connect(new_identity_data.changed_fp);
+        qspn_mgr.changed_nodes_inside.connect(new_identity_data.changed_nodes_inside);
+        qspn_mgr.destination_added.connect(new_identity_data.destination_added);
+        qspn_mgr.destination_removed.connect(new_identity_data.destination_removed);
+        qspn_mgr.gnode_splitted.connect(new_identity_data.gnode_splitted);
+        qspn_mgr.path_added.connect(new_identity_data.path_added);
+        qspn_mgr.path_changed.connect(new_identity_data.path_changed);
+        qspn_mgr.path_removed.connect(new_identity_data.path_removed);
+        qspn_mgr.presence_notified.connect(new_identity_data.presence_notified);
+        qspn_mgr.qspn_bootstrap_complete.connect(new_identity_data.qspn_bootstrap_complete);
+        qspn_mgr.remove_identity.connect(new_identity_data.remove_identity);
+        // TODO qspn_mgr.etp_executed.connect(new_identity_data.etp_executed);
+
         // Add new destination IPs into new forwarding-tables in old network namespace
         bid = cm.begin_block();
         foreach (IdentityArc ia in new_identity_data.my_identityarcs)
@@ -843,10 +857,10 @@ Command list:
         }
         cm.end_block(bid);
 
-        // TODO Cambio di indirizzo della nuova identità
+        // Netsukuku Address of new identity will be changing.
         if (op.prev_op_id == null)
         {
-            // Immediately change address.
+            // Immediately change address of new identity.
             int ch_level = op.host_gnode_level-1;
             int ch_pos = op.in_host_pos2;
             int ch_eldership = op.in_host_pos2_eldership;
@@ -907,9 +921,15 @@ Command list:
             }
         }
 
+        // Finally, the peer_mac and peer_linklocal of the identity-arcs of old identity
+        // can be updated (if they need to).
+        foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+        {
+            ia.peer_mac = ia.id_arc.get_peer_mac();
+            ia.peer_linklocal = ia.id_arc.get_peer_linklocal();
+        }
 
-
-
+        // TODO Remove old identity
 
         error("not implemented yet");
     }

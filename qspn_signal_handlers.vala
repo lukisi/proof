@@ -117,6 +117,46 @@ namespace ProofOfConcept
         cm.end_block(bid);
     }
 
+    void per_identity_qspn_etp_executed(IdentityData id)
+    {
+        // TODO We need to get a signal when an istance of QspnManager has completed the elaboration of
+        //  a received ETP.
+        // Further, we need a method to tell if, for a given qspn-arc, the QSPN module has received
+        //  already at least one ETP from it.
+
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
+        // table ntk
+        if (id.network_namespace == "")
+        {
+            // TODO update all routes for table `ntk`
+        }
+
+        // tables ntk_from_xxx
+        foreach (IdentityArc ia in id.my_identityarcs) if (ia.qspn_arc != null)
+        {
+            if (0==1 /* TODO ask to $(qspn_mgr) if it has received already at least one ETP from $(ia.qspn_arc)*/)
+            {
+                bool needs_add_rule = false;
+                if (! ia.rule_added)
+                {
+                    ia.rule_added = true;
+                    needs_add_rule = true;
+                }
+
+                int tid;
+                string tablename;
+                tn.get_table(ia.id_arc.get_peer_mac(), out tid, out tablename);
+                // TODO update all routes for table $(tablename)
+
+                if (needs_add_rule)
+                {
+                    // TODO add rule for $(tablename) in $(id.network_namespace)
+                }
+            }
+        }
+        error("not implemented yet");
+    }
+
     void per_identity_qspn_remove_identity(IdentityData id)
     {
         // The qspn manager wants to remove this identity.

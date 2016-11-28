@@ -406,6 +406,7 @@ namespace ProofOfConcept
         qspn_mgr.presence_notified.connect(first_identity_data.presence_notified);
         qspn_mgr.qspn_bootstrap_complete.connect(first_identity_data.qspn_bootstrap_complete);
         qspn_mgr.remove_identity.connect(first_identity_data.remove_identity);
+        // TODO qspn_mgr.etp_executed.connect(first_identity_data.etp_executed);
 
         // end startup
 
@@ -589,6 +590,7 @@ namespace ProofOfConcept
         public string peer_mac;
         public string peer_linklocal;
         public QspnArc? qspn_arc;
+        public bool rule_added;
         public IdentityArc(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc, string peer_mac, string peer_linklocal)
         {
             this.arc = arc;
@@ -597,6 +599,7 @@ namespace ProofOfConcept
             this.peer_mac = peer_mac;
             this.peer_linklocal = peer_linklocal;
             qspn_arc = null;
+            rule_added = false;
         }
     }
 
@@ -800,6 +803,11 @@ namespace ProofOfConcept
         public void remove_identity()
         {
             per_identity_qspn_remove_identity(this);
+        }
+
+        public void etp_executed()
+        {
+            per_identity_qspn_etp_executed(this);
         }
     }
 
