@@ -679,7 +679,7 @@ Command list:
         compute_destination_ip_set(new_identity_data.destination_ip_set, my_naddr_new);
 
         // Add new destination IPs into all tables in old network namespace
-        bid = cm.begin_block();
+        int bid2 = cm.begin_block();
         tablenames = new ArrayList<string>();
         if (old_ns == "") tablenames.add("ntk");
         // Add a table for each qspn-arc of old identity that will be also in new identity
@@ -706,12 +706,12 @@ Command list:
                 ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                 cmd.add_all_array({
                     @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
-                cm.single_command_in_block(bid, cmd);
+                cm.single_command_in_block(bid2, cmd);
                 ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
                 cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                 cmd.add_all_array({
                     @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
-                cm.single_command_in_block(bid, cmd);
+                cm.single_command_in_block(bid2, cmd);
             }
             for (int k = levels-1; k >= i+1; k--)
             {
@@ -721,11 +721,11 @@ Command list:
                     ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
                         @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
-                    cm.single_command_in_block(bid, cmd);
+                    cm.single_command_in_block(bid2, cmd);
                 }
             }
         }
-        cm.end_block(bid);
+        cm.end_block(bid2);
 
         // New qspn manager
         ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
@@ -745,6 +745,7 @@ Command list:
                 internal_arc_set.add(w1.qspn_arc);
                 Naddr w1_peer_naddr = null;
                 // TODO get peer_naddr of w0 and transform into the one of w1.
+                //      Vedi "Gli archi di n interni a w..." in ita/ModuloQspn/EsplorazioneRete.md#Ingresso_gnodo_in_rete
                 internal_arc_peer_naddr_set.add(w1_peer_naddr);
             }
         }
@@ -809,10 +810,9 @@ Command list:
         qspn_mgr.presence_notified.connect(new_identity_data.presence_notified);
         qspn_mgr.qspn_bootstrap_complete.connect(new_identity_data.qspn_bootstrap_complete);
         qspn_mgr.remove_identity.connect(new_identity_data.remove_identity);
-        // TODO qspn_mgr.etp_executed.connect(new_identity_data.etp_executed);
 
         // Add new destination IPs into new forwarding-tables in old network namespace
-        bid = cm.begin_block();
+        int bid3 = cm.begin_block();
         foreach (IdentityArc ia in new_identity_data.my_identityarcs)
          if (ia.qspn_arc != null)
          if (ia.qspn_arc in external_arc_set)
@@ -827,7 +827,7 @@ Command list:
                 @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
                 @"-m", @"mac", @"--mac-source", @"$mac",
                 @"-j", @"MARK", @"--set-mark", @"$tid"});
-            cm.single_command_in_block(bid, cmd);
+            cm.single_command_in_block(bid3, cmd);
 
             for (int i = levels-1; i >= subnetlevel; i--)
              for (int j = 0; j < _gsizes[i]; j++)
@@ -838,12 +838,12 @@ Command list:
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
                         @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
-                    cm.single_command_in_block(bid, cmd);
+                    cm.single_command_in_block(bid3, cmd);
                     ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
                         @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
-                    cm.single_command_in_block(bid, cmd);
+                    cm.single_command_in_block(bid3, cmd);
                 }
                 for (int k = levels-1; k >= i+1; k--)
                 {
@@ -853,12 +853,12 @@ Command list:
                         cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                         cmd.add_all_array({
                             @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
-                        cm.single_command_in_block(bid, cmd);
+                        cm.single_command_in_block(bid3, cmd);
                     }
                 }
             }
         }
-        cm.end_block(bid);
+        cm.end_block(bid3);
 
         // Netsukuku Address of new identity will be changing.
         if (op.prev_op_id == null)
@@ -879,10 +879,9 @@ Command list:
             _elderships_2[ch_level] = ch_eldership;
             Fingerprint my_fp_new_2 = new Fingerprint(_elderships_2.to_array(), my_fp_new.id);
 
-            qspn_mgr.make_real(my_naddr_new_2);
-            // TODO Method `make_real` must change also elderships of fingerprint
+            qspn_mgr.make_real(my_naddr_new_2, my_fp_new_2);
 
-            bid = cm.begin_block();
+            int bid4 = cm.begin_block();
             // tablenames = set of tables of new identity in old network namespace
             tablenames = new ArrayList<string>();
             if (old_ns == "") tablenames.add("ntk");
@@ -915,12 +914,12 @@ Command list:
                         ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                         cmd.add_all_array({
                             @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
-                        cm.single_command_in_block(bid, cmd);
+                        cm.single_command_in_block(bid4, cmd);
                         ipaddr = prev_new_identity_destination_ip_set[i][j].anonymous;
                         cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                         cmd.add_all_array({
                             @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
-                        cm.single_command_in_block(bid, cmd);
+                        cm.single_command_in_block(bid4, cmd);
                     }
                 }
                 for (int k = levels-1; k >= i+1; k--)
@@ -939,12 +938,12 @@ Command list:
                             ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                             cmd.add_all_array({
                                 @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
-                            cm.single_command_in_block(bid, cmd);
+                            cm.single_command_in_block(bid4, cmd);
                         }
                     }
                 }
             }
-            cm.end_block(bid);
+            cm.end_block(bid4);
 
             if (old_ns == "")
             {
@@ -985,7 +984,15 @@ Command list:
                     }
                 }
 
-                // TODO update table ntk
+                // update tables. TODO: fix: we want to update only table ntk because of updated "src"
+                int bid5 = cm.begin_block();
+                for (int lvl = subnetlevel; lvl < levels; lvl++)
+                 for (int pos = 0; pos < _gsizes[lvl]; pos++)
+                 if (new_identity_data.my_naddr.pos[lvl] != pos)
+                {
+                    update_best_paths_per_identity(new_identity_data, new HCoord(lvl, pos), bid5);
+                }
+                cm.end_block(bid5);
             }
         }
 

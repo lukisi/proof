@@ -404,7 +404,6 @@ namespace ProofOfConcept
         qspn_mgr.presence_notified.connect(first_identity_data.presence_notified);
         qspn_mgr.qspn_bootstrap_complete.connect(first_identity_data.qspn_bootstrap_complete);
         qspn_mgr.remove_identity.connect(first_identity_data.remove_identity);
-        // TODO qspn_mgr.etp_executed.connect(first_identity_data.etp_executed);
 
         // end startup
 
@@ -839,11 +838,6 @@ namespace ProofOfConcept
         public void remove_identity()
         {
             per_identity_qspn_remove_identity(this);
-        }
-
-        public void etp_executed()
-        {
-            per_identity_qspn_etp_executed(this);
         }
     }
 
