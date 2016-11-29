@@ -1004,9 +1004,8 @@ Command list:
             ia.peer_linklocal = ia.id_arc.get_peer_linklocal();
         }
 
-        // TODO Remove old identity
-
-        error("not implemented yet");
+        // Remove old identity
+        identity_mgr.remove_identity(old_identity_data.nodeid);
     }
 
     void add_qspn_arc(int local_identity_index, string peer_mac)
