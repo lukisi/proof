@@ -75,6 +75,7 @@ namespace ProofOfConcept
     {
         int bid = cm.begin_block();
         update_best_paths_per_identity(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        update_rules(id, bid);
         cm.end_block(bid);
     }
 
@@ -82,6 +83,7 @@ namespace ProofOfConcept
     {
         int bid = cm.begin_block();
         update_best_paths_per_identity(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        update_rules(id, bid);
         cm.end_block(bid);
     }
 
@@ -89,6 +91,7 @@ namespace ProofOfConcept
     {
         int bid = cm.begin_block();
         update_best_paths_per_identity(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        update_rules(id, bid);
         cm.end_block(bid);
     }
 
@@ -114,6 +117,7 @@ namespace ProofOfConcept
         {
             update_best_paths_per_identity(id, new HCoord(lvl, pos), bid);
         }
+        update_rules(id, bid);
         cm.end_block(bid);
     }
 

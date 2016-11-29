@@ -37,6 +37,36 @@ namespace ProofOfConcept
         public string dev;
     }
 
+    void update_rules(IdentityData id, int bid)
+    {
+        // Every time the Qspn module updates its map, it means an ETP is being processed. Then this function gets called.
+
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
+        foreach (IdentityArc ia in id.my_identityarcs) if (ia.qspn_arc != null)
+        {
+            //  Module Qspn has received already at least one ETP from this arc?
+            if (qspn_mgr.get_naddr_for_arc(ia.qspn_arc) != null)
+            {
+                if (! ia.rule_added)
+                {
+                    int tid;
+                    string tablename;
+                    tn.get_table(ia.id_arc.get_peer_mac(), out tid, out tablename);
+                    string ns = id.network_namespace;
+                    ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
+                    if (ns != "") prefix_cmd_ns.add_all_array({
+                        @"ip", @"netns", @"exec", @"$ns"});
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"rule", @"add", @"fwmark", @"$tid", @"table", @"$tablename"});
+                    cm.single_command_in_block(bid, cmd);
+
+                    ia.rule_added = true;
+                }
+            }
+        }
+    }
+
     void update_best_paths_per_identity(IdentityData id, HCoord h, int bid)
     {
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
