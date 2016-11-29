@@ -303,11 +303,10 @@ namespace ProofOfConcept
 
         foreach (string s in print_local_identity(0)) print(s + "\n");
 
-        first_identity_data.local_ip_set.global = ip_global_node(my_naddr.pos);
+        compute_local_ip_set(first_identity_data.local_ip_set, my_naddr);
         foreach (string dev in real_nics)
             cm.single_command(new ArrayList<string>.wrap({
                 @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.global)", @"dev", @"$dev"}));
-        first_identity_data.local_ip_set.anonymous = ip_anonymizing_node(my_naddr.pos);
         if (accept_anonymous_requests)
         {
             foreach (string dev in real_nics)
@@ -316,7 +315,6 @@ namespace ProofOfConcept
         }
         for (int i = levels-1; i >= 1; i--)
         {
-            first_identity_data.local_ip_set.intern[i] = ip_internal_node(my_naddr.pos, i);
             foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
                     @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.intern[i])", @"dev", @"$dev"}));
@@ -610,6 +608,48 @@ namespace ProofOfConcept
         public HashMap<int,string> intern;
     }
 
+    LocalIPSet init_local_ip_set()
+    {
+        LocalIPSet local_ip_set = new LocalIPSet();
+        local_ip_set.global = "";
+        local_ip_set.anonymous = "";
+        local_ip_set.intern = new HashMap<int,string>();
+        for (int j = 1; j < levels; j++) local_ip_set.intern[j] = "";
+        return local_ip_set;
+    }
+
+    LocalIPSet copy_local_ip_set(LocalIPSet orig)
+    {
+        LocalIPSet ret = new LocalIPSet();
+        ret.global = orig.global;
+        ret.anonymous = orig.anonymous;
+        ret.intern = new HashMap<int,string>();
+        for (int k = 1; k < levels; k++)
+            ret.intern[k] = orig.intern[k];
+        return ret;
+    }
+
+    void compute_local_ip_set(LocalIPSet local_ip_set, Naddr my_naddr)
+    {
+        if (my_naddr.is_real_from_to(0, levels-1))
+        {
+            local_ip_set.global = ip_global_node(my_naddr.pos);
+            local_ip_set.anonymous = ip_anonymizing_node(my_naddr.pos);
+        }
+        else
+        {
+            local_ip_set.global = "";
+            local_ip_set.anonymous = "";
+        }
+        for (int i = levels-1; i >= 1; i--)
+        {
+            if (my_naddr.is_real_from_to(0, i-1))
+                local_ip_set.intern[i] = ip_internal_node(my_naddr.pos, i);
+            else
+                local_ip_set.intern[i] = "";
+        }
+    }
+
     class DestinationIPSet : Object
     {
         public string global;
@@ -699,11 +739,7 @@ namespace ProofOfConcept
             connectivity_to_level = 0;
             copy_of_identity = null;
 
-            local_ip_set = new LocalIPSet();
-            local_ip_set.global = "";
-            local_ip_set.anonymous = "";
-            local_ip_set.intern = new HashMap<int,string>();
-            for (int j = 1; j < levels; j++) local_ip_set.intern[j] = "";
+            local_ip_set = init_local_ip_set();
 
             destination_ip_set = init_destination_ip_set();
         }

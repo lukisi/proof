@@ -673,6 +673,9 @@ Command list:
         _naddr_new.insert(0, op.in_host_pos1);
         _naddr_new.insert_all(0, old_identity_data.my_naddr.pos.slice(0, op.host_gnode_level-1));
         Naddr my_naddr_new = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
+        // Compute local IPs. The valid intern IP are already set in old network namespace.
+        compute_local_ip_set(new_identity_data.local_ip_set, my_naddr_new);
+        // Compute destination IPs. Then, we add the routes in old network namespace.
         compute_destination_ip_set(new_identity_data.destination_ip_set, my_naddr_new);
 
         // Add new destination IPs into all tables in old network namespace
@@ -879,7 +882,18 @@ Command list:
             qspn_mgr.make_real(my_naddr_new_2);
             // TODO Method `make_real` must change also elderships of fingerprint
 
-            // tablenames = set of tables in old network namespace
+            bid = cm.begin_block();
+            // tablenames = set of tables of new identity in old network namespace
+            tablenames = new ArrayList<string>();
+            if (old_ns == "") tablenames.add("ntk");
+            // Add a table for each qspn-arc of new identity
+            foreach (IdentityArc ia in new_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+            {
+                int tid;
+                string tablename;
+                tn.get_table(ia.peer_mac, out tid, out tablename);
+                tablenames.add(tablename);
+            }
             HashMap<int,HashMap<int,DestinationIPSet>> prev_new_identity_destination_ip_set;
             prev_new_identity_destination_ip_set = copy_destination_ip_set(new_identity_data.destination_ip_set);
             compute_destination_ip_set(new_identity_data.destination_ip_set, my_naddr_new_2);
@@ -895,28 +909,82 @@ Command list:
                 else if (new_identity_data.destination_ip_set[i][j].global == "" &&
                     prev_new_identity_destination_ip_set[i][j].global != "")
                 {
-                    // TODO delete route (foreach tablename in tablenames)
-                    // TODO same for new_identity_data.destination_ip_set[i][j].anonymous
+                    foreach (string tablename in tablenames)
+                    {
+                        string ipaddr = prev_new_identity_destination_ip_set[i][j].global;
+                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                        cm.single_command_in_block(bid, cmd);
+                        ipaddr = prev_new_identity_destination_ip_set[i][j].anonymous;
+                        cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                        cm.single_command_in_block(bid, cmd);
+                    }
                 }
                 for (int k = levels-1; k >= i+1; k--)
                 {
                     if (new_identity_data.destination_ip_set[i][j].intern[k] != "" &&
-                        new_identity_data.destination_ip_set[i][j].intern[k] == "")
+                        prev_new_identity_destination_ip_set[i][j].intern[k] == "")
                     {
                         // TODO add route and change it (foreach tablename in tablenames)
                     }
                     else if (new_identity_data.destination_ip_set[i][j].intern[k] == "" &&
-                        new_identity_data.destination_ip_set[i][j].intern[k] != "")
+                        prev_new_identity_destination_ip_set[i][j].intern[k] != "")
                     {
-                        // TODO delete route (foreach tablename in tablenames)
+                        foreach (string tablename in tablenames)
+                        {
+                            string ipaddr = prev_new_identity_destination_ip_set[i][j].intern[k];
+                            ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                            cmd.add_all_array({
+                                @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                            cm.single_command_in_block(bid, cmd);
+                        }
                     }
                 }
             }
+            cm.end_block(bid);
 
             if (old_ns == "")
             {
-                // TODO aggiungi indirizzi IP locali (interni, globale, anon)
-                // TODO aggiungi regola SNAT
+                // Add, when needed, local IPs and SNAT rule.
+
+                LocalIPSet prev_new_identity_local_ip_set;
+                prev_new_identity_local_ip_set = copy_local_ip_set(new_identity_data.local_ip_set);
+                compute_local_ip_set(new_identity_data.local_ip_set, my_naddr_new_2);
+
+                for (int i = 1; i < levels; i++)
+                {
+                    if (new_identity_data.local_ip_set.intern[i] != "" &&
+                        prev_new_identity_local_ip_set.intern[i] == "")
+                    {
+                        foreach (string dev in real_nics)
+                            cm.single_command(new ArrayList<string>.wrap({
+                                @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.intern[i])", @"dev", @"$dev"}));
+                    }
+                }
+                if (new_identity_data.local_ip_set.global != "" &&
+                    prev_new_identity_local_ip_set.global == "")
+                {
+                    foreach (string dev in real_nics)
+                        cm.single_command(new ArrayList<string>.wrap({
+                            @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.global)", @"dev", @"$dev"}));
+                    if (! no_anonymize)
+                    {
+                        string anonymousrange = ip_anonymizing_gnode(my_naddr_new_2.pos, levels);
+                        cm.single_command(new ArrayList<string>.wrap({
+                            @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$anonymousrange",
+                            @"-j", @"SNAT", @"--to", @"$(new_identity_data.local_ip_set.global)"}));
+                    }
+                    if (accept_anonymous_requests)
+                    {
+                        foreach (string dev in real_nics)
+                            cm.single_command(new ArrayList<string>.wrap({
+                                @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.anonymous)", @"dev", @"$dev"}));
+                    }
+                }
+
                 // TODO update table ntk
             }
         }
