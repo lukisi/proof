@@ -295,6 +295,20 @@ namespace ProofOfConcept
             my_naddr,
             my_fp,
             new QspnStubFactory(first_identity_data));
+        // soon after creation, connect to signals.
+        qspn_mgr.arc_removed.connect(first_identity_data.arc_removed);
+        qspn_mgr.changed_fp.connect(first_identity_data.changed_fp);
+        qspn_mgr.changed_nodes_inside.connect(first_identity_data.changed_nodes_inside);
+        qspn_mgr.destination_added.connect(first_identity_data.destination_added);
+        qspn_mgr.destination_removed.connect(first_identity_data.destination_removed);
+        qspn_mgr.gnode_splitted.connect(first_identity_data.gnode_splitted);
+        qspn_mgr.path_added.connect(first_identity_data.path_added);
+        qspn_mgr.path_changed.connect(first_identity_data.path_changed);
+        qspn_mgr.path_removed.connect(first_identity_data.path_removed);
+        qspn_mgr.presence_notified.connect(first_identity_data.presence_notified);
+        qspn_mgr.qspn_bootstrap_complete.connect(first_identity_data.qspn_bootstrap_complete);
+        qspn_mgr.remove_identity.connect(first_identity_data.remove_identity);
+
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
         first_identity_data.my_naddr = my_naddr;
         first_identity_data.my_fp = my_fp;
@@ -391,19 +405,6 @@ namespace ProofOfConcept
                 }
             }
         }
-
-        qspn_mgr.arc_removed.connect(first_identity_data.arc_removed);
-        qspn_mgr.changed_fp.connect(first_identity_data.changed_fp);
-        qspn_mgr.changed_nodes_inside.connect(first_identity_data.changed_nodes_inside);
-        qspn_mgr.destination_added.connect(first_identity_data.destination_added);
-        qspn_mgr.destination_removed.connect(first_identity_data.destination_removed);
-        qspn_mgr.gnode_splitted.connect(first_identity_data.gnode_splitted);
-        qspn_mgr.path_added.connect(first_identity_data.path_added);
-        qspn_mgr.path_changed.connect(first_identity_data.path_changed);
-        qspn_mgr.path_removed.connect(first_identity_data.path_removed);
-        qspn_mgr.presence_notified.connect(first_identity_data.presence_notified);
-        qspn_mgr.qspn_bootstrap_complete.connect(first_identity_data.qspn_bootstrap_complete);
-        qspn_mgr.remove_identity.connect(first_identity_data.remove_identity);
 
         // end startup
 

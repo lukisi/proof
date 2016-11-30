@@ -528,6 +528,7 @@ Command list:
 
         IdentityData old_identity_data = local_identities[old_local_identity_index];
         NodeID old_id = old_identity_data.nodeid;
+        QspnManager old_id_qspn_mgr = (QspnManager)(identity_mgr.get_identity_module(old_id, "qspn"));
         NodeID new_id = identity_mgr.add_identity(op_id, old_id);
         // This produced some signal `identity_arc_added`: hence some IdentityArc instances have been created
         //  and stored in `new_identity_data.my_identityarcs`.
@@ -728,6 +729,8 @@ Command list:
         cm.end_block(bid2);
 
         // New qspn manager
+
+        // Prepare internal arcs
         ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
         ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = new ArrayList<IQspnNaddr>();
         foreach (IdentityArc w0 in old_identity_data.my_identityarcs)
@@ -742,13 +745,24 @@ Command list:
                 Arc _arc = __arc.arc;
                 string peer_mac = w1.id_arc.get_peer_mac();
                 w1.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
+
+                assert(w0.qspn_arc != null);
+                IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
+                assert(_w0_peer_naddr != null);
+                Naddr w0_peer_naddr = (Naddr)_w0_peer_naddr;
+                // w1_peer_naddr = my_naddr_new.pos.slice(op.host_gnode_level-1, levels)
+                //             + w0_peer_naddr.pos.slice(0, op.host_gnode_level-1)
+                ArrayList<int> _w1_peer_naddr = new ArrayList<int>();
+                _w1_peer_naddr.add_all(w0_peer_naddr.pos.slice(0, op.host_gnode_level-1));
+                _w1_peer_naddr.add_all(my_naddr_new.pos.slice(op.host_gnode_level-1, levels));
+                Naddr w1_peer_naddr = new Naddr(_w1_peer_naddr.to_array(), _gsizes.to_array());
+
+                // Now add: the 2 ArrayList should have same size at the end.
                 internal_arc_set.add(w1.qspn_arc);
-                Naddr w1_peer_naddr = null;
-                // TODO get peer_naddr of w0 and transform into the one of w1.
-                //      Vedi "Gli archi di n interni a w..." in ita/ModuloQspn/EsplorazioneRete.md#Ingresso_gnodo_in_rete
                 internal_arc_peer_naddr_set.add(w1_peer_naddr);
             }
         }
+        // Prepare external arcs
         ArrayList<IQspnArc> external_arc_set = new ArrayList<IQspnArc>();
         foreach (int w0_index in op.id_arc_index_list)
         {
@@ -762,6 +776,7 @@ Command list:
             w1.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
             external_arc_set.add(w1.qspn_arc);
         }
+        // Prepare mapping old-arcs to new-arcs (duplicates)
         QspnManager.PreviousArcToNewArcDelegate old_arc_to_new_arc = (/*IQspnArc*/ old_arc) => {
             // return IQspnArc or null.
             foreach (IdentityArc old_identity_arc in old_to_new_id_arc.keys)
@@ -771,7 +786,7 @@ Command list:
             }
             return null;
         };
-
+        // Prepare fingerprint
         // new elderships = op.host_gnode_elderships + op.in_host_pos1_eldership
         //                + 0 * (op.host_gnode_level - 1 - op.guest_gnode_level)
         //                + old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level)
@@ -781,6 +796,7 @@ Command list:
         for (int jj = 0; jj < op.host_gnode_level - 1 - op.guest_gnode_level; jj++) _elderships.insert(0, 0);
         _elderships.insert_all(0, old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level));
         Fingerprint my_fp_new = new Fingerprint(_elderships.to_array(), old_identity_data.my_fp.id);
+        // Create new qspn manager
         QspnManager qspn_mgr = new QspnManager.enter_net(
             my_naddr_new,
             internal_arc_set,
@@ -791,13 +807,8 @@ Command list:
             new QspnStubFactory(new_identity_data),
             /*hooking_gnode_level*/ op.guest_gnode_level,
             /*into_gnode_level*/ op.host_gnode_level,
-            /*previous_identity*/ (QspnManager)(identity_mgr.get_identity_module(old_id, "qspn")));
-        identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
-        new_identity_data.my_naddr = my_naddr_new;
-        new_identity_data.my_fp = my_fp_new;
-        new_identity_data.ready = false;
-        new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
-
+            /*previous_identity*/ old_id_qspn_mgr);
+        // soon after creation, connect to signals.
         qspn_mgr.arc_removed.connect(new_identity_data.arc_removed);
         qspn_mgr.changed_fp.connect(new_identity_data.changed_fp);
         qspn_mgr.changed_nodes_inside.connect(new_identity_data.changed_nodes_inside);
@@ -810,6 +821,12 @@ Command list:
         qspn_mgr.presence_notified.connect(new_identity_data.presence_notified);
         qspn_mgr.qspn_bootstrap_complete.connect(new_identity_data.qspn_bootstrap_complete);
         qspn_mgr.remove_identity.connect(new_identity_data.remove_identity);
+
+        identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
+        new_identity_data.my_naddr = my_naddr_new;
+        new_identity_data.my_fp = my_fp_new;
+        new_identity_data.ready = false;
+        new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
         // Add new destination IPs into new forwarding-tables in old network namespace
         int bid3 = cm.begin_block();
