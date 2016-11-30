@@ -621,7 +621,7 @@ Command list:
                     @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
                 cm.single_command_in_block(bid, cmd);
             }
-            for (int k = levels-1; k >= i+1; k--)
+            for (int k = levels-1; k >= i+1 && k > op.guest_gnode_level; k--)
             {
                 if (old_destination_ip_set[i][j].intern[k] != "")
                 {
@@ -667,6 +667,7 @@ Command list:
 
         // Add routes of new identity into old network namespace
 
+        // Prepare Netsukuku address
         // new address = op.host_gnode_address + op.in_host_pos1
         //             + old_identity_data.my_naddr.pos.slice(0, op.host_gnode_level-1)
         ArrayList<int> _naddr_new = new ArrayList<int>();
@@ -674,6 +675,19 @@ Command list:
         _naddr_new.insert(0, op.in_host_pos1);
         _naddr_new.insert_all(0, old_identity_data.my_naddr.pos.slice(0, op.host_gnode_level-1));
         Naddr my_naddr_new = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
+        new_identity_data.my_naddr = my_naddr_new;
+        // Prepare fingerprint
+        // new elderships = op.host_gnode_elderships + op.in_host_pos1_eldership
+        //                + 0 * (op.host_gnode_level - 1 - op.guest_gnode_level)
+        //                + old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level)
+        ArrayList<int> _elderships = new ArrayList<int>();
+        foreach (string s_piece in op.host_gnode_elderships.split(".")) _elderships.insert(0, int.parse(s_piece));
+        _elderships.insert(0, op.in_host_pos1_eldership);
+        for (int jj = 0; jj < op.host_gnode_level - 1 - op.guest_gnode_level; jj++) _elderships.insert(0, 0);
+        _elderships.insert_all(0, old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level));
+        Fingerprint my_fp_new = new Fingerprint(_elderships.to_array(), old_identity_data.my_fp.id);
+        new_identity_data.my_fp = my_fp_new;
+
         // Compute local IPs. The valid intern IP are already set in old network namespace.
         compute_local_ip_set(new_identity_data.local_ip_set, my_naddr_new);
         // Compute destination IPs. Then, we add the routes in old network namespace.
@@ -714,7 +728,7 @@ Command list:
                     @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
                 cm.single_command_in_block(bid2, cmd);
             }
-            for (int k = levels-1; k >= i+1; k--)
+            for (int k = levels-1; k >= i+1 && k > op.guest_gnode_level; k--)
             {
                 if (new_identity_data.destination_ip_set[i][j].intern[k] != "")
                 {
@@ -786,16 +800,6 @@ Command list:
             }
             return null;
         };
-        // Prepare fingerprint
-        // new elderships = op.host_gnode_elderships + op.in_host_pos1_eldership
-        //                + 0 * (op.host_gnode_level - 1 - op.guest_gnode_level)
-        //                + old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level)
-        ArrayList<int> _elderships = new ArrayList<int>();
-        foreach (string s_piece in op.host_gnode_elderships.split(".")) _elderships.insert(0, int.parse(s_piece));
-        _elderships.insert(0, op.in_host_pos1_eldership);
-        for (int jj = 0; jj < op.host_gnode_level - 1 - op.guest_gnode_level; jj++) _elderships.insert(0, 0);
-        _elderships.insert_all(0, old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level));
-        Fingerprint my_fp_new = new Fingerprint(_elderships.to_array(), old_identity_data.my_fp.id);
         // Create new qspn manager
         QspnManager qspn_mgr = new QspnManager.enter_net(
             my_naddr_new,
@@ -823,9 +827,6 @@ Command list:
         qspn_mgr.remove_identity.connect(new_identity_data.remove_identity);
 
         identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
-        new_identity_data.my_naddr = my_naddr_new;
-        new_identity_data.my_fp = my_fp_new;
-        new_identity_data.ready = false;
         new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
         // Add new destination IPs into new forwarding-tables in old network namespace
