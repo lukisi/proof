@@ -598,7 +598,7 @@ Command list:
         {
             int tid;
             string tablename;
-            tn.get_table(ia.peer_mac, out tid, out tablename);
+            tn.get_table(bid, ia.peer_mac, out tid, out tablename);
             // Note: Member peer_mac is not changed yet. It is the old one.
             // Whilst ia.id_arc.get_peer_mac() might differ. If it was a g-node migration that includes this neighbor.
             tablenames.add(tablename);
@@ -692,7 +692,7 @@ Command list:
             {
                 int tid;
                 string tablename;
-                tn.get_table(ia.peer_mac, out tid, out tablename);
+                tn.get_table(bid2, ia.peer_mac, out tid, out tablename);
                 tablenames.add(tablename);
             }
         }
@@ -820,7 +820,7 @@ Command list:
             string mac = ia.peer_mac; // the value is up to date in the IdentityArc of new identity.
             int tid;
             string tablename;
-            tn.get_table(ia.peer_mac, out tid, out tablename);
+            tn.get_table(bid3, ia.peer_mac, out tid, out tablename);
 
             ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
             cmd.add_all_array({
@@ -890,7 +890,7 @@ Command list:
             {
                 int tid;
                 string tablename;
-                tn.get_table(ia.peer_mac, out tid, out tablename);
+                tn.get_table(bid4, ia.peer_mac, out tid, out tablename);
                 tablenames.add(tablename);
             }
             HashMap<int,HashMap<int,DestinationIPSet>> prev_new_identity_destination_ip_set;
@@ -1024,7 +1024,7 @@ Command list:
             qspn_mgr.arc_add(ia.qspn_arc);
             int tid;
             string tablename;
-            tn.get_table(peer_mac, out tid, out tablename);
+            tn.get_table(null, peer_mac, out tid, out tablename);
 
             // Add new forwarding-table
             int bid = cm.begin_block();

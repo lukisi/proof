@@ -52,9 +52,8 @@ namespace ProofOfConcept
             mac_tid = new HashMap<string, int>();
         }
 
-        public void get_table(string peer_mac, out int tid, out string tablename)
+        public void get_table(int? bid, string peer_mac, out int tid, out string tablename)
         {
-            int bid = my_cm.begin_block();
             tablename = @"ntk_from_$(peer_mac)";
             if (mac_tid.has_key(peer_mac))
             {
@@ -64,38 +63,39 @@ namespace ProofOfConcept
             assert(! free_tid.is_empty);
             tid = free_tid.remove_at(0);
             mac_tid[peer_mac] = tid;
-            my_cm.single_command_in_block(bid, new ArrayList<string>.wrap({
-                "sed", "-i", @"s/$(tid) reserved_ntk_from_$(tid)/$(tid) $(tablename)/", RT_TABLES}));
-            my_cm.end_block(bid);
+            ArrayList<string> cmd = new ArrayList<string>.wrap({
+                "sed", "-i", @"s/$(tid) reserved_ntk_from_$(tid)/$(tid) $(tablename)/", RT_TABLES});
+            if (bid != null) my_cm.single_command_in_block(bid, cmd);
+            else my_cm.single_command(cmd);
         }
 
-        public void release_table(string peer_mac)
+        public void release_table(int? bid, string peer_mac)
         {
-            int bid = my_cm.begin_block();
             string tablename = @"ntk_from_$(peer_mac)";
             assert(mac_tid.has_key(peer_mac));
             int tid = mac_tid[peer_mac];
             assert(! (tid in free_tid));
             free_tid.insert(0, tid);
             mac_tid.unset(peer_mac);
-            my_cm.single_command_in_block(bid, new ArrayList<string>.wrap({
-                "sed", "-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES}));
-            my_cm.end_block(bid);
+            ArrayList<string> cmd = new ArrayList<string>.wrap({
+                "sed", "-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES});
+            if (bid != null) my_cm.single_command_in_block(bid, cmd);
+            else my_cm.single_command(cmd);
         }
 
-        public void release_all_tables() // TODO is this function useful?
+        public void release_all_tables(int? bid) // TODO is this function useful?
         {
-            int bid = my_cm.begin_block();
             foreach (string peer_mac in mac_tid.keys)
             {
                 int tid = mac_tid[peer_mac];
                 string tablename = @"ntk_from_$(peer_mac)";
-                my_cm.single_command_in_block(bid, new ArrayList<string>.wrap({
-                    "sed", "-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES}));
+                ArrayList<string> cmd = new ArrayList<string>.wrap({
+                    "sed", "-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES});
+                if (bid != null) my_cm.single_command_in_block(bid, cmd);
+                else my_cm.single_command(cmd);
             }
             free_tid.clear();
             mac_tid.clear();
-            my_cm.end_block(bid);
         }
     }
 }

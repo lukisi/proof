@@ -51,7 +51,7 @@ namespace ProofOfConcept
                 {
                     int tid;
                     string tablename;
-                    tn.get_table(ia.id_arc.get_peer_mac(), out tid, out tablename);
+                    tn.get_table(bid, ia.id_arc.get_peer_mac(), out tid, out tablename);
                     string ns = id.network_namespace;
                     ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
                     if (ns != "") prefix_cmd_ns.add_all_array({
@@ -156,7 +156,7 @@ namespace ProofOfConcept
             {
                 int tid;
                 string tablename;
-                tn.get_table(neighbor.mac, out tid, out tablename);
+                tn.get_table(bid, neighbor.mac, out tid, out tablename);
                 if (best_routes.has_key(neighbor.mac))
                 {
                     // set route global
@@ -222,7 +222,7 @@ namespace ProofOfConcept
                 {
                     int tid;
                     string tablename;
-                    tn.get_table(neighbor.mac, out tid, out tablename);
+                    tn.get_table(bid, neighbor.mac, out tid, out tablename);
                     if (best_routes.has_key(neighbor.mac))
                     {
                         // set route intern
