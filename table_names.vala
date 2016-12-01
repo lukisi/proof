@@ -64,7 +64,7 @@ namespace ProofOfConcept
             tid = free_tid.remove_at(0);
             mac_tid[peer_mac] = tid;
             ArrayList<string> cmd = new ArrayList<string>.wrap({
-                "sed", "-i", @"s/$(tid) reserved_ntk_from_$(tid)/$(tid) $(tablename)/", RT_TABLES});
+                @"sed", @"-i", @"s/$(tid) reserved_ntk_from_$(tid)/$(tid) $(tablename)/", RT_TABLES});
             if (bid != null) my_cm.single_command_in_block(bid, cmd);
             else my_cm.single_command(cmd);
         }
@@ -78,7 +78,7 @@ namespace ProofOfConcept
             free_tid.insert(0, tid);
             mac_tid.unset(peer_mac);
             ArrayList<string> cmd = new ArrayList<string>.wrap({
-                "sed", "-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES});
+                @"sed", @"-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES});
             if (bid != null) my_cm.single_command_in_block(bid, cmd);
             else my_cm.single_command(cmd);
         }
@@ -90,7 +90,7 @@ namespace ProofOfConcept
                 int tid = mac_tid[peer_mac];
                 string tablename = @"ntk_from_$(peer_mac)";
                 ArrayList<string> cmd = new ArrayList<string>.wrap({
-                    "sed", "-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES});
+                    @"sed", @"-i", @"s/$(tid) $(tablename)/$(tid) reserved_ntk_from_$(tid)/", RT_TABLES});
                 if (bid != null) my_cm.single_command_in_block(bid, cmd);
                 else my_cm.single_command(cmd);
             }

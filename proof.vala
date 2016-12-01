@@ -217,12 +217,12 @@ namespace ProofOfConcept
 
         string ntklocalhost = ip_internal_node(_naddr, 0);
         int bid = cm.begin_block();
-        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
-            {"sysctl", "net.ipv4.ip_forward=1"}));
-        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
-            {"sysctl", "net.ipv4.conf.all.rp_filter=0"}));
-        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
-            {"ip", "address", "add", ntklocalhost, "dev", "lo"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+            @"sysctl", @"net.ipv4.ip_forward=1"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+            @"sysctl", @"net.ipv4.conf.all.rp_filter=0"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+            @"ip", @"address", @"add", @"$(ntklocalhost)", @"dev", @"lo"}));
         cm.end_block(bid);
 
         real_nics = new ArrayList<string>();
@@ -297,18 +297,18 @@ namespace ProofOfConcept
         compute_local_ip_set(first_identity_data.local_ip_set, my_naddr);
         foreach (string dev in real_nics)
             cm.single_command(new ArrayList<string>.wrap({
-                @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.global)", @"dev", @"$dev"}));
+                @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.global)", @"dev", @"$(dev)"}));
         if (accept_anonymous_requests)
         {
             foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.anonymous)", @"dev", @"$dev"}));
+                    @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.anonymous)", @"dev", @"$(dev)"}));
         }
         for (int i = levels-1; i >= 1; i--)
         {
             foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.intern[i])", @"dev", @"$dev"}));
+                    @"ip", @"address", @"add", @"$(first_identity_data.local_ip_set.intern[i])", @"dev", @"$(dev)"}));
         }
 
         bid = cm.begin_block();
@@ -320,10 +320,10 @@ namespace ProofOfConcept
             {
                 string ipaddr = first_identity_data.destination_ip_set[i][j].global;
                 cm.single_command_in_block(bid, new ArrayList<string>.wrap({
-                    @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"ntk"}));
+                    @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"ntk"}));
                 ipaddr = first_identity_data.destination_ip_set[i][j].anonymous;
                 cm.single_command_in_block(bid, new ArrayList<string>.wrap({
-                    @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"ntk"}));
+                    @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"ntk"}));
             }
             for (int k = levels-1; k >= i+1; k--)
             {
@@ -331,7 +331,7 @@ namespace ProofOfConcept
                 {
                     string ipaddr = first_identity_data.destination_ip_set[i][j].intern[k];
                     cm.single_command_in_block(bid, new ArrayList<string>.wrap({
-                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"ntk"}));
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"ntk"}));
                 }
             }
         }
@@ -341,7 +341,7 @@ namespace ProofOfConcept
         {
             string anonymousrange = ip_anonymizing_gnode(_naddr, levels);
             cm.single_command(new ArrayList<string>.wrap({
-                @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$anonymousrange",
+                @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$(anonymousrange)",
                 @"-j", @"SNAT", @"--to", @"$(first_identity_data.local_ip_set.global)"}));
         }
 
@@ -355,11 +355,11 @@ namespace ProofOfConcept
                     string range2 = ip_internal_gnode(_naddr, subnetlevel, i+1);
                     string range3 = ip_internal_gnode(_naddr, i+1, i+1);
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-A", @"PREROUTING", @"-d", @"$range2",
-                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                        @"iptables", @"-t", @"nat", @"-A", @"PREROUTING", @"-d", @"$(range2)",
+                        @"-j", @"NETMAP", @"--to", @"$(range1)"}));
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
-                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                        @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$(range3)", @"-s", @"$(range1)",
+                        @"-j", @"NETMAP", @"--to", @"$(range2)"}));
                 }
                 else
                 {
@@ -368,17 +368,17 @@ namespace ProofOfConcept
                     string range4 = ip_anonymizing_gnode(_naddr, subnetlevel);
                     string range5 = ip_anonymizing_gnode(_naddr, levels);
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-A", @"PREROUTING", @"-d", @"$range2",
-                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                        @"iptables", @"-t", @"nat", @"-A", @"PREROUTING", @"-d", @"$(range2)",
+                        @"-j", @"NETMAP", @"--to", @"$(range1)"}));
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
-                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                        @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$(range3)", @"-s", @"$(range1)",
+                        @"-j", @"NETMAP", @"--to", @"$(range2)"}));
                     if (accept_anonymous_requests) cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-A", @"PREROUTING", @"-d", @"$range4",
-                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                        @"iptables", @"-t", @"nat", @"-A", @"PREROUTING", @"-d", @"$(range4)",
+                        @"-j", @"NETMAP", @"--to", @"$(range1)"}));
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$range5", @"-s", @"$range1",
-                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                        @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$(range5)", @"-s", @"$(range1)",
+                        @"-j", @"NETMAP", @"--to", @"$(range2)"}));
                 }
             }
         }
@@ -461,7 +461,7 @@ namespace ProofOfConcept
         {
             string anonymousrange = ip_anonymizing_gnode(identity_data.my_naddr.pos, levels);
             cm.single_command(new ArrayList<string>.wrap({
-                @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$anonymousrange",
+                @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$(anonymousrange)",
                 @"-j", @"SNAT", @"--to", @"$(identity_data.local_ip_set.global)"}));
         }
 
@@ -469,20 +469,20 @@ namespace ProofOfConcept
         if (identity_data.local_ip_set.global != "")
             foreach (string dev in real_nics)
             cm.single_command(new ArrayList<string>.wrap({
-                @"ip", @"address", @"del", @"$(identity_data.local_ip_set.global)/32", @"dev", @"$dev"}));
+                @"ip", @"address", @"del", @"$(identity_data.local_ip_set.global)/32", @"dev", @"$(dev)"}));
         if (identity_data.local_ip_set.anonymous != "" && accept_anonymous_requests)
             foreach (string dev in real_nics)
             cm.single_command(new ArrayList<string>.wrap({
-                @"ip", @"address", @"del", @"$(identity_data.local_ip_set.anonymous)/32", @"dev", @"$dev"}));
+                @"ip", @"address", @"del", @"$(identity_data.local_ip_set.anonymous)/32", @"dev", @"$(dev)"}));
         for (int i = levels-1; i >= 1; i--)
         {
             if (identity_data.local_ip_set.intern[i] != "")
                 foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"address", @"del", @"$(identity_data.local_ip_set.intern[i])/32", @"dev", @"$dev"}));
+                    @"ip", @"address", @"del", @"$(identity_data.local_ip_set.intern[i])/32", @"dev", @"$(dev)"}));
         }
-        cm.single_command(new ArrayList<string>.wrap(
-            {"ip", "address", "del", @"$(ntklocalhost)/32", "dev", "lo"}));
+        cm.single_command(new ArrayList<string>.wrap({
+            @"ip", @"address", @"del", @"$(ntklocalhost)/32", @"dev", @"lo"}));
 
         // remove NETMAP rules
         if (subnetlevel > 0)
@@ -496,11 +496,11 @@ namespace ProofOfConcept
                     string range2 = ip_internal_gnode(_naddr, subnetlevel, i+1);
                     string range3 = ip_internal_gnode(_naddr, i+1, i+1);
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$range2",
-                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                        @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$(range2)",
+                        @"-j", @"NETMAP", @"--to", @"$(range1)"}));
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
-                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$(range3)", @"-s", @"$(range1)",
+                        @"-j", @"NETMAP", @"--to", @"$(range2)"}));
                 }
                 else
                 {
@@ -509,17 +509,17 @@ namespace ProofOfConcept
                     string range4 = ip_anonymizing_gnode(_naddr, subnetlevel);
                     string range5 = ip_anonymizing_gnode(_naddr, levels);
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$range2",
-                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                        @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$(range2)",
+                        @"-j", @"NETMAP", @"--to", @"$(range1)"}));
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$range3", @"-s", @"$range1",
-                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$(range3)", @"-s", @"$(range1)",
+                        @"-j", @"NETMAP", @"--to", @"$(range2)"}));
                     if (accept_anonymous_requests) cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$range4",
-                        @"-j", @"NETMAP", @"--to", @"$range1"}));
+                        @"iptables", @"-t", @"nat", @"-D", @"PREROUTING", @"-d", @"$(range4)",
+                        @"-j", @"NETMAP", @"--to", @"$(range1)"}));
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$range5", @"-s", @"$range1",
-                        @"-j", @"NETMAP", @"--to", @"$range2"}));
+                        @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$(range5)", @"-s", @"$(range1)",
+                        @"-j", @"NETMAP", @"--to", @"$(range2)"}));
                 }
             }
         }
@@ -552,12 +552,12 @@ namespace ProofOfConcept
         real_nics.add(dev);
 
         int bid = cm.begin_block();
-        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
-            {@"sysctl", @"net.ipv4.conf.$(dev).rp_filter=0"}));
-        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
-            {@"sysctl", @"net.ipv4.conf.$(dev).arp_ignore=1"}));
-        cm.single_command_in_block(bid, new ArrayList<string>.wrap(
-            {@"sysctl", @"net.ipv4.conf.$(dev).arp_announce=2"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+            @"sysctl", @"net.ipv4.conf.$(dev).rp_filter=0"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+            @"sysctl", @"net.ipv4.conf.$(dev).arp_ignore=1"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+            @"sysctl", @"net.ipv4.conf.$(dev).arp_announce=2"}));
         cm.single_command_in_block(bid, new ArrayList<string>.wrap({
             @"ip", @"link", @"set", @"dev", @"$(dev)", @"up"}));
         cm.end_block(bid);
@@ -847,25 +847,25 @@ namespace ProofOfConcept
         public void add_address(string my_addr, string my_dev)
         {
             cm.single_command(new ArrayList<string>.wrap({
-                "ip", "address", "add", my_addr, "dev", my_dev}));
+                @"ip", @"address", @"add", @"$(my_addr)", @"dev", @"$(my_dev)"}));
         }
 
         public void add_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
             cm.single_command(new ArrayList<string>.wrap({
-                "ip", "route", "add", neighbor_addr, "dev", my_dev, "src", my_addr}));
+                @"ip", @"route", @"add", @"$(neighbor_addr)", @"dev", @"$(my_dev)", @"src", @"$(my_addr)"}));
         }
 
         public void remove_neighbor(string my_addr, string my_dev, string neighbor_addr)
         {
             cm.single_command(new ArrayList<string>.wrap({
-                "ip", "route", "del", neighbor_addr, "dev", my_dev, "src", my_addr}));
+                @"ip", @"route", @"del", @"$(neighbor_addr)", @"dev", @"$(my_dev)", @"src", @"$(my_addr)"}));
         }
 
         public void remove_address(string my_addr, string my_dev)
         {
             cm.single_command(new ArrayList<string>.wrap({
-                "ip", "address", "del", @"$(my_addr)/32", "dev", my_dev}));
+                @"ip", @"address", @"del", @"$(my_addr)/32", @"dev", @"$(my_dev)"}));
         }
     }
 
@@ -1060,7 +1060,11 @@ namespace ProofOfConcept
         {
             assert(ns != "");
             cm.single_command(new ArrayList<string>.wrap({
-                @"ip", @"netns", @"add", @"$ns"}));
+                @"ip", @"netns", @"add", @"$(ns)"}));
+            cm.single_command(new ArrayList<string>.wrap({
+                @"sysctl", @"net.ipv4.ip_forward=1"}));
+            cm.single_command(new ArrayList<string>.wrap({
+                @"sysctl", @"net.ipv4.conf.all.rp_filter=0"}));
         }
 
         public void create_pseudodev(string dev, string ns, string pseudo_dev, out string pseudo_mac)
@@ -1135,7 +1139,7 @@ namespace ProofOfConcept
         {
             assert(ns != "");
             cm.single_command(new ArrayList<string>.wrap({
-                @"ip", @"netns", @"del", @"$ns"}));
+                @"ip", @"netns", @"del", @"$(ns)"}));
         }
     }
 

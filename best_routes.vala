@@ -55,10 +55,10 @@ namespace ProofOfConcept
                     string ns = id.network_namespace;
                     ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
                     if (ns != "") prefix_cmd_ns.add_all_array({
-                        @"ip", @"netns", @"exec", @"$ns"});
+                        @"ip", @"netns", @"exec", @"$(ns)"});
                     ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                     cmd.add_all_array({
-                        @"ip", @"rule", @"add", @"fwmark", @"$tid", @"table", @"$tablename"});
+                        @"ip", @"rule", @"add", @"fwmark", @"$(tid)", @"table", @"$(tablename)"});
                     cm.single_command_in_block(bid, cmd);
 
                     ia.rule_added = true;
@@ -110,7 +110,7 @@ namespace ProofOfConcept
         string ns = id.network_namespace;
         ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
         if (ns != "") prefix_cmd_ns.add_all_array({
-            @"ip", @"netns", @"exec", @"$ns"});
+            @"ip", @"netns", @"exec", @"$(ns)"});
         DestinationIPSet h_ip_set = id.destination_ip_set[h.lvl][h.pos];
         if (h_ip_set.global != "")
         {
