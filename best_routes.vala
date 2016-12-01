@@ -190,7 +190,7 @@ namespace ProofOfConcept
                 }
             }
         }
-        for (int k = levels - 1; k < h.lvl; k++)
+        for (int k = levels - 1; k > h.lvl; k--)
         {
             if (h_ip_set.intern[k] != "")
             {

@@ -110,7 +110,7 @@ namespace ProofOfConcept
     void update_best_paths_forall_destinations_per_identity(IdentityData id)
     {
         int bid = cm.begin_block();
-        for (int lvl = subnetlevel; lvl < levels; lvl++)
+        for (int lvl = levels - 1; lvl >= subnetlevel; lvl--)
          for (int pos = 0; pos < _gsizes[lvl]; pos++)
          if (id.my_naddr.pos[lvl] != pos)
         {
