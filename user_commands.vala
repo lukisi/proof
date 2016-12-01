@@ -1086,10 +1086,6 @@ Command list:
                 }
             }
             cm.end_block(bid);
-
-            print(@"Debug: IdentityData #$(identity_data.local_identity_index): call update_all_destinations for add_qspn_arc.\n");
-            update_best_paths_forall_destinations_per_identity(identity_data);
-            print(@"Debug: IdentityData #$(identity_data.local_identity_index): done update_all_destinations for add_qspn_arc.\n");
         }
     }
 
