@@ -558,6 +558,8 @@ namespace ProofOfConcept
             {@"sysctl", @"net.ipv4.conf.$(dev).arp_ignore=1"}));
         cm.single_command_in_block(bid, new ArrayList<string>.wrap(
             {@"sysctl", @"net.ipv4.conf.$(dev).arp_announce=2"}));
+        cm.single_command_in_block(bid, new ArrayList<string>.wrap({
+            @"ip", @"link", @"set", @"dev", @"$(dev)", @"up"}));
         cm.end_block(bid);
 
         // Start listen UDP on dev
