@@ -914,7 +914,8 @@ Command list:
             HashMap<int,HashMap<int,DestinationIPSet>> prev_new_identity_destination_ip_set;
             prev_new_identity_destination_ip_set = copy_destination_ip_set(new_identity_data.destination_ip_set);
             compute_destination_ip_set(new_identity_data.destination_ip_set, my_naddr_new_2);
-            for (int i = levels-1; i >= subnetlevel; i--)
+            foreach (string tablename in tablenames)
+             for (int i = levels-1; i >= subnetlevel; i--)
              for (int j = 0; j < _gsizes[i]; j++)
             {
                 if (new_identity_data.destination_ip_set[i][j].global != "" &&
@@ -926,19 +927,16 @@ Command list:
                 else if (new_identity_data.destination_ip_set[i][j].global == "" &&
                     prev_new_identity_destination_ip_set[i][j].global != "")
                 {
-                    foreach (string tablename in tablenames)
-                    {
-                        string ipaddr = prev_new_identity_destination_ip_set[i][j].global;
-                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
-                        cmd.add_all_array({
-                            @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
-                        cm.single_command_in_block(bid4, cmd);
-                        ipaddr = prev_new_identity_destination_ip_set[i][j].anonymous;
-                        cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
-                        cmd.add_all_array({
-                            @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
-                        cm.single_command_in_block(bid4, cmd);
-                    }
+                    string ipaddr = prev_new_identity_destination_ip_set[i][j].global;
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                    cm.single_command_in_block(bid4, cmd);
+                    ipaddr = prev_new_identity_destination_ip_set[i][j].anonymous;
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                    cm.single_command_in_block(bid4, cmd);
                 }
                 for (int k = levels-1; k >= i+1; k--)
                 {
@@ -950,14 +948,11 @@ Command list:
                     else if (new_identity_data.destination_ip_set[i][j].intern[k] == "" &&
                         prev_new_identity_destination_ip_set[i][j].intern[k] != "")
                     {
-                        foreach (string tablename in tablenames)
-                        {
-                            string ipaddr = prev_new_identity_destination_ip_set[i][j].intern[k];
-                            ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
-                            cmd.add_all_array({
-                                @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
-                            cm.single_command_in_block(bid4, cmd);
-                        }
+                        string ipaddr = prev_new_identity_destination_ip_set[i][j].intern[k];
+                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                        cm.single_command_in_block(bid4, cmd);
                     }
                 }
             }
@@ -1004,7 +999,7 @@ Command list:
 
                 // update tables. TODO: fix: we want to update only table ntk because of updated "src"
                 int bid5 = cm.begin_block();
-                for (int lvl = subnetlevel; lvl < levels; lvl++)
+                for (int lvl = levels - 1; lvl >= subnetlevel; lvl--)
                  for (int pos = 0; pos < _gsizes[lvl]; pos++)
                  if (new_identity_data.my_naddr.pos[lvl] != pos)
                 {
