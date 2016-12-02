@@ -73,6 +73,19 @@ namespace ProofOfConcept
         return ret;
     }
 
+    void remove_local_identity(NodeID node_id)
+    {
+        foreach (int k in local_identities.keys)
+        {
+            NodeID local_nodeid = local_identities[k].nodeid;
+            if (local_nodeid.equals(node_id))
+            {
+                local_identities.unset(k);
+                return;
+            }
+        }
+    }
+
     IdentityArc find_identity_arc(IIdmgmtIdentityArc id_arc)
     {
         foreach (int k in identityarcs.keys)
@@ -426,7 +439,7 @@ namespace ProofOfConcept
 
         // TODO cleanup
 
-        // Remove identities and their network namespaces and linklocal addresses.
+        // Remove connectivity identities and their network namespaces and linklocal addresses.
         ArrayList<int> local_identities_keys = new ArrayList<int>();
         local_identities_keys.add_all(local_identities.keys);
         foreach (int i in local_identities_keys)
@@ -441,11 +454,28 @@ namespace ProofOfConcept
             }
         }
 
+        // For main identity...
         assert(local_identities.size == 1);
         int kk = -1;
         foreach (int k in local_identities.keys) kk = k;
         IdentityData identity_data = local_identities[kk];
         assert(identity_data.main_id);
+        // ... disconnect signal handlers of qspn_mgr.
+        qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
+        qspn_mgr.arc_removed.disconnect(identity_data.arc_removed);
+        qspn_mgr.changed_fp.disconnect(identity_data.changed_fp);
+        qspn_mgr.changed_nodes_inside.disconnect(identity_data.changed_nodes_inside);
+        qspn_mgr.destination_added.disconnect(identity_data.destination_added);
+        qspn_mgr.destination_removed.disconnect(identity_data.destination_removed);
+        qspn_mgr.gnode_splitted.disconnect(identity_data.gnode_splitted);
+        qspn_mgr.path_added.disconnect(identity_data.path_added);
+        qspn_mgr.path_changed.disconnect(identity_data.path_changed);
+        qspn_mgr.path_removed.disconnect(identity_data.path_removed);
+        qspn_mgr.presence_notified.disconnect(identity_data.presence_notified);
+        qspn_mgr.qspn_bootstrap_complete.disconnect(identity_data.qspn_bootstrap_complete);
+        qspn_mgr.remove_identity.disconnect(identity_data.remove_identity);
+        identity_data.qspn_handlers_disabled = true;
+
         // Cleanup addresses and routes that were added previously in order to
         //  obey to the qspn_mgr which is now in default network namespace.
         // TODO foreach table ntk_from_xxx: remove rule, flush, remove from rt_tables
@@ -781,63 +811,77 @@ namespace ProofOfConcept
 
         // handle signals from qspn_manager
 
+        public bool qspn_handlers_disabled = false;
+
         public void arc_removed(IQspnArc arc, bool bad_link)
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_arc_removed(this, arc, bad_link);
         }
 
         public void changed_fp(int l)
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_changed_fp(this, l);
         }
 
         public void changed_nodes_inside(int l)
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_changed_nodes_inside(this, l);
         }
 
         public void destination_added(HCoord h)
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_destination_added(this, h);
         }
 
         public void destination_removed(HCoord h)
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_destination_removed(this, h);
         }
 
         public void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_gnode_splitted(this, a, d, fp);
         }
 
         public void path_added(IQspnNodePath p)
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_path_added(this, p);
         }
 
         public void path_changed(IQspnNodePath p)
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_path_changed(this, p);
         }
 
         public void path_removed(IQspnNodePath p)
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_path_removed(this, p);
         }
 
         public void presence_notified()
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_presence_notified(this);
         }
 
         public void qspn_bootstrap_complete()
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_qspn_bootstrap_complete(this);
         }
 
         public void remove_identity()
         {
+            if (qspn_handlers_disabled) return;
             per_identity_qspn_remove_identity(this);
         }
     }

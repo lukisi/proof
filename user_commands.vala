@@ -1014,6 +1014,7 @@ Command list:
 
         // Remove old identity
         identity_mgr.remove_identity(old_identity_data.nodeid);
+        remove_local_identity(old_identity_data.nodeid);
     }
 
     void add_qspn_arc(int local_identity_index, string peer_mac)

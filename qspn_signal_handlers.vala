@@ -102,9 +102,7 @@ namespace ProofOfConcept
 
     void per_identity_qspn_qspn_bootstrap_complete(IdentityData id)
     {
-        print(@"Debug: IdentityData #$(id.local_identity_index): call update_all_destinations for qspn_bootstrap_complete.\n");
         update_best_paths_forall_destinations_per_identity(id);
-        print(@"Debug: IdentityData #$(id.local_identity_index): done update_all_destinations for qspn_bootstrap_complete.\n");
     }
 
     void update_best_paths_forall_destinations_per_identity(IdentityData id)
