@@ -997,14 +997,9 @@ Command list:
                     }
                 }
 
-                // update tables. TODO: fix: we want to update only table ntk because of updated "src"
+                // update only table ntk because of updated "src"
                 int bid5 = cm.begin_block();
-                for (int lvl = levels - 1; lvl >= subnetlevel; lvl--)
-                 for (int pos = 0; pos < _gsizes[lvl]; pos++)
-                 if (new_identity_data.my_naddr.pos[lvl] != pos)
-                {
-                    update_best_paths_per_identity(new_identity_data, new HCoord(lvl, pos), bid5);
-                }
+                per_identity_foreach_table_update_all_best_paths(new_identity_data, bid5, true);
                 cm.end_block(bid5);
             }
         }
