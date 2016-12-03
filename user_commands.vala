@@ -580,9 +580,9 @@ Command list:
 
         ArrayList<string> prefix_cmd_old_ns = new ArrayList<string>();
         if (old_ns != "") prefix_cmd_old_ns.add_all_array({
-            @"ip", @"netns", @"exec", @"$old_ns"});
+            @"ip", @"netns", @"exec", @"$(old_ns)"});
         ArrayList<string> prefix_cmd_new_ns = new ArrayList<string>.wrap({
-            @"ip", @"netns", @"exec", @"$new_ns"});
+            @"ip", @"netns", @"exec", @"$(new_ns)"});
 
         // Search qspn-arc of old identity
         foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
@@ -613,12 +613,12 @@ Command list:
                 string ipaddr = old_destination_ip_set[i][j].global;
                 ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                 cmd.add_all_array({
-                    @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                    @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
                 cm.single_command_in_block(bid, cmd);
                 ipaddr = old_destination_ip_set[i][j].anonymous;
                 cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                 cmd.add_all_array({
-                    @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                    @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
                 cm.single_command_in_block(bid, cmd);
             }
             for (int k = levels-1; k >= i+1 && k > op.guest_gnode_level; k--)
@@ -628,7 +628,7 @@ Command list:
                     string ipaddr = old_destination_ip_set[i][j].intern[k];
                     ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                        @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
                     cm.single_command_in_block(bid, cmd);
                 }
             }
@@ -643,7 +643,7 @@ Command list:
             {
                 string anonymousrange = ip_anonymizing_gnode(old_identity_data.my_naddr.pos, levels);
                 cm.single_command(new ArrayList<string>.wrap({
-                    @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$anonymousrange",
+                    @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$(anonymousrange)",
                     @"-j", @"SNAT", @"--to", @"$(old_identity_data.local_ip_set.global)"}));
             }
 
@@ -651,17 +651,17 @@ Command list:
             if (old_identity_data.local_ip_set.global != "")
                 foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.global)/32", @"dev", @"$dev"}));
+                    @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.global)/32", @"dev", @"$(dev)"}));
             if (old_identity_data.local_ip_set.anonymous != "" && accept_anonymous_requests)
                 foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
-                    @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.anonymous)/32", @"dev", @"$dev"}));
+                    @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.anonymous)/32", @"dev", @"$(dev)"}));
             for (int i = levels-1; i > op.guest_gnode_level; i--)
             {
                 if (old_identity_data.local_ip_set.intern[i] != "")
                     foreach (string dev in real_nics)
                     cm.single_command(new ArrayList<string>.wrap({
-                        @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.intern[i])/32", @"dev", @"$dev"}));
+                        @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.intern[i])/32", @"dev", @"$(dev)"}));
             }
         }
 
@@ -720,12 +720,12 @@ Command list:
                 string ipaddr = new_identity_data.destination_ip_set[i][j].global;
                 ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                 cmd.add_all_array({
-                    @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                    @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
                 cm.single_command_in_block(bid2, cmd);
                 ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
                 cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                 cmd.add_all_array({
-                    @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                    @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
                 cm.single_command_in_block(bid2, cmd);
             }
             for (int k = levels-1; k >= i+1 && k > op.guest_gnode_level; k--)
@@ -735,7 +735,7 @@ Command list:
                     string ipaddr = new_identity_data.destination_ip_set[i][j].intern[k];
                     ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
                     cm.single_command_in_block(bid2, cmd);
                 }
             }
@@ -843,8 +843,8 @@ Command list:
             ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
             cmd.add_all_array({
                 @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
-                @"-m", @"mac", @"--mac-source", @"$mac",
-                @"-j", @"MARK", @"--set-mark", @"$tid"});
+                @"-m", @"mac", @"--mac-source", @"$(mac)",
+                @"-j", @"MARK", @"--set-mark", @"$(tid)"});
             cm.single_command_in_block(bid3, cmd);
 
             for (int i = levels-1; i >= subnetlevel; i--)
@@ -855,12 +855,12 @@ Command list:
                     string ipaddr = new_identity_data.destination_ip_set[i][j].global;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
                     cm.single_command_in_block(bid3, cmd);
                     ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
                     cm.single_command_in_block(bid3, cmd);
                 }
                 for (int k = levels-1; k >= i+1; k--)
@@ -870,7 +870,7 @@ Command list:
                         string ipaddr = new_identity_data.destination_ip_set[i][j].intern[k];
                         cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                         cmd.add_all_array({
-                            @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
                         cm.single_command_in_block(bid3, cmd);
                     }
                 }
@@ -930,12 +930,12 @@ Command list:
                     string ipaddr = prev_new_identity_destination_ip_set[i][j].global;
                     ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                        @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
                     cm.single_command_in_block(bid4, cmd);
                     ipaddr = prev_new_identity_destination_ip_set[i][j].anonymous;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                        @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
                     cm.single_command_in_block(bid4, cmd);
                 }
                 for (int k = levels-1; k >= i+1; k--)
@@ -951,7 +951,7 @@ Command list:
                         string ipaddr = prev_new_identity_destination_ip_set[i][j].intern[k];
                         ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                         cmd.add_all_array({
-                            @"ip", @"route", @"del", @"$ipaddr", @"table", @"$tablename"});
+                            @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
                         cm.single_command_in_block(bid4, cmd);
                     }
                 }
@@ -973,7 +973,7 @@ Command list:
                     {
                         foreach (string dev in real_nics)
                             cm.single_command(new ArrayList<string>.wrap({
-                                @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.intern[i])", @"dev", @"$dev"}));
+                                @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.intern[i])", @"dev", @"$(dev)"}));
                     }
                 }
                 if (new_identity_data.local_ip_set.global != "" &&
@@ -981,19 +981,19 @@ Command list:
                 {
                     foreach (string dev in real_nics)
                         cm.single_command(new ArrayList<string>.wrap({
-                            @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.global)", @"dev", @"$dev"}));
+                            @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.global)", @"dev", @"$(dev)"}));
                     if (! no_anonymize)
                     {
                         string anonymousrange = ip_anonymizing_gnode(my_naddr_new_2.pos, levels);
                         cm.single_command(new ArrayList<string>.wrap({
-                            @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$anonymousrange",
+                            @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$(anonymousrange)",
                             @"-j", @"SNAT", @"--to", @"$(new_identity_data.local_ip_set.global)"}));
                     }
                     if (accept_anonymous_requests)
                     {
                         foreach (string dev in real_nics)
                             cm.single_command(new ArrayList<string>.wrap({
-                                @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.anonymous)", @"dev", @"$dev"}));
+                                @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.anonymous)", @"dev", @"$(dev)"}));
                     }
                 }
 
@@ -1041,12 +1041,12 @@ Command list:
             string ns = identity_data.network_namespace;
             ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
             if (ns != "") prefix_cmd_ns.add_all_array({
-                @"ip", @"netns", @"exec", @"$ns"});
+                @"ip", @"netns", @"exec", @"$(ns)"});
             ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
             cmd.add_all_array({
                 @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
-                @"-m", @"mac", @"--mac-source", @"$peer_mac",
-                @"-j", @"MARK", @"--set-mark", @"$tid"});
+                @"-m", @"mac", @"--mac-source", @"$(peer_mac)",
+                @"-j", @"MARK", @"--set-mark", @"$(tid)"});
             cm.single_command_in_block(bid, cmd);
 
             for (int i = levels-1; i >= subnetlevel; i--)
@@ -1057,12 +1057,12 @@ Command list:
                     string ipaddr = identity_data.destination_ip_set[i][j].global;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
                     cm.single_command_in_block(bid, cmd);
                     ipaddr = identity_data.destination_ip_set[i][j].anonymous;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
                     cm.single_command_in_block(bid, cmd);
                 }
                 for (int k = levels-1; k >= i+1; k--)
@@ -1072,7 +1072,7 @@ Command list:
                         string ipaddr = identity_data.destination_ip_set[i][j].intern[k];
                         cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                         cmd.add_all_array({
-                            @"ip", @"route", @"add", @"unreachable", @"$ipaddr", @"table", @"$tablename"});
+                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
                         cm.single_command_in_block(bid, cmd);
                     }
                 }
