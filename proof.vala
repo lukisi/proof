@@ -418,6 +418,7 @@ namespace ProofOfConcept
 
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
         first_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
+        qspn_mgr = null;
 
         // end startup
 
@@ -438,6 +439,9 @@ namespace ProofOfConcept
         remove_pipe_commands();
 
         // TODO cleanup
+
+        // First, we call stop_monitor_all of NeighborhoodManager.
+        neighborhood_mgr.stop_monitor_all();
 
         // Remove connectivity identities and their network namespaces and linklocal addresses.
         ArrayList<int> local_identities_keys = new ArrayList<int>();
@@ -475,6 +479,8 @@ namespace ProofOfConcept
         qspn_mgr.qspn_bootstrap_complete.disconnect(identity_data.qspn_bootstrap_complete);
         qspn_mgr.remove_identity.disconnect(identity_data.remove_identity);
         identity_data.qspn_handlers_disabled = true;
+        qspn_mgr = null;
+        identity_mgr.unset_identity_module(identity_data.nodeid, "qspn");
 
         // Cleanup addresses and routes that were added previously in order to
         //  obey to the qspn_mgr which is now in default network namespace.
@@ -554,8 +560,6 @@ namespace ProofOfConcept
             }
         }
 
-        // First, we call stop_monitor_all of NeighborhoodManager.
-        neighborhood_mgr.stop_monitor_all();
         // Then we destroy the object NeighborhoodManager.
         // Beware that node_skeleton.neighborhood_mgr is a weak reference.
         neighborhood_mgr = null;
