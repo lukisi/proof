@@ -1014,6 +1014,7 @@ Command list:
 
         // Remove old identity
         identity_mgr.remove_identity(old_identity_data.nodeid);
+        old_id_qspn_mgr.stop_operations();
         remove_local_identity(old_identity_data.nodeid);
     }
 

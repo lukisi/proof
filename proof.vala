@@ -479,8 +479,9 @@ namespace ProofOfConcept
         qspn_mgr.qspn_bootstrap_complete.disconnect(identity_data.qspn_bootstrap_complete);
         qspn_mgr.remove_identity.disconnect(identity_data.remove_identity);
         identity_data.qspn_handlers_disabled = true;
-        qspn_mgr = null;
         identity_mgr.unset_identity_module(identity_data.nodeid, "qspn");
+        qspn_mgr.stop_operations();
+        qspn_mgr = null;
 
         // Cleanup addresses and routes that were added previously in order to
         //  obey to the qspn_mgr which is now in default network namespace.
