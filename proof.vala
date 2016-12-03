@@ -626,6 +626,7 @@ namespace ProofOfConcept
         public string peer_linklocal;
         public QspnArc? qspn_arc;
         public bool rule_added;
+        public int? tid;
         public IdentityArc(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc, string peer_mac, string peer_linklocal)
         {
             this.arc = arc;
@@ -635,6 +636,7 @@ namespace ProofOfConcept
             this.peer_linklocal = peer_linklocal;
             qspn_arc = null;
             rule_added = false;
+            tid = null;
         }
     }
 

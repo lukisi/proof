@@ -545,12 +545,18 @@ Command list:
         HashMap<IdentityArc, IdentityArc> old_to_new_id_arc = new HashMap<IdentityArc, IdentityArc>();
         foreach (IdentityArc w0 in old_identity_data.my_identityarcs)
         {
-            bool check_peer_mac = true;
-            if (w0.peer_mac == w0.id_arc.get_peer_mac()) check_peer_mac = false;
+            bool old_identity_changed_peer_mac = (w0.peer_mac != w0.id_arc.get_peer_mac());
+            if (old_identity_changed_peer_mac && w0.qspn_arc != null)
+            {
+                // change `tid` of w0
+                string tablename;
+                tn.get_table(null, w0.id_arc.get_peer_mac(), out w0.tid, out tablename);
+            }
+            // find appropriate w1
             foreach (IdentityArc w1 in new_identity_data.my_identityarcs)
             {
                 if (w1.arc != w0.arc) continue;
-                if (check_peer_mac)
+                if (old_identity_changed_peer_mac)
                 {
                     if (w1.peer_mac != w0.id_arc.get_peer_mac()) continue;
                 }
@@ -594,12 +600,11 @@ Command list:
         int bid = cm.begin_block();
         ArrayList<string> tablenames = new ArrayList<string>();
         if (old_ns == "") tablenames.add("ntk");
-        // Add a table for each qspn-arc of old identity
+        // Add a table for each qspn-arc of old identity and update `tid` for its IdentityArc
         foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
         {
-            int tid;
             string tablename;
-            tn.get_table(bid, ia.peer_mac, out tid, out tablename);
+            tn.get_table(bid, ia.peer_mac, out ia.tid, out tablename);
             // Note: Member peer_mac is not changed yet. It is the old one.
             // Whilst ia.id_arc.get_peer_mac() might differ. If it was a g-node migration that includes this neighbor.
             tablenames.add(tablename);
@@ -759,6 +764,8 @@ Command list:
                 Arc _arc = __arc.arc;
                 string peer_mac = w1.id_arc.get_peer_mac();
                 w1.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
+                string tablename;
+                tn.get_table(null, peer_mac, out w1.tid, out tablename);
 
                 assert(w0.qspn_arc != null);
                 IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
@@ -788,6 +795,9 @@ Command list:
             Arc _arc = __arc.arc;
             string peer_mac = w1.id_arc.get_peer_mac();
             w1.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
+            string tablename;
+            tn.get_table(null, peer_mac, out w1.tid, out tablename);
+
             external_arc_set.add(w1.qspn_arc);
         }
         // Prepare mapping old-arcs to new-arcs (duplicates)
@@ -836,15 +846,14 @@ Command list:
          if (ia.qspn_arc in external_arc_set)
         {
             string mac = ia.peer_mac; // the value is up to date in the IdentityArc of new identity.
-            int tid;
             string tablename;
-            tn.get_table(bid3, ia.peer_mac, out tid, out tablename);
+            tn.get_table(bid3, ia.peer_mac, out ia.tid, out tablename);
 
             ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
             cmd.add_all_array({
                 @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
                 @"-m", @"mac", @"--mac-source", @"$(mac)",
-                @"-j", @"MARK", @"--set-mark", @"$(tid)"});
+                @"-j", @"MARK", @"--set-mark", @"$(ia.tid)"});
             cm.single_command_in_block(bid3, cmd);
 
             for (int i = levels-1; i >= subnetlevel; i--)
@@ -1032,9 +1041,9 @@ Command list:
             Arc arc = _arc.arc;
             ia.qspn_arc = new QspnArc(arc, sourceid, destid, peer_mac);
             qspn_mgr.arc_add(ia.qspn_arc);
-            int tid;
+            assert(ia.tid == null);
             string tablename;
-            tn.get_table(null, peer_mac, out tid, out tablename);
+            tn.get_table(null, peer_mac, out ia.tid, out tablename);
 
             // Add new forwarding-table
             int bid = cm.begin_block();
@@ -1046,7 +1055,7 @@ Command list:
             cmd.add_all_array({
                 @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
                 @"-m", @"mac", @"--mac-source", @"$(peer_mac)",
-                @"-j", @"MARK", @"--set-mark", @"$(tid)"});
+                @"-j", @"MARK", @"--set-mark", @"$(ia.tid)"});
             cm.single_command_in_block(bid, cmd);
 
             for (int i = levels-1; i >= subnetlevel; i--)
