@@ -106,6 +106,11 @@ namespace ProofOfConcept
     {
         // Retrieve my identity.
         IdentityData identity_data = find_or_create_local_identity(id);
+        string ns = identity_data.network_namespace;
+        ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
+        if (ns != "") prefix_cmd_ns.add_all_array({
+            @"ip", @"netns", @"exec", @"$(ns)"});
+        ArrayList<string> cmd;
         // Retrieve qspn_arc if still there.
         foreach (IdentityArc ia in identity_data.my_identityarcs)
             if (ia.arc == arc)
@@ -114,9 +119,51 @@ namespace ProofOfConcept
         {
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
             qspn_mgr.arc_remove(ia.qspn_arc);
-            // TODO string peer_mac = ia.qspn_arc.peer_mac;
+
+            string tablename;
+            tn.get_table(null, ia.peer_mac, out ia.tid, out tablename);
+            if (ia.rule_added)
+            {
+                cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                cmd.add_all_array({
+                    @"ip", @"rule", @"del", @"fwmark", @"$(ia.tid)",
+                    @"table", @"$(tablename)"});
+                cm.single_command(cmd);
+                ia.rule_added = false;
+            }
+            cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+            cmd.add_all_array({
+                @"ip", @"route", @"flush", @"table", @"$(tablename)"});
+            cm.single_command(cmd);
+            cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+            cmd.add_all_array({
+                @"iptables", @"-t", @"mangle", @"-D", @"PREROUTING", @"-m", @"mac",
+                @"--mac-source", @"$(ia.peer_mac)", @"-j", @"MARK", @"--set-mark", @"$(ia.tid)"});
+            cm.single_command(cmd);
+            bool still_used = false;
+            foreach (IdentityData id1 in local_identities.values)
+            {
+                print(@"controllo id1 $(id1.nodeid.id)\n");
+                if (id1 != identity_data)
+                {
+                    print(@"id1 $(id1.nodeid.id) da verificare\n");
+                    foreach (IdentityArc idarc1 in id1.my_identityarcs)
+                    {
+                        if (idarc1.tid == ia.tid)
+                        {
+                            print(@"id1 $(id1.nodeid.id) usa tabella $(ia.tid)\n");
+                            still_used = true;
+                            break;
+                        }
+                    }
+                    if (still_used) break;
+                }
+            }
+            if (! still_used) tn.release_table(null, ia.peer_mac);
+
             ia.qspn_arc = null;
-            // TODO remove rule ntk_from_$peer_mac
+            ia.tid = null;
+            break;
         }
     }
 
