@@ -77,58 +77,6 @@ namespace ProofOfConcept
             }
         }
 
-        public void add_neighbour(string neighbour_mac)
-        {
-            AddNeighbourTasklet ts = new AddNeighbourTasklet();
-            ts.t = this;
-            ts.neighbour_mac = neighbour_mac;
-            command_dispatcher.dispatch(ts, true);
-        }
-        private void tasklet_add_neighbour(string neighbour_mac)
-        {
-            //print(@"Debug: NetworkStack[$(ns)]: add_neighbour($(neighbour_mac))\n");return;
-            assert(! (neighbour_mac in neighbour_macs));
-            tasklet_create_table(@"$(maintable)_from_$(neighbour_mac)");
-            tasklet_rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
-            neighbour_macs.add(neighbour_mac);
-        }
-        class AddNeighbourTasklet : Object, ITaskletSpawnable
-        {
-            public NetworkStack t;
-            public string neighbour_mac;
-            public void * func()
-            {
-                t.tasklet_add_neighbour(neighbour_mac);
-                return null;
-            }
-        }
-
-        public void remove_neighbour(string neighbour_mac)
-        {
-            RemoveNeighbourTasklet ts = new RemoveNeighbourTasklet();
-            ts.t = this;
-            ts.neighbour_mac = neighbour_mac;
-            command_dispatcher.dispatch(ts, true);
-        }
-        private void tasklet_remove_neighbour(string neighbour_mac)
-        {
-            //print(@"Debug: NetworkStack[$(ns)]: remove_neighbour($(neighbour_mac))\n"); return;
-            assert(neighbour_mac in neighbour_macs);
-            neighbour_macs.remove(neighbour_mac);
-            tasklet_remove_rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
-            tasklet_remove_table(@"$(maintable)_from_$(neighbour_mac)");
-        }
-        class RemoveNeighbourTasklet : Object, ITaskletSpawnable
-        {
-            public NetworkStack t;
-            public string neighbour_mac;
-            public void * func()
-            {
-                t.tasklet_remove_neighbour(neighbour_mac);
-                return null;
-            }
-        }
-
         public void removing_namespace()
         {
             // To be called only for the non-default network namespaces
@@ -383,78 +331,6 @@ namespace ProofOfConcept
                 table_number.unset(tablename);
                 table_references.unset(tablename);
             }
-        }
-
-        /** Rule that a packet which is coming from <macaddr> and has to be forwarded
-          * will search for its route in <tablename>.
-          *
-          * Make sure we have <tablename>, get its number <number>.
-          * Otherwise abort.
-          * Once we have the number, use "iptables" to set a MARK <number> to the packets
-          * coming from this <macaddr>; and use "ip" to rule that those packets
-          * search into table <tablename>
-                iptables -t mangle -A PREROUTING -m mac --mac-source $macaddr -j MARK --set-mark $number
-                ip rule add fwmark $number table $tablename
-          */
-        private void tasklet_rule_coming_from_macaddr(string macaddr, string tablename)
-        {
-            if (! (tablename in table_references.keys)) error(@"rule_coming_from_macaddr: table $(tablename) should be in use.");
-            assert(tablename in table_number.keys);
-            int num = table_number[tablename];
-            string pres;
-            try {
-                string cmd = @"$(cmd_prefix)ip rule list";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-                pres = com_ret.stdout;
-            } catch (Error e) {error("Unable to spawn a command");}
-            if (@" lookup $(tablename) " in pres) error(@"rule_coming_from_macaddr: rule for $(tablename) was already there");
-            try {
-                string cmd = @"$(cmd_prefix)iptables -t mangle -A PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-            } catch (Error e) {error("Unable to spawn a command");}
-            try {
-                string cmd = @"$(cmd_prefix)ip rule add fwmark $(num) table $(tablename)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-            } catch (Error e) {error("Unable to spawn a command");}
-        }
-
-        /** Remove rule that a packet which is coming from <macaddr> and has to be forwarded
-          * will search for its route in <tablename>.
-          *
-          * Make sure we have <tablename>, get its number <number>.
-          * Otherwise abort.
-          * Once we have the number, use "iptables" to remove set-mark and use "ip" to remove the rule fwmark.
-                iptables -t mangle -D PREROUTING -m mac --mac-source $macaddr -j MARK --set-mark $number
-                ip rule del fwmark $number table $tablename
-          */
-        private void tasklet_remove_rule_coming_from_macaddr(string macaddr, string tablename)
-        {
-            if (! (tablename in table_references.keys)) error(@"remove_rule_coming_from_macaddr: table $(tablename) should be in use.");
-            assert(tablename in table_number.keys);
-            int num = table_number[tablename];
-            try {
-                string cmd = @"$(cmd_prefix)iptables -t mangle -D PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-            } catch (Error e) {error("Unable to spawn a command");}
-            try {
-                string cmd = @"$(cmd_prefix)ip rule del fwmark $(num) table $(tablename)";
-                print(@"$(cmd)\n");
-                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
-                if (com_ret.exit_status != 0)
-                    error_in_command(cmd, com_ret.stdout, com_ret.stderr);
-            } catch (Error e) {error("Unable to spawn a command");}
         }
 
         /** Rule that a packet by default (without any condition)
