@@ -179,7 +179,6 @@ namespace ProofOfConcept
         ArrayList<int> _naddr = new ArrayList<int>();
         _gsizes = new ArrayList<int>();
         _g_exp = new ArrayList<int>();
-        ArrayList<int> _elderships = new ArrayList<int>();
         ArrayList<string> _devs = new ArrayList<string>();
         foreach (string s_piece in naddr.split(".")) _naddr.insert(0, int.parse(s_piece));
         foreach (string s_piece in gsizes.split("."))
@@ -195,7 +194,6 @@ namespace ProofOfConcept
             _g_exp.insert(0, gexp);
             _gsizes.insert(0, gsize);
         }
-        for (int i = 0; i < _gsizes.size; i++) _elderships.add(0);
         foreach (string dev in interfaces) _devs.add(dev);
         if (_naddr.size != _gsizes.size) error("You have to use same number of levels");
         levels = _gsizes.size;
@@ -301,6 +299,8 @@ namespace ProofOfConcept
         NodeID nodeid = identity_mgr.get_main_id();
         IdentityData first_identity_data = find_or_create_local_identity(nodeid);
         Naddr my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
+        ArrayList<int> _elderships = new ArrayList<int>();
+        for (int i = 0; i < _gsizes.size; i++) _elderships.add(0);
         Fingerprint my_fp = new Fingerprint(_elderships.to_array());
         first_identity_data.my_naddr = my_naddr;
         first_identity_data.my_fp = my_fp;

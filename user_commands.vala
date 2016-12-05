@@ -353,23 +353,27 @@ Command list:
         string my_naddr_str = naddr_repr(identity_data.my_naddr);
         string my_elderships_str = fp_elderships_repr(identity_data.my_fp);
         string my_fp0 = @"$(identity_data.my_fp.id)";
+        int nodes_inside_0 = identity_data.main_id ? 1 : 0;
         string l0 = @"local_identity #$(index):";
         l0 += @" address $(my_naddr_str), elderships $(my_elderships_str),";
         string network_namespace_str = identity_data.network_namespace;
         if (network_namespace_str == "") network_namespace_str = "default";
         l0 += @" namespace $(network_namespace_str),";
-        string l1 = @"                   fp0 $(my_fp0).";
+        string l1 = @"                   Level 0: Fingerprint $(my_fp0). Nodes inside #$(nodes_inside_0).";
         ret.add(l0);
         ret.add(l1);
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
         for (int i = 1; i <= levels; i++)
         {
             string fp_i_s = "<BootstrapInProgress>";
+            string nodes_inside_i_s = "<BootstrapInProgress>";
             try {
                 Fingerprint fp_i = (Fingerprint)qspn_mgr.get_fingerprint(i);
                 fp_i_s = @"$(fp_i.id)";
+                int nodes_inside_i = qspn_mgr.get_nodes_inside(i);
+                nodes_inside_i_s = @"$(nodes_inside_i)";
             } catch (QspnBootstrapInProgressError e) {}
-            string l2 = @"                   fp$(i) $(fp_i_s).";
+            string l2 = @"                   Level $(i): Fingerprint $(fp_i_s). Nodes inside #$(nodes_inside_i_s).";
             ret.add(l2);
         }
         return ret;
