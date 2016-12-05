@@ -305,8 +305,6 @@ namespace ProofOfConcept
         first_identity_data.my_naddr = my_naddr;
         first_identity_data.my_fp = my_fp;
 
-        foreach (string s in print_local_identity(0)) print(s + "\n");
-
         compute_local_ip_set(first_identity_data.local_ip_set, my_naddr);
         foreach (string dev in real_nics)
             cm.single_command(new ArrayList<string>.wrap({
@@ -419,6 +417,8 @@ namespace ProofOfConcept
         identity_mgr.set_identity_module(nodeid, "qspn", qspn_mgr);
         first_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
         qspn_mgr = null;
+
+        foreach (string s in print_local_identity(0)) print(s + "\n");
 
         // end startup
 

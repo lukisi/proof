@@ -361,6 +361,17 @@ Command list:
         string l1 = @"                   fp0 $(my_fp0).";
         ret.add(l0);
         ret.add(l1);
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
+        for (int i = 1; i <= levels; i++)
+        {
+            string fp_i_s = "<BootstrapInProgress>";
+            try {
+                Fingerprint fp_i = (Fingerprint)qspn_mgr.get_fingerprint(i);
+                fp_i_s = @"$(fp_i.id)";
+            } catch (QspnBootstrapInProgressError e) {}
+            string l2 = @"                   fp$(i) $(fp_i_s).";
+            ret.add(l2);
+        }
         return ret;
     }
 

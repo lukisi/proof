@@ -143,15 +143,12 @@ namespace ProofOfConcept
             bool still_used = false;
             foreach (IdentityData id1 in local_identities.values)
             {
-                print(@"controllo id1 $(id1.nodeid.id)\n");
                 if (id1 != identity_data)
                 {
-                    print(@"id1 $(id1.nodeid.id) da verificare\n");
                     foreach (IdentityArc idarc1 in id1.my_identityarcs)
                     {
                         if (idarc1.tid == ia.tid)
                         {
-                            print(@"id1 $(id1.nodeid.id) usa tabella $(ia.tid)\n");
                             still_used = true;
                             break;
                         }
