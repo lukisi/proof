@@ -56,7 +56,7 @@ Command list:
 > enter_net_phase_1
   Finalize ...
 
-> add_qspn_arc <local_identity_index> <peer_mac>
+> add_qspn_arc <local_identity_index> <my_dev> <peer_mac>
   Add a QspnArc.
 
 > check_connectivity <local_identity_index>
@@ -256,14 +256,15 @@ Command list:
                     }
                     else if (_args[0] == "add_qspn_arc")
                     {
-                        if (_args.size != 3)
+                        if (_args.size != 4)
                         {
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
                         int local_identity_index = int.parse(_args[1]);
-                        string peer_mac = _args[2].up();
-                        add_qspn_arc(local_identity_index, peer_mac);
+                        string my_dev = _args[2];
+                        string peer_mac = _args[3].up();
+                        add_qspn_arc(local_identity_index, my_dev, peer_mac);
                         write_empty_response(command_id);
                     }
                     else if (_args[0] == "check_connectivity")
@@ -1042,13 +1043,14 @@ Command list:
         remove_local_identity(old_identity_data.nodeid);
     }
 
-    void add_qspn_arc(int local_identity_index, string peer_mac)
+    void add_qspn_arc(int local_identity_index, string my_dev, string peer_mac)
     {
         IdentityData identity_data = local_identities[local_identity_index];
         NodeID sourceid = identity_data.nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(sourceid, "qspn");
 
         foreach (IdentityArc ia in identity_data.my_identityarcs)
+         if (((IdmgmtArc)ia.arc).arc.neighborhood_arc.nic.dev.up() == my_dev.up())
          if (ia.peer_mac == peer_mac)
         {
             NodeID destid = ia.id_arc.get_peer_nodeid();
