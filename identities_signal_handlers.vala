@@ -42,7 +42,7 @@ namespace ProofOfConcept
         print(@"                  on the other side this identityarc links to $(ia.peer_linklocal) == $(ia.peer_mac).\n");
     }
 
-    void identities_identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc)
+    void identities_identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc, bool only_neighbour_migrated)
     {
         // Retrieve my identity.
         IdentityData identity_data = find_or_create_local_identity(id);
@@ -65,7 +65,7 @@ namespace ProofOfConcept
         }
         if (identityarc_index == -1)
         {
-            print("I couldn't find it in memory.\n");
+            warning("I couldn't find it in memory.\n");
             return;
         }
         IdentityArc ia = identityarcs[identityarc_index];
@@ -82,11 +82,18 @@ namespace ProofOfConcept
         print(@"                  before the change, the link was to $(old_linklocal) == $(old_mac).\n");
         // This should be the same instance.
         assert(ia.id_arc == id_arc);
-        // Retrieve qspn_arc if there was one for this identity-arc.
-        if (ia.qspn_arc != null)
+        // This might happen when the module Identities of this system is doing `add_identity` on
+        //  this very identity (identity_data).
+        //  In this case the program does some further operations on its own (see user_commands.vala).
+        //  But this might also happen when only our neighbour is doing `add_identity`.
+        if (only_neighbour_migrated)
         {
-            // TODO 
-            error("not implemented yet");
+            //  In this case we must do some work if we have a qspn_arc on this identity_arc.
+            if (ia.qspn_arc != null)
+            {
+                // TODO 
+                error("not implemented yet");
+            }
         }
     }
 
