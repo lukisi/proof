@@ -585,8 +585,6 @@ Command list:
             }
         }
 
-        // Move routes of old identity into new network namespace
-
         string old_ns = new_identity_data.network_namespace;
         string new_ns = old_identity_data.network_namespace;
         ArrayList<int> _naddr_old = new ArrayList<int>();
@@ -606,11 +604,60 @@ Command list:
         ArrayList<string> prefix_cmd_new_ns = new ArrayList<string>.wrap({
             @"ip", @"netns", @"exec", @"$(new_ns)"});
 
-        // Search qspn-arc of old identity
+        // Move routes of old identity into new network namespace
+        // Search qspn-arc of old identity. For them we have tables in old network namespace
+        //  which are to be copied in new network namespace.
+        int bid6 = cm.begin_block();
         foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
         {
-            // TODO
+            int tid;
+            string tablename;
+            string peer_mac = ia.id_arc.get_peer_mac();
+            tn.get_table(bid6, peer_mac, out tid, out tablename);
+            // Note: id_arc.get_peer_mac() is the new MAC of the neighbor if it was included in the migration.
+            string ipaddr;
+            ArrayList<string> cmd;
+            cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_new_ns);
+            cmd.add_all_array({
+                @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
+                @"-m", @"mac", @"--mac-source", @"$(peer_mac)",
+                @"-j", @"MARK", @"--set-mark", @"$(tid)"});
+            cm.single_command_in_block(bid6, cmd);
+            // Add to the table the new destination IP set of old identity. Initially as unreachable.
+            for (int i = levels-1; i >= subnetlevel; i--)
+             for (int j = 0; j < _gsizes[i]; j++)
+            {
+                if (old_identity_data.destination_ip_set[i][j].global != "")
+                {
+                    ipaddr = old_identity_data.destination_ip_set[i][j].global;
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_new_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid6, cmd);
+                    ipaddr = old_identity_data.destination_ip_set[i][j].anonymous;
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_new_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid6, cmd);
+                }
+                for (int k = levels-1; k >= i+1; k--)
+                {
+                    if (old_identity_data.destination_ip_set[i][j].intern[k] != "")
+                    {
+                        ipaddr = old_identity_data.destination_ip_set[i][j].intern[k];
+                        cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_new_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                        cm.single_command_in_block(bid6, cmd);
+                    }
+                }
+            }
+            ia.rule_added = false;
         }
+        // Then update routes we already know
+        per_identity_foreach_table_update_all_best_paths(old_identity_data, bid6);
+        update_rules(old_identity_data, bid6);
+        cm.end_block(bid6);
 
         // Remove old destination IPs from all tables in old network namespace
         int bid = cm.begin_block();

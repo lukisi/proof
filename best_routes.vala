@@ -38,16 +38,13 @@ namespace ProofOfConcept
         ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
         foreach (IdentityArc ia in id.my_identityarcs) if (ia.qspn_arc != null)
         {
-            Arc arc = ((IdmgmtArc)ia.arc).arc;
-            IQspnNaddr? _neighbour_naddr = qspn_mgr.get_naddr_for_arc(ia.qspn_arc);
-            if (_neighbour_naddr == null) continue;
-            Naddr neighbour_naddr = (Naddr)_neighbour_naddr;
-            INeighborhoodArc neighborhood_arc = arc.neighborhood_arc;
             NeighborData neighbor = new NeighborData();
-            neighbor.mac = neighborhood_arc.neighbour_mac;
+            IQspnNaddr? neighbour_naddr = qspn_mgr.get_naddr_for_arc(ia.qspn_arc);
+            if (neighbour_naddr == null) continue;
+            neighbor.h = id.my_naddr.i_qspn_get_coord_by_address(neighbour_naddr);
+            neighbor.mac = ia.id_arc.get_peer_mac();
             int tid;
             tn.get_table(bid, neighbor.mac, out tid, out neighbor.tablename);
-            neighbor.h = id.my_naddr.i_qspn_get_coord_by_address(neighbour_naddr);
             neighbors.add(neighbor);
         }
         return neighbors;
