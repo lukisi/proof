@@ -1,0 +1,92 @@
+Terminale beta:
+
+ssh beta /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 1.0.1.0
+
+Terminale gamma:
+
+ssh gamma /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 2.1.1.0
+
+Terminale delta:
+
+ssh delta /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 3.1.0.1
+
+Terminale mu:
+
+ssh mu /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 1.0.1.1
+
+Terminale comandi:
+
+cat <<EOF | ssh mu bash
+/home/luca/bin/qspnclient add_real_arc 00:16:3E:2D:8D:DE 00:16:3E:1A:C4:45 10000
+sleep 2
+EOF
+cat <<EOF | ssh delta bash
+/home/luca/bin/qspnclient add_real_arc 00:16:3E:1A:C4:45 00:16:3E:2D:8D:DE 11000
+EOF
+
+sleep 2
+
+cat <<EOF | ssh mu bash
+/home/luca/bin/qspnclient prepare_enter_net_phase_1 0 0 1 3.1.0 0.0.0 2 1 0 2 2 1 [0] 3069540 null
+/home/luca/bin/qspnclient enter_net_phase_1 0 3069540
+EOF
+sleep 1
+cat <<EOF | ssh delta bash
+/home/luca/bin/qspnclient add_qspn_arc 0 eth1 00:16:3E:2D:8D:DE
+EOF
+
+sleep 2
+
+cat <<EOF | ssh beta bash
+/home/luca/bin/qspnclient add_real_arc 00:16:3E:EC:A3:E1 00:16:3E:5B:78:D5 10000
+sleep 2
+EOF
+cat <<EOF | ssh gamma bash
+/home/luca/bin/qspnclient add_real_arc 00:16:3E:5B:78:D5 00:16:3E:EC:A3:E1 11000
+EOF
+
+sleep 2
+
+cat <<EOF | ssh beta bash
+/home/luca/bin/qspnclient prepare_enter_net_phase_1 0 0 1 2.1.1 0.0.0 2 1 1 2 2 1 [0] 4379845 null
+/home/luca/bin/qspnclient enter_net_phase_1 0 4379845
+EOF
+sleep 1
+cat <<EOF | ssh gamma bash
+/home/luca/bin/qspnclient add_qspn_arc 0 eth1 00:16:3E:EC:A3:E1
+EOF
+
+sleep 2
+
+cat <<EOF | ssh delta bash
+/home/luca/bin/qspnclient add_real_arc 00:16:3E:1A:C4:45 00:16:3E:5B:78:D5 10000
+sleep 2
+EOF
+cat <<EOF | ssh gamma bash
+/home/luca/bin/qspnclient add_real_arc 00:16:3E:5B:78:D5 00:16:3E:1A:C4:45 11000
+EOF
+
+sleep 2
+
+cat <<EOF | ssh delta bash
+/home/luca/bin/qspnclient prepare_enter_net_phase_1 0 1 2 2.1 0.0 2 1 0 2 2 1 [2] 8191409 null
+EOF
+cat <<EOF | ssh mu bash
+/home/luca/bin/qspnclient prepare_enter_net_phase_1 1 1 2 2.1 0.0 2 1 0 2 2 1 [2] 8191409 null
+EOF
+cat <<EOF | ssh delta bash &
+/home/luca/bin/qspnclient enter_net_phase_1 0 8191409
+EOF
+cat <<EOF | ssh mu bash
+/home/luca/bin/qspnclient enter_net_phase_1 1 8191409
+EOF
+sleep 1
+cat <<EOF | ssh gamma bash
+/home/luca/bin/qspnclient add_qspn_arc 0 eth1 00:16:3E:1A:C4:45
+EOF
+
+
+
+
+8191409
+
