@@ -53,8 +53,6 @@ namespace ProofOfConcept
     HashMap<int, IdentityData> local_identities;
     HashMap<string, INeighborhoodArc> neighborhood_arcs;
     HashMap<string, Arc> real_arcs;
-    int identityarc_nextindex;
-    HashMap<int, IdentityArc> identityarcs;
 
     IdentityData find_or_create_local_identity(NodeID node_id)
     {
@@ -86,14 +84,15 @@ namespace ProofOfConcept
         }
     }
 
-    IdentityArc find_identity_arc(IIdmgmtIdentityArc id_arc)
+    IdentityArc find_identity_arc(IdentityData identity_data, IIdmgmtArc arc, NodeID peer_nodeid)
     {
-        foreach (int k in identityarcs.keys)
+        foreach (IdentityArc ia in identity_data.identity_arcs.values)
         {
-            IdentityArc ia = identityarcs[k];
-            if (ia.id_arc == id_arc) return ia;
+            if (ia.arc == arc)
+             if (ia.id_arc.get_peer_nodeid().equals(peer_nodeid))
+                return ia;
         }
-        error("IdentityArc not found in identityarcs");
+        error("IdentityArc not found in identity_data.identity_arcs");
     }
 
     AddressManagerForNode node_skeleton;
@@ -243,8 +242,6 @@ namespace ProofOfConcept
 
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         real_arcs = new HashMap<string, Arc>();
-        identityarc_nextindex = 0;
-        identityarcs = new HashMap<int, IdentityArc>();
         pending_prepared_enter_net_operations = new HashMap<string,PreparedEnterNet>();
 
         // Init module Neighborhood
@@ -622,21 +619,40 @@ namespace ProofOfConcept
         public IIdmgmtArc arc;
         public NodeID id;
         public IIdmgmtIdentityArc id_arc;
+        public weak IdentityData identity_data;
         public string peer_mac;
         public string peer_linklocal;
         public QspnArc? qspn_arc;
-        public bool rule_added;
+        public string? tablename;
         public int? tid;
-        public IdentityArc(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc, string peer_mac, string peer_linklocal)
+        public bool? rule_added;
+        public string? prev_peer_mac;
+        public string? prev_peer_linklocal;
+        public string? prev_tablename;
+        public int? prev_tid;
+        public bool? prev_rule_added;
+        public int identity_arc_index;
+        public IdentityArc(IdentityData identity_data, IIdmgmtArc arc, IIdmgmtIdentityArc id_arc)
         {
+            this.identity_data = identity_data;
             this.arc = arc;
-            this.id = id;
+            id = identity_data.nodeid;
             this.id_arc = id_arc;
-            this.peer_mac = peer_mac;
-            this.peer_linklocal = peer_linklocal;
+            peer_mac = id_arc.get_peer_mac();
+            peer_linklocal = id_arc.get_peer_linklocal();
+
+            identity_arc_index = identity_data.identity_arc_nextindex++;
+            identity_data.identity_arcs[identity_arc_index] = this;
+
             qspn_arc = null;
-            rule_added = false;
+            tablename = null;
             tid = null;
+            rule_added = null;
+            prev_peer_mac = null;
+            prev_peer_linklocal = null;
+            prev_tablename = null;
+            prev_tid = null;
+            prev_rule_added = null;
         }
     }
 
@@ -769,10 +785,12 @@ namespace ProofOfConcept
 
     class IdentityData : Object
     {
+
         public IdentityData(NodeID nodeid)
         {
             this.nodeid = nodeid;
-            my_identityarcs = new ArrayList<IdentityArc>();
+            identity_arc_nextindex = 0;
+            identity_arcs = new HashMap<int, IdentityArc>();
             connectivity_from_level = 0;
             connectivity_to_level = 0;
             copy_of_identity = null;
@@ -785,21 +803,15 @@ namespace ProofOfConcept
         public NodeID nodeid;
         public Naddr my_naddr;
         public Fingerprint my_fp;
-
-        private string _network_namespace;
-        public string network_namespace {
-            get {
-                _network_namespace = identity_mgr.get_namespace(nodeid);
-                return _network_namespace;
-            }
-        }
+        public int connectivity_from_level;
+        public int connectivity_to_level;
 
         public IdentityData? copy_of_identity;
         public int local_identity_index;
         public AddressManagerForIdentity addr_man;
-        public ArrayList<IdentityArc> my_identityarcs;
-        public int connectivity_from_level;
-        public int connectivity_to_level;
+
+        public int identity_arc_nextindex;
+        public HashMap<int, IdentityArc> identity_arcs;
 
         public LocalIPSet local_ip_set;
         public HashMap<int,HashMap<int,DestinationIPSet>> destination_ip_set;
@@ -807,6 +819,14 @@ namespace ProofOfConcept
         public NetworkStack network_stack {
             get {
                 error("do not use network_stack");
+            }
+        }
+
+        private string _network_namespace;
+        public string network_namespace {
+            get {
+                _network_namespace = identity_mgr.get_namespace(nodeid);
+                return _network_namespace;
             }
         }
 
@@ -1031,7 +1051,7 @@ namespace ProofOfConcept
             if (qspn_missing != null)
             {
                 // from a INeighborhoodArc get a list of QspnArc
-                foreach (IdentityArc ia in identity_data.my_identityarcs) if (ia.qspn_arc != null)
+                foreach (IdentityArc ia in identity_data.identity_arcs.values) if (ia.qspn_arc != null)
                     if (ia.qspn_arc.arc.neighborhood_arc == arc)
                         qspn_missing.i_qspn_missing(ia.qspn_arc);
             }
@@ -1050,7 +1070,7 @@ namespace ProofOfConcept
             NodeID local_nodeid = local_identity_data.nodeid;
             if (local_nodeid.equals(unicast_id))
             {
-                foreach (IdentityArc ia in local_identity_data.my_identityarcs)
+                foreach (IdentityArc ia in local_identity_data.identity_arcs.values)
                 {
                     IdmgmtArc __arc = (IdmgmtArc)ia.arc;
                     Arc _arc = __arc.arc;
@@ -1081,7 +1101,7 @@ namespace ProofOfConcept
             NodeID local_nodeid = local_identity_data.nodeid;
             if (local_nodeid in broadcast_set)
             {
-                foreach (IdentityArc ia in local_identity_data.my_identityarcs)
+                foreach (IdentityArc ia in local_identity_data.identity_arcs.values)
                 {
                     IdmgmtArc __arc = (IdmgmtArc)ia.arc;
                     Arc _arc = __arc.arc;

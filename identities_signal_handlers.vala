@@ -30,59 +30,41 @@ namespace ProofOfConcept
     {
         print("An identity-arc has been added.\n");
         IdentityData identity_data = find_or_create_local_identity(id);
-        string ns = identity_data.network_namespace;
-        IdentityArc ia = new IdentityArc(arc, id, id_arc, id_arc.get_peer_mac(), id_arc.get_peer_linklocal());
-        int identityarc_index = identityarc_nextindex++;
-        identityarcs[identityarc_index] = ia;
-        identity_data.my_identityarcs.add(ia);
-        string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
-        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
-        print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
-        print(@"                  my id handles $(pseudodev) on '$(ns)'.\n");
-        print(@"                  on the other side this identityarc links to $(ia.peer_linklocal) == $(ia.peer_mac).\n");
+        IdentityArc ia = new IdentityArc(identity_data, arc, id_arc);
+        foreach (string s in print_identity_arc(identity_data.local_identity_index, ia.identity_arc_index)) print(s + "\n");
     }
 
     void identities_identity_arc_changed(IIdmgmtArc arc, NodeID id, IIdmgmtIdentityArc id_arc, bool only_neighbour_migrated)
     {
         // Retrieve my identity.
         IdentityData identity_data = find_or_create_local_identity(id);
+        // Retrieve peer_nodeid
+        NodeID peer_nodeid = id_arc.get_peer_nodeid();
+        // Retrieve IdentityArc
+        IdentityArc ia = find_identity_arc(identity_data, arc, peer_nodeid);
         print("An identity-arc has been changed.\n");
-        int identityarc_index = -1;
-        foreach (int i in identityarcs.keys)
+
+        ia.prev_peer_mac = ia.peer_mac;
+        ia.prev_peer_linklocal = ia.peer_linklocal;
+        ia.prev_tablename = ia.tablename;
+        ia.prev_tid = ia.tid;
+        ia.prev_rule_added = ia.rule_added;
+        ia.peer_mac = ia.id_arc.get_peer_mac();
+        ia.peer_linklocal = ia.id_arc.get_peer_linklocal();
+        ia.tablename = null;
+        ia.tid = null;
+        ia.rule_added = null;
+        if (ia.qspn_arc != null)
         {
-            IdentityArc ia = identityarcs[i];
-            if (ia.arc == arc)
-            {
-                if (ia.id.equals(id))
-                {
-                    if (ia.id_arc.get_peer_nodeid().equals(id_arc.get_peer_nodeid()))
-                    {
-                        identityarc_index = i;
-                        break;
-                    }
-                }
-            }
+            tn.get_table(null, ia.peer_mac, out ia.tid, out ia.tablename);
         }
-        if (identityarc_index == -1)
-        {
-            warning("I couldn't find it in memory.\n");
-            return;
-        }
-        IdentityArc ia = identityarcs[identityarc_index];
-        string old_mac = ia.peer_mac;
-        string old_linklocal = ia.peer_linklocal;
-        ia.peer_mac = id_arc.get_peer_mac();
-        ia.peer_linklocal = id_arc.get_peer_linklocal();
-        string ns = identity_data.network_namespace;
-        string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
-        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
-        print(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).\n");
-        print(@"                  my id handles $(pseudodev) on '$(ns)'.\n");
-        print(@"                  on the other side this identityarc links to $(ia.peer_linklocal) == $(ia.peer_mac).\n");
-        print(@"                  before the change, the link was to $(old_linklocal) == $(old_mac).\n");
+
+        foreach (string s in print_identity_arc(identity_data.local_identity_index, ia.identity_arc_index)) print(s + "\n");
+
         // This should be the same instance.
         assert(ia.id_arc == id_arc);
-        // This might happen when the module Identities of this system is doing `add_identity` on
+
+        // This signal might happen when the module Identities of this system is doing `add_identity` on
         //  this very identity (identity_data).
         //  In this case the program does some further operations on its own (see user_commands.vala).
         //  But this might also happen when only our neighbour is doing `add_identity`.
@@ -92,7 +74,9 @@ namespace ProofOfConcept
             if (ia.qspn_arc != null)
             {
                 // TODO 
-                error("not implemented yet");
+                int bid = cm.begin_block();
+                warning("Do something when peer_mac changes. not implemented yet.");
+                cm.end_block(bid);
             }
         }
     }
@@ -106,29 +90,25 @@ namespace ProofOfConcept
         if (ns != "") prefix_cmd_ns.add_all_array({
             @"ip", @"netns", @"exec", @"$(ns)"});
         ArrayList<string> cmd;
-        // Retrieve qspn_arc if still there.
-        foreach (IdentityArc ia in identity_data.my_identityarcs)
-            if (ia.arc == arc)
-            if (ia.qspn_arc != null)
-            if (ia.qspn_arc.destid.equals(peer_nodeid))
+        // Retrieve identity-arc.
+        IdentityArc ia = find_identity_arc(identity_data, arc, peer_nodeid);
+        if (ia.qspn_arc != null)
         {
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
             qspn_mgr.arc_remove(ia.qspn_arc);
 
-            string tablename;
-            tn.get_table(null, ia.peer_mac, out ia.tid, out tablename);
             if (ia.rule_added)
             {
                 cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                 cmd.add_all_array({
                     @"ip", @"rule", @"del", @"fwmark", @"$(ia.tid)",
-                    @"table", @"$(tablename)"});
+                    @"table", @"$(ia.tablename)"});
                 cm.single_command(cmd);
                 ia.rule_added = false;
             }
             cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
             cmd.add_all_array({
-                @"ip", @"route", @"flush", @"table", @"$(tablename)"});
+                @"ip", @"route", @"flush", @"table", @"$(ia.tablename)"});
             cm.single_command(cmd);
             cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
             cmd.add_all_array({
@@ -140,7 +120,7 @@ namespace ProofOfConcept
             {
                 if (id1 != identity_data)
                 {
-                    foreach (IdentityArc idarc1 in id1.my_identityarcs)
+                    foreach (IdentityArc idarc1 in id1.identity_arcs.values)
                     {
                         if (idarc1.tid == ia.tid)
                         {
@@ -155,7 +135,8 @@ namespace ProofOfConcept
 
             ia.qspn_arc = null;
             ia.tid = null;
-            break;
+            ia.tablename = null;
+            ia.rule_added = null;
         }
     }
 
@@ -164,37 +145,12 @@ namespace ProofOfConcept
         print("An identity-arc has been removed.\n");
         // Retrieve my identity.
         IdentityData identity_data = find_or_create_local_identity(id);
-        // Retrieve my identity_arc.
-        int identityarc_index = -1;
-        foreach (int i in identityarcs.keys)
-        {
-            IdentityArc ia = identityarcs[i];
-            if (ia.arc == arc)
-            {
-                if (ia.id.equals(id))
-                {
-                    if (ia.id_arc.get_peer_nodeid().equals(peer_nodeid))
-                    {
-                        identityarc_index = i;
-                        break;
-                    }
-                }
-            }
-        }
-        if (identityarc_index == -1)
-        {
-            print("I couldn't find it in memory.\n");
-            return;
-        }
-        IdentityArc ia = identityarcs[identityarc_index];
-        string ns = identity_data.network_namespace;
-        string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
-        print(@"identityarcs: #$(identityarc_index): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),\n");
-        print(@"                  id-id: from $(id.id) to $(ia.id_arc.get_peer_nodeid().id).\n");
-        print(@"                  my id handles $(pseudodev) on '$(ns)'.\n");
-        print(@"                  on the other side this identityarc links to $(ia.peer_linklocal) == $(ia.peer_mac).\n");
-        identityarcs.unset(identityarc_index);
-        identity_data.my_identityarcs.remove(ia);
+        // Retrieve identity-arc.
+        IdentityArc ia = find_identity_arc(identity_data, arc, peer_nodeid);
+
+        foreach (string s in print_identity_arc(identity_data.local_identity_index, ia.identity_arc_index)) print(s + "\n");
+
+        identity_data.identity_arcs.unset(ia.identity_arc_index);
     }
 
     void identities_arc_removed(IIdmgmtArc arc)

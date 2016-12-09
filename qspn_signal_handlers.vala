@@ -73,6 +73,7 @@ namespace ProofOfConcept
 
     void per_identity_qspn_path_added(IdentityData id, IQspnNodePath p)
     {
+        print("path_added\n");
         int bid = cm.begin_block();
         per_identity_foreach_table_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
         update_rules(id, bid);
@@ -81,6 +82,7 @@ namespace ProofOfConcept
 
     void per_identity_qspn_path_changed(IdentityData id, IQspnNodePath p)
     {
+        print("path_changed\n");
         int bid = cm.begin_block();
         per_identity_foreach_table_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
         update_rules(id, bid);
@@ -89,6 +91,7 @@ namespace ProofOfConcept
 
     void per_identity_qspn_path_removed(IdentityData id, IQspnNodePath p)
     {
+        print("path_removed\n");
         int bid = cm.begin_block();
         per_identity_foreach_table_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
         update_rules(id, bid);
@@ -102,6 +105,7 @@ namespace ProofOfConcept
 
     void per_identity_qspn_qspn_bootstrap_complete(IdentityData id)
     {
+        print("qspn_bootstrap_complete\n");
         update_best_paths_forall_destinations_per_identity(id);
     }
 
@@ -125,14 +129,7 @@ namespace ProofOfConcept
         identity_mgr.unset_identity_module(id.nodeid, "qspn");
         identity_mgr.remove_identity(id.nodeid);
         // remove identity and its id-arcs from memory data-structures
+        id.identity_arcs.clear();
         local_identities.unset(id.local_identity_index);
-        ArrayList<int> todel = new ArrayList<int>();
-        foreach (int i in identityarcs.keys)
-        {
-            IdentityArc ia = identityarcs[i];
-            NodeID node_id = ia.id;
-            if (node_id.equals(id.nodeid)) todel.add(i);
-        }
-        foreach (int i in todel) identityarcs.unset(i);
     }
 }

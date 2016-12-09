@@ -47,8 +47,8 @@ Command list:
 > remove_real_arc <from_MAC> <to_MAC>
   Remove a given arc, which was already accepted.
 
-> show_identityarcs
-  List current identity-arcs.
+> show_identity_arcs <local_identity_index>
+  List current identity-arcs of a given local identity.
 
 > prepare_enter_net_phase_1
   Prepare ...
@@ -186,14 +186,15 @@ Command list:
                         remove_real_arc(k);
                         write_empty_response(command_id);
                     }
-                    else if (_args[0] == "show_identityarcs")
+                    else if (_args[0] == "show_identity_arcs")
                     {
-                        if (_args.size != 1)
+                        if (_args.size != 2)
                         {
                             write_oneline_response(command_id, @"Bad arguments number.", 1);
                             continue;
                         }
-                        write_block_response(command_id, show_identityarcs());
+                        int local_identity_index = int.parse(_args[1]);
+                        write_block_response(command_id, show_identity_arcs(local_identity_index));
                     }
                     else if (_args[0] == "prepare_enter_net_phase_1")
                     {
@@ -429,17 +430,12 @@ Command list:
         Arc arc = real_arcs[k];
         arc.cost = cost;
         print(@"real_arc '$(k)': peer_linklocal $(arc.neighborhood_arc.neighbour_nic_addr), cost $(arc.cost)us\n");
-        foreach (NodeID node_id in identity_mgr.get_id_list())
+        foreach (IdentityData identity_data in local_identities.values)
+         foreach (IdentityArc ia in identity_data.identity_arcs.values)
+         if (ia.arc == arc.idmgmt_arc && ia.qspn_arc != null)
         {
-            foreach (IIdmgmtIdentityArc id_arc in identity_mgr.get_identity_arcs(arc.idmgmt_arc, node_id))
-            {
-                IdentityArc ia = find_identity_arc(id_arc);
-                if (ia.qspn_arc != null)
-                {
-                    QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(node_id, "qspn");
-                    qspn_mgr.arc_is_changed(ia.qspn_arc);
-                }
-            }
+            QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
+            qspn_mgr.arc_is_changed(ia.qspn_arc);
         }
     }
 
@@ -453,24 +449,25 @@ Command list:
         real_arcs.unset(k);
     }
 
-    Gee.List<string> show_identityarcs()
+    Gee.List<string> show_identity_arcs(int local_identity_index)
     {
+        IdentityData identity_data = local_identities[local_identity_index];
         ArrayList<string> ret = new ArrayList<string>();
-        foreach (int i in identityarcs.keys)
+        foreach (int i in identity_data.identity_arcs.keys)
         {
-            IdentityArc ia = identityarcs[i];
-            IIdmgmtArc arc = ia.arc;
-            NodeID id = ia.id;
-            // Retrieve my identity.
-            IdentityData identity_data = find_or_create_local_identity(id);
-            IIdmgmtIdentityArc id_arc = ia.id_arc;
-            ret.add(@"identityarcs: #$(i): on arc from $(arc.get_dev()) to $(arc.get_peer_mac()),");
-            ret.add(@"                  id-id: from $(id.id) to $(id_arc.get_peer_nodeid().id).");
-            string peer_ll = ia.id_arc.get_peer_linklocal();
-            string ns = identity_data.network_namespace;
-            string pseudodev = identity_mgr.get_pseudodev(ia.id, ia.arc.get_dev());
-            ret.add(@"                  dev-ll: from $(pseudodev) on '$(ns)' to $(peer_ll).");
+            ret.add_all(print_identity_arc(local_identity_index, i));
         }
+        return ret;
+    }
+
+    Gee.List<string> print_identity_arc(int local_identity_index, int identity_arc_index)
+    {
+        IdentityData identity_data = local_identities[local_identity_index];
+        IdentityArc identity_arc = identity_data.identity_arcs[identity_arc_index];
+        ArrayList<string> ret = new ArrayList<string>();
+        ret.add(@"identity_arc #$(identity_arc_index) of local_identity #$(local_identity_index):");
+        // TODO ....
+        ret.add(@"    ...");
         return ret;
     }
 
@@ -559,26 +556,20 @@ Command list:
         //  the QspnManager of old_identity_data.
 
         HashMap<IdentityArc, IdentityArc> old_to_new_id_arc = new HashMap<IdentityArc, IdentityArc>();
-        foreach (IdentityArc w0 in old_identity_data.my_identityarcs)
+        foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
         {
-            bool old_identity_changed_peer_mac = (w0.peer_mac != w0.id_arc.get_peer_mac());
-            if (old_identity_changed_peer_mac && w0.qspn_arc != null)
-            {
-                // change `tid` of w0
-                string tablename;
-                tn.get_table(null, w0.id_arc.get_peer_mac(), out w0.tid, out tablename);
-            }
+            bool old_identity_arc_changed_peer_mac = (w0.prev_peer_mac != null);
             // find appropriate w1
-            foreach (IdentityArc w1 in new_identity_data.my_identityarcs)
+            foreach (IdentityArc w1 in new_identity_data.identity_arcs.values)
             {
                 if (w1.arc != w0.arc) continue;
-                if (old_identity_changed_peer_mac)
+                if (old_identity_arc_changed_peer_mac)
                 {
-                    if (w1.peer_mac != w0.id_arc.get_peer_mac()) continue;
+                    if (w1.peer_mac != w0.prev_peer_mac) continue;
                 }
                 else
                 {
-                    if (! w1.id_arc.get_peer_nodeid().equals(w0.id_arc.get_peer_nodeid())) continue;
+                    if (w1.peer_mac != w0.peer_mac) continue;
                 }
                 old_to_new_id_arc[w0] = w1;
                 break;
@@ -608,20 +599,15 @@ Command list:
         // Search qspn-arc of old identity. For them we have tables in old network namespace
         //  which are to be copied in new network namespace.
         int bid6 = cm.begin_block();
-        foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+        foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
         {
-            int tid;
-            string tablename;
-            string peer_mac = ia.id_arc.get_peer_mac();
-            tn.get_table(bid6, peer_mac, out tid, out tablename);
-            // Note: id_arc.get_peer_mac() is the new MAC of the neighbor if it was included in the migration.
             string ipaddr;
             ArrayList<string> cmd;
             cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_new_ns);
             cmd.add_all_array({
                 @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
-                @"-m", @"mac", @"--mac-source", @"$(peer_mac)",
-                @"-j", @"MARK", @"--set-mark", @"$(tid)"});
+                @"-m", @"mac", @"--mac-source", @"$(ia.peer_mac)",
+                @"-j", @"MARK", @"--set-mark", @"$(ia.tid)"});
             cm.single_command_in_block(bid6, cmd);
             // Add to the table the new destination IP set of old identity. Initially as unreachable.
             for (int i = levels-1; i >= subnetlevel; i--)
@@ -632,12 +618,12 @@ Command list:
                     ipaddr = old_identity_data.destination_ip_set[i][j].global;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_new_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
                     cm.single_command_in_block(bid6, cmd);
                     ipaddr = old_identity_data.destination_ip_set[i][j].anonymous;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_new_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
                     cm.single_command_in_block(bid6, cmd);
                 }
                 for (int k = levels-1; k >= i+1; k--)
@@ -647,7 +633,7 @@ Command list:
                         ipaddr = old_identity_data.destination_ip_set[i][j].intern[k];
                         cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_new_ns);
                         cmd.add_all_array({
-                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
                         cm.single_command_in_block(bid6, cmd);
                     }
                 }
@@ -663,14 +649,10 @@ Command list:
         int bid = cm.begin_block();
         ArrayList<string> tablenames = new ArrayList<string>();
         if (old_ns == "") tablenames.add("ntk");
-        // Add a table for each qspn-arc of old identity and update `tid` for its IdentityArc
-        foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+        // Add the table that was in old namespace for each qspn-arc of old identity
+        foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
         {
-            string tablename;
-            tn.get_table(bid, ia.peer_mac, out ia.tid, out tablename);
-            // Note: Member peer_mac is not changed yet. It is the old one.
-            // Whilst ia.id_arc.get_peer_mac() might differ. If it was a g-node migration that includes this neighbor.
-            tablenames.add(tablename);
+            tablenames.add(ia.prev_tablename);
         }
         foreach (string tablename in tablenames)
          for (int i = levels-1; i >= subnetlevel; i--)
@@ -766,17 +748,14 @@ Command list:
         tablenames = new ArrayList<string>();
         if (old_ns == "") tablenames.add("ntk");
         // Add a table for each qspn-arc of old identity that will be also in new identity
-        foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+        foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
         {
-            // Note: Member peer_mac is not changed yet. It is the old one.
-            // Whilst ia.id_arc.get_peer_mac() might differ. If it was a g-node migration that includes this neighbor.
-            // Hence, if they differ we have to use it.
-            if (ia.peer_mac != ia.id_arc.get_peer_mac())
+            bool old_identity_arc_changed_peer_mac = (ia.prev_peer_mac != null);
+            // If old identity's identity_arc has changed its peer_mac, then the previous mac will be
+            //  used by new identity.
+            if (old_identity_arc_changed_peer_mac)
             {
-                int tid;
-                string tablename;
-                tn.get_table(bid2, ia.peer_mac, out tid, out tablename);
-                tablenames.add(tablename);
+                tablenames.add(ia.prev_tablename);
             }
         }
         foreach (string tablename in tablenames)
@@ -815,9 +794,10 @@ Command list:
         // Prepare internal arcs
         ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
         ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = new ArrayList<IQspnNaddr>();
-        foreach (IdentityArc w0 in old_identity_data.my_identityarcs)
+        foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
         {
-            if (w0.peer_mac != w0.id_arc.get_peer_mac())
+            bool old_identity_arc_is_internal = (w0.prev_peer_mac != null);
+            if (old_identity_arc_is_internal)
             {
                 // It is an internal arc
                 IdentityArc w1 = old_to_new_id_arc[w0]; // w1 is already in new_identity_data.my_identityarcs
@@ -825,10 +805,9 @@ Command list:
                 NodeID sourceid = w1.id; // == new_id
                 IdmgmtArc __arc = (IdmgmtArc)w1.arc;
                 Arc _arc = __arc.arc;
-                string peer_mac = w1.id_arc.get_peer_mac();
-                w1.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
-                string tablename;
-                tn.get_table(null, peer_mac, out w1.tid, out tablename);
+                w1.qspn_arc = new QspnArc(_arc, sourceid, destid, w1.peer_mac);
+                tn.get_table(null, w1.peer_mac, out w1.tid, out w1.tablename);
+                w1.rule_added = false;
 
                 assert(w0.qspn_arc != null);
                 IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
@@ -850,16 +829,15 @@ Command list:
         ArrayList<IQspnArc> external_arc_set = new ArrayList<IQspnArc>();
         foreach (int w0_index in op.id_arc_index_list)
         {
-            IdentityArc w0 = identityarcs[w0_index];
+            IdentityArc w0 = old_identity_data.identity_arcs[w0_index];
             IdentityArc w1 = old_to_new_id_arc[w0]; // w1 is already in new_identity_data.my_identityarcs
             NodeID destid = w1.id_arc.get_peer_nodeid();
             NodeID sourceid = w1.id; // == new_id
             IdmgmtArc __arc = (IdmgmtArc)w1.arc;
             Arc _arc = __arc.arc;
-            string peer_mac = w1.id_arc.get_peer_mac();
-            w1.qspn_arc = new QspnArc(_arc, sourceid, destid, peer_mac);
-            string tablename;
-            tn.get_table(null, peer_mac, out w1.tid, out tablename);
+            w1.qspn_arc = new QspnArc(_arc, sourceid, destid, w1.peer_mac);
+            tn.get_table(null, w1.peer_mac, out w1.tid, out w1.tablename);
+            w1.rule_added = false;
 
             external_arc_set.add(w1.qspn_arc);
         }
@@ -904,18 +882,14 @@ Command list:
 
         // Add new destination IPs into new forwarding-tables in old network namespace
         int bid3 = cm.begin_block();
-        foreach (IdentityArc ia in new_identity_data.my_identityarcs)
+        foreach (IdentityArc ia in new_identity_data.identity_arcs.values)
          if (ia.qspn_arc != null)
          if (ia.qspn_arc in external_arc_set)
         {
-            string mac = ia.peer_mac; // the value is up to date in the IdentityArc of new identity.
-            string tablename;
-            tn.get_table(bid3, ia.peer_mac, out ia.tid, out tablename);
-
             ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
             cmd.add_all_array({
                 @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
-                @"-m", @"mac", @"--mac-source", @"$(mac)",
+                @"-m", @"mac", @"--mac-source", @"$(ia.peer_mac)",
                 @"-j", @"MARK", @"--set-mark", @"$(ia.tid)"});
             cm.single_command_in_block(bid3, cmd);
 
@@ -927,12 +901,12 @@ Command list:
                     string ipaddr = new_identity_data.destination_ip_set[i][j].global;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
                     cm.single_command_in_block(bid3, cmd);
                     ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
                     cm.single_command_in_block(bid3, cmd);
                 }
                 for (int k = levels-1; k >= i+1; k--)
@@ -942,7 +916,7 @@ Command list:
                         string ipaddr = new_identity_data.destination_ip_set[i][j].intern[k];
                         cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                         cmd.add_all_array({
-                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
                         cm.single_command_in_block(bid3, cmd);
                     }
                 }
@@ -976,12 +950,9 @@ Command list:
             tablenames = new ArrayList<string>();
             if (old_ns == "") tablenames.add("ntk");
             // Add a table for each qspn-arc of new identity
-            foreach (IdentityArc ia in new_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+            foreach (IdentityArc ia in new_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
             {
-                int tid;
-                string tablename;
-                tn.get_table(bid4, ia.peer_mac, out tid, out tablename);
-                tablenames.add(tablename);
+                tablenames.add(ia.tablename);
             }
             HashMap<int,HashMap<int,DestinationIPSet>> prev_new_identity_destination_ip_set;
             prev_new_identity_destination_ip_set = copy_destination_ip_set(new_identity_data.destination_ip_set);
@@ -1078,7 +1049,7 @@ Command list:
 
         // Finally, the peer_mac and peer_linklocal of the identity-arcs of old identity
         // can be updated (if they need to).
-        foreach (IdentityArc ia in old_identity_data.my_identityarcs) if (ia.qspn_arc != null)
+        foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
         {
             ia.peer_mac = ia.id_arc.get_peer_mac();
             ia.peer_linklocal = ia.id_arc.get_peer_linklocal();
@@ -1096,18 +1067,17 @@ Command list:
         NodeID sourceid = identity_data.nodeid;
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(sourceid, "qspn");
 
-        foreach (IdentityArc ia in identity_data.my_identityarcs)
+        foreach (IdentityArc ia in identity_data.identity_arcs.values)
          if (((IdmgmtArc)ia.arc).arc.neighborhood_arc.nic.dev.up() == my_dev.up())
          if (ia.peer_mac == peer_mac)
         {
             NodeID destid = ia.id_arc.get_peer_nodeid();
             IdmgmtArc _arc = (IdmgmtArc)ia.arc;
             Arc arc = _arc.arc;
-            ia.qspn_arc = new QspnArc(arc, sourceid, destid, peer_mac);
+            ia.qspn_arc = new QspnArc(arc, sourceid, destid, ia.peer_mac);
+            tn.get_table(null, ia.peer_mac, out ia.tid, out ia.tablename);
+            ia.rule_added = false;
             qspn_mgr.arc_add(ia.qspn_arc);
-            assert(ia.tid == null);
-            string tablename;
-            tn.get_table(null, peer_mac, out ia.tid, out tablename);
 
             // Add new forwarding-table
             int bid = cm.begin_block();
@@ -1130,12 +1100,12 @@ Command list:
                     string ipaddr = identity_data.destination_ip_set[i][j].global;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
                     cm.single_command_in_block(bid, cmd);
                     ipaddr = identity_data.destination_ip_set[i][j].anonymous;
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                     cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
                     cm.single_command_in_block(bid, cmd);
                 }
                 for (int k = levels-1; k >= i+1; k--)
@@ -1145,7 +1115,7 @@ Command list:
                         string ipaddr = identity_data.destination_ip_set[i][j].intern[k];
                         cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                         cmd.add_all_array({
-                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
                         cm.single_command_in_block(bid, cmd);
                     }
                 }
