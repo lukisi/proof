@@ -57,6 +57,7 @@ namespace ProofOfConcept
         if (ia.qspn_arc != null)
         {
             tn.get_table(null, ia.peer_mac, out ia.tid, out ia.tablename);
+            ia.rule_added = false;
         }
 
         foreach (string s in print_identity_arc(identity_data.local_identity_index, ia.identity_arc_index)) print(s + "\n");
