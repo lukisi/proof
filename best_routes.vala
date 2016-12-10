@@ -32,7 +32,7 @@ namespace ProofOfConcept
         public HCoord h;
     }
 
-    ArrayList<NeighborData> find_neighbors(IdentityData id, QspnManager qspn_mgr, int bid)
+    Gee.List<NeighborData> find_neighbors(IdentityData id, QspnManager qspn_mgr, int bid)
     {
         // Compute list of neighbors.
         ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
@@ -59,7 +59,7 @@ namespace ProofOfConcept
     HashMap<string, BestRouteToDest>
     find_best_route_to_dest_foreach_table(
         Gee.List<IQspnNodePath> paths,
-        ArrayList<NeighborData> neighbors)
+        Gee.List<NeighborData> neighbors)
     {
         HashMap<string, BestRouteToDest> best_route_foreach_table = new HashMap<string, BestRouteToDest>();
         foreach (IQspnNodePath path in paths)
@@ -104,7 +104,7 @@ namespace ProofOfConcept
     void per_identity_per_table_update_best_path_to_h(
         IdentityData id,
         string tablename,
-        HashMap<string, BestRouteToDest> best_route_foreach_table,
+        BestRouteToDest? best,
         HCoord h,
         int bid)
     {
@@ -118,10 +118,9 @@ namespace ProofOfConcept
         if (h_ip_set.global != "")
         {
             assert(h_ip_set.anonymous != "");
-            if (best_route_foreach_table.has_key(tablename))
+            if (best != null)
             {
                 // set route global
-                BestRouteToDest best = best_route_foreach_table[tablename];
                 ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                 cmd.add_all_array({
                     @"ip", @"route", @"change",
@@ -160,10 +159,9 @@ namespace ProofOfConcept
         {
             if (h_ip_set.intern[k] != "")
             {
-                if (best_route_foreach_table.has_key(tablename))
+                if (best != null)
                 {
                     // set route intern
-                    BestRouteToDest best = best_route_foreach_table[tablename];
                     ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                     cmd.add_all_array({
                         @"ip", @"route", @"change",
@@ -197,7 +195,9 @@ namespace ProofOfConcept
          if (id.my_naddr.pos[lvl] != pos)
         {
             HCoord h = new HCoord(lvl, pos);
-            per_identity_per_table_update_best_path_to_h(id, tablename, all_best_routes[h], h, bid);
+            BestRouteToDest? best = null;
+            if (all_best_routes[h].has_key(tablename)) best = all_best_routes[h][tablename];
+            per_identity_per_table_update_best_path_to_h(id, tablename, best, h, bid);
         }
     }
 
@@ -209,7 +209,7 @@ namespace ProofOfConcept
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
 
         // Compute list of neighbors.
-        ArrayList<NeighborData> neighbors = find_neighbors(id, qspn_mgr, bid);
+        Gee.List<NeighborData> neighbors = find_neighbors(id, qspn_mgr, bid);
 
         HashMap<HCoord, HashMap<string, BestRouteToDest>>
             all_best_routes = new HashMap<HCoord, HashMap<string, BestRouteToDest>>(
@@ -247,7 +247,7 @@ namespace ProofOfConcept
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
 
         // Compute list of neighbors.
-        ArrayList<NeighborData> neighbors = find_neighbors(id, qspn_mgr, bid);
+        Gee.List<NeighborData> neighbors = find_neighbors(id, qspn_mgr, bid);
 
         // Retrieve all routes towards `h`.
         Gee.List<IQspnNodePath> paths;
@@ -261,9 +261,17 @@ namespace ProofOfConcept
         HashMap<string, BestRouteToDest> best_route_foreach_table = find_best_route_to_dest_foreach_table(paths, neighbors);
 
         if (id.network_namespace == "")
-            per_identity_per_table_update_best_path_to_h(id, "ntk", best_route_foreach_table, h, bid);
+        {
+            BestRouteToDest? best = null;
+            if (best_route_foreach_table.has_key("ntk")) best = best_route_foreach_table["ntk"];
+            per_identity_per_table_update_best_path_to_h(id, "ntk", best, h, bid);
+        }
         foreach (NeighborData neighbor in neighbors)
-            per_identity_per_table_update_best_path_to_h(id, neighbor.tablename, best_route_foreach_table, h, bid);
+        {
+            BestRouteToDest? best = null;
+            if (best_route_foreach_table.has_key(neighbor.tablename)) best = best_route_foreach_table[neighbor.tablename];
+            per_identity_per_table_update_best_path_to_h(id, neighbor.tablename, best, h, bid);
+        }
     }
 
     void update_rules(IdentityData id, int bid)
