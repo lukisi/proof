@@ -32,8 +32,10 @@ namespace ProofOfConcept
         public HCoord h;
     }
 
-    Gee.List<NeighborData> find_neighbors(IdentityData id, QspnManager qspn_mgr, int bid)
+    Gee.List<NeighborData> find_neighbors(IdentityData id, int bid)
     {
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
+
         // Compute list of neighbors.
         ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
         foreach (IdentityArc ia in id.identity_arcs.values) if (ia.qspn_arc != null)
@@ -204,12 +206,10 @@ namespace ProofOfConcept
     void per_identity_foreach_table_update_all_best_paths(
         IdentityData id,
         int bid,
-        bool only_ntk=false)
+        Gee.List<NeighborData> neighbors,
+        bool include_ntk=true)
     {
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
-
-        // Compute list of neighbors.
-        Gee.List<NeighborData> neighbors = find_neighbors(id, qspn_mgr, bid);
 
         HashMap<HCoord, HashMap<string, BestRouteToDest>>
             all_best_routes = new HashMap<HCoord, HashMap<string, BestRouteToDest>>(
@@ -231,9 +231,9 @@ namespace ProofOfConcept
             // Find best routes towards `h` for table 'ntk' and for tables 'ntk_from_<MAC>'
             all_best_routes[h] = find_best_route_to_dest_foreach_table(paths, neighbors);
         }
-        if (id.network_namespace == "")
+        if (include_ntk && id.network_namespace == "")
             per_identity_per_table_update_all_best_paths(id, "ntk", all_best_routes, bid);
-        if (!only_ntk) foreach (NeighborData neighbor in neighbors)
+        foreach (NeighborData neighbor in neighbors)
             per_identity_per_table_update_all_best_paths(id, neighbor.tablename, all_best_routes, bid);
     }
 
@@ -247,7 +247,7 @@ namespace ProofOfConcept
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
 
         // Compute list of neighbors.
-        Gee.List<NeighborData> neighbors = find_neighbors(id, qspn_mgr, bid);
+        Gee.List<NeighborData> neighbors = find_neighbors(id, bid);
 
         // Retrieve all routes towards `h`.
         Gee.List<IQspnNodePath> paths;

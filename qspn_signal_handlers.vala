@@ -112,7 +112,8 @@ namespace ProofOfConcept
     void update_best_paths_forall_destinations_per_identity(IdentityData id)
     {
         int bid = cm.begin_block();
-        per_identity_foreach_table_update_all_best_paths(id, bid);
+        Gee.List<NeighborData> neighbors = find_neighbors(id, bid);
+        per_identity_foreach_table_update_all_best_paths(id, bid, neighbors);
         update_rules(id, bid);
         cm.end_block(bid);
     }

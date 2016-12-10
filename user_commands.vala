@@ -641,7 +641,8 @@ Command list:
             ia.rule_added = false;
         }
         // Then update routes we already know
-        per_identity_foreach_table_update_all_best_paths(old_identity_data, bid6);
+        Gee.List<NeighborData> neighbors = find_neighbors(old_identity_data, bid6);
+        per_identity_foreach_table_update_all_best_paths(old_identity_data, bid6, neighbors);
         update_rules(old_identity_data, bid6);
         cm.end_block(bid6);
 
@@ -1064,7 +1065,7 @@ Command list:
 
                 // update only table ntk because of updated "src"
                 int bid5 = cm.begin_block();
-                per_identity_foreach_table_update_all_best_paths(new_identity_data, bid5, true);
+                per_identity_foreach_table_update_all_best_paths(new_identity_data, bid5, new ArrayList<NeighborData>());
                 cm.end_block(bid5);
             }
         }
