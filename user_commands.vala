@@ -961,11 +961,23 @@ Command list:
              for (int i = levels-1; i >= subnetlevel; i--)
              for (int j = 0; j < _gsizes[i]; j++)
             {
+                bool must_update = false;
                 if (new_identity_data.destination_ip_set[i][j].global != "" &&
                     prev_new_identity_destination_ip_set[i][j].global == "")
                 {
-                    // TODO add route and change it (foreach tablename in tablenames)
-                    // TODO same for new_identity_data.destination_ip_set[i][j].anonymous
+                    must_update = true;
+                    // add route for i,j.global for $tablename
+                    string ipaddr = new_identity_data.destination_ip_set[i][j].global;
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid4, cmd);
+                    // add route for i,j.anonymous for $tablename
+                    ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid4, cmd);
                 }
                 else if (new_identity_data.destination_ip_set[i][j].global == "" &&
                     prev_new_identity_destination_ip_set[i][j].global != "")
@@ -986,7 +998,13 @@ Command list:
                     if (new_identity_data.destination_ip_set[i][j].intern[k] != "" &&
                         prev_new_identity_destination_ip_set[i][j].intern[k] == "")
                     {
-                        // TODO add route and change it (foreach tablename in tablenames)
+                        must_update = true;
+                        // add route for i,j.intern[k] for $tablename
+                        string ipaddr = new_identity_data.destination_ip_set[i][j].intern[k];
+                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                        cm.single_command_in_block(bid4, cmd);
                     }
                     else if (new_identity_data.destination_ip_set[i][j].intern[k] == "" &&
                         prev_new_identity_destination_ip_set[i][j].intern[k] != "")
@@ -997,6 +1015,10 @@ Command list:
                             @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
                         cm.single_command_in_block(bid4, cmd);
                     }
+                }
+                if (must_update)
+                {
+                    // TODO update route for whole (i,j) for $tablename
                 }
             }
             cm.end_block(bid4);
@@ -1045,6 +1067,10 @@ Command list:
                 per_identity_foreach_table_update_all_best_paths(new_identity_data, bid5, true);
                 cm.end_block(bid5);
             }
+        }
+        else
+        {
+            // TODO we wait for command `enter_net_phase_2`
         }
 
         // Finally, the peer_mac and peer_linklocal of the identity-arcs of old identity
