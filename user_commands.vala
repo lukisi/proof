@@ -641,7 +641,7 @@ Command list:
             ia.rule_added = false;
         }
         // Then update routes we already know
-        Gee.List<NeighborData> neighbors = find_neighbors(old_identity_data, bid6);
+        Gee.List<NeighborData> neighbors = find_neighbors(old_identity_data);
         per_identity_foreach_table_update_all_best_paths(old_identity_data, bid6, neighbors);
         update_rules(old_identity_data, bid6);
         cm.end_block(bid6);
