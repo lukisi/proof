@@ -50,10 +50,18 @@ namespace ProofOfConcept
         return neighbor;
     }
 
+    NeighborData? get_neighbor_by_tablename(IdentityData id, string tablename)
+    {
+        NeighborData? ret = null;
+        foreach (IdentityArc ia in id.identity_arcs.values) if (ia.qspn_arc != null) if (ia.tablename == tablename)
+        {
+            ret = get_neighbor(id, ia);
+        }
+        return ret;
+    }
+
     Gee.List<NeighborData> find_neighbors(IdentityData id)
     {
-        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
-
         // Compute list of neighbors.
         ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
         foreach (IdentityArc ia in id.identity_arcs.values) if (ia.qspn_arc != null)
@@ -113,6 +121,40 @@ namespace ProofOfConcept
             if (completed) break;
         }
         return best_route_foreach_table;
+    }
+
+    BestRouteToDest? per_identity_per_table_find_best_path_to_h(
+        IdentityData id,
+        HCoord h,
+        string tablename)
+    {
+        if (h.pos >= _gsizes[h.lvl]) return null; // ignore virtual destination.
+
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
+
+        ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
+        // Compute neighbor.
+        if (tablename != "ntk")
+        {
+            NeighborData? neighbor = get_neighbor_by_tablename(id, tablename);
+            if (neighbor != null) neighbors.add(neighbor);
+        }
+
+        // Retrieve all routes towards `h`.
+        Gee.List<IQspnNodePath> paths;
+        try {
+            paths = qspn_mgr.get_paths_to(h);
+        } catch (QspnBootstrapInProgressError e) {
+            paths = new ArrayList<IQspnNodePath>();
+        }
+
+        // Find best routes towards `h` for table 'ntk' and for tables 'ntk_from_<MAC>'
+        HashMap<string, BestRouteToDest> best_route_foreach_table =
+            find_best_route_to_dest_foreach_table(paths, neighbors);
+
+        BestRouteToDest? ret = null;
+        if (best_route_foreach_table.has_key(tablename)) ret = best_route_foreach_table[tablename];
+        return ret;
     }
 
     void per_identity_per_table_update_best_path_to_h(
