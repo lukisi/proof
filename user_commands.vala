@@ -606,7 +606,7 @@ Command list:
             _naddr_temp[ch_level] = ch_pos;
 
             ArrayList<int> _elderships_temp = new ArrayList<int>();
-            _elderships_temp.add_all(new_identity_data.my_fp.elderships);
+            _elderships_temp.add_all(old_identity_data.my_fp.elderships);
             _elderships_temp[ch_level] = ch_eldership;
 
             old_identity_data.my_naddr = new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
