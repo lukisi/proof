@@ -22,21 +22,7 @@ using TaskletSystem;
 namespace ProofOfConcept
 {
     [NoReturn]
-    internal void error_in_command(string cmd, string stdout, string stderr)
-    {
-        print("Error in command:\n");
-        print(@"   $(cmd)\n");
-        print("command stdout =======\n");
-        print(@"$(stdout)\n");
-        print("======================\n");
-        print("command stderr =======\n");
-        print(@"$(stderr)\n");
-        print("======================\n");
-        error(@"Error in command: `$(cmd)`");
-    }
-
-    [NoReturn]
-    internal void error_in_command_new(ArrayList<string> cmd_args, string stdout, string stderr)
+    internal void error_in_command(ArrayList<string> cmd_args, string stdout, string stderr)
     {
         string cmd = cmd_repr(cmd_args);
         print("Error in command:\n");
@@ -118,7 +104,7 @@ namespace ProofOfConcept
                     if (com_ret.stderr != "") print(@"ERR: $(com_ret.stderr)");
                 }
                 if (com_ret.exit_status != 0)
-                    error_in_command_new(cmd_args, com_ret.stdout, com_ret.stderr);
+                    error_in_command(cmd_args, com_ret.stdout, com_ret.stderr);
             } catch (Error e) {error(@"Unable to spawn a command: $(e.message)");}
         }
         class SingleCommandTasklet : Object, ITaskletSpawnable

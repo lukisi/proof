@@ -27,7 +27,7 @@ namespace ProofOfConcept
 {
     void per_identity_qspn_arc_removed(IdentityData id, IQspnArc arc, bool bad_link)
     {
-        error("not implemented yet");
+        warning("signal qspn_arc_removed: not implemented yet");
         /*
         QspnArc _arc = (QspnArc)arc;
         my_arcs.remove(_arc);
@@ -68,7 +68,7 @@ namespace ProofOfConcept
     {
         // TODO
         // we should do something of course
-        error("not implemented yet");
+        warning("signal qspn_gnode_splitted: not implemented yet");
     }
 
     void per_identity_qspn_path_added(IdentityData id, IQspnNodePath p)
@@ -120,6 +120,8 @@ namespace ProofOfConcept
 
     void per_identity_qspn_remove_identity(IdentityData id)
     {
+        warning("signal qspn_remove_identity: not implemented yet");
+        /*
         // The qspn manager wants to remove this identity.
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
         qspn_mgr.destroy();
@@ -132,5 +134,6 @@ namespace ProofOfConcept
         // remove identity and its id-arcs from memory data-structures
         id.identity_arcs.clear();
         local_identities.unset(id.local_identity_index);
+        */
     }
 }

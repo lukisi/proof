@@ -816,12 +816,6 @@ namespace ProofOfConcept
         public LocalIPSet local_ip_set;
         public HashMap<int,HashMap<int,DestinationIPSet>> destination_ip_set;
 
-        public NetworkStack network_stack {
-            get {
-                error("do not use network_stack");
-            }
-        }
-
         private string _network_namespace;
         public string network_namespace {
             get {

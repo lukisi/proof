@@ -41,7 +41,6 @@ qspnclient_SOURCES =  \
 	best_routes.vala \
 	ipv4_compute.vala \
 	naddr.vala \
-	network_stack.vala \
 	commander.vala \
 	table_names.vala \
 	user_commands.vala \

@@ -87,7 +87,8 @@ namespace ProofOfConcept
         foreach (IQspnNodePath path in paths)
         {
             QspnArc path_arc = (QspnArc)path.i_qspn_get_arc();
-            string path_dev = path_arc.arc.neighborhood_arc.nic.dev;
+            string realnic = path_arc.arc.neighborhood_arc.nic.dev;
+            string path_dev = identity_mgr.get_pseudodev(path_arc.sourceid, realnic);
             string gw = path_arc.arc.neighborhood_arc.neighbour_nic_addr;
             if (best_route_foreach_table.is_empty)
             {
