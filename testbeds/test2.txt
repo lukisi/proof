@@ -88,5 +88,28 @@ EOF
 
 
 
+
+
+
+cat <<EOF | ssh beta bash
+/home/luca/bin/qspnclient quit
+EOF
+cat <<EOF | ssh mu bash
+/home/luca/bin/qspnclient quit
+EOF
+
+sleep 10
+
+cat <<EOF | ssh gamma bash
+/home/luca/bin/qspnclient quit
+EOF
+cat <<EOF | ssh delta bash
+/home/luca/bin/qspnclient quit
+EOF
+
+
+
+
+
 8191409
 

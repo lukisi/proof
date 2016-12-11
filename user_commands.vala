@@ -463,11 +463,28 @@ Command list:
     Gee.List<string> print_identity_arc(int local_identity_index, int identity_arc_index)
     {
         IdentityData identity_data = local_identities[local_identity_index];
-        IdentityArc identity_arc = identity_data.identity_arcs[identity_arc_index];
+        IdentityArc ia = identity_data.identity_arcs[identity_arc_index];
         ArrayList<string> ret = new ArrayList<string>();
         ret.add(@"identity_arc #$(identity_arc_index) of local_identity #$(local_identity_index):");
+        ret.add(@"    to $(ia.peer_mac)");
+        if (ia.qspn_arc == null)
+        {
+            ret.add(@"    no qspn_arc");
+        }
+        else
+        {
+            if (ia.tablename == null)
+            {
+                ret.add(@"    no tablename");
+            }
+            else
+            {
+                string rule_added = "no rule.";
+                if (ia.rule_added == true) rule_added = "rule added.";
+                ret.add(@"    tablename $(ia.tablename), tid $(ia.tid), $(rule_added)");
+            }
+        }
         // TODO ....
-        ret.add(@"    ...");
         return ret;
     }
 
@@ -552,8 +569,6 @@ Command list:
 
         old_identity_data.connectivity_from_level = op.guest_gnode_level + 1;
         old_identity_data.connectivity_to_level = levels - 1;
-        // Anyway, in the scenario of enter_net, there is no need to call `make_connectivity` on
-        //  the QspnManager of old_identity_data.
 
         HashMap<IdentityArc, IdentityArc> old_to_new_id_arc = new HashMap<IdentityArc, IdentityArc>();
         foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
@@ -578,16 +593,31 @@ Command list:
 
         string old_ns = new_identity_data.network_namespace;
         string new_ns = old_identity_data.network_namespace;
-        ArrayList<int> _naddr_old = new ArrayList<int>();
-        _naddr_old.add_all(old_identity_data.my_naddr.pos);
-        Naddr my_naddr_old = new Naddr(_naddr_old.to_array(), _gsizes.to_array());
-        ArrayList<int> _naddr_conn = new ArrayList<int>();
-        _naddr_conn.add_all(old_identity_data.my_naddr.pos);
-        _naddr_conn[op.guest_gnode_level] = op.connectivity_pos;
-        Naddr my_naddr_conn = new Naddr(_naddr_conn.to_array(), _gsizes.to_array());
+
+        {
+            // Change address of connectivity identity.
+            int ch_level = op.guest_gnode_level;
+            int ch_pos = op.connectivity_pos;
+            int ch_eldership = op.connectivity_pos_eldership;
+            int64 fp_id = old_identity_data.my_fp.id;
+
+            ArrayList<int> _naddr_temp = new ArrayList<int>();
+            _naddr_temp.add_all(old_identity_data.my_naddr.pos);
+            _naddr_temp[ch_level] = ch_pos;
+
+            ArrayList<int> _elderships_temp = new ArrayList<int>();
+            _elderships_temp.add_all(new_identity_data.my_fp.elderships);
+            _elderships_temp[ch_level] = ch_eldership;
+
+            old_identity_data.my_naddr = new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+            old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+            // Anyway, in the scenario of enter_net, there is no need to call `make_connectivity` on
+            //  the QspnManager of old_identity_data.
+        }
+
         HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
         old_destination_ip_set = copy_destination_ip_set(old_identity_data.destination_ip_set);
-        compute_destination_ip_set(old_identity_data.destination_ip_set, my_naddr_conn);
+        compute_destination_ip_set(old_identity_data.destination_ip_set, old_identity_data.my_naddr);
 
         ArrayList<string> prefix_cmd_old_ns = new ArrayList<string>();
         if (old_ns != "") prefix_cmd_old_ns.add_all_array({
@@ -725,8 +755,7 @@ Command list:
         foreach (string s_piece in op.host_gnode_address.split(".")) _naddr_new.insert(0, int.parse(s_piece));
         _naddr_new.insert(0, op.in_host_pos1);
         _naddr_new.insert_all(0, old_identity_data.my_naddr.pos.slice(0, op.host_gnode_level-1));
-        Naddr my_naddr_new = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
-        new_identity_data.my_naddr = my_naddr_new;
+        new_identity_data.my_naddr = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
         // Prepare fingerprint
         // new elderships = op.host_gnode_elderships + op.in_host_pos1_eldership
         //                + 0 * (op.host_gnode_level - 1 - op.guest_gnode_level)
@@ -736,13 +765,12 @@ Command list:
         _elderships.insert(0, op.in_host_pos1_eldership);
         for (int jj = 0; jj < op.host_gnode_level - 1 - op.guest_gnode_level; jj++) _elderships.insert(0, 0);
         _elderships.insert_all(0, old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level));
-        Fingerprint my_fp_new = new Fingerprint(_elderships.to_array(), old_identity_data.my_fp.id);
-        new_identity_data.my_fp = my_fp_new;
+        new_identity_data.my_fp = new Fingerprint(_elderships.to_array(), old_identity_data.my_fp.id);
 
         // Compute local IPs. The valid intern IP are already set in old network namespace.
-        compute_local_ip_set(new_identity_data.local_ip_set, my_naddr_new);
+        compute_local_ip_set(new_identity_data.local_ip_set, new_identity_data.my_naddr);
         // Compute destination IPs. Then, we add the routes in old network namespace.
-        compute_destination_ip_set(new_identity_data.destination_ip_set, my_naddr_new);
+        compute_destination_ip_set(new_identity_data.destination_ip_set, new_identity_data.my_naddr);
 
         // Add new destination IPs into all tables in old network namespace
         int bid2 = cm.begin_block();
@@ -814,11 +842,11 @@ Command list:
                 IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
                 assert(_w0_peer_naddr != null);
                 Naddr w0_peer_naddr = (Naddr)_w0_peer_naddr;
-                // w1_peer_naddr = my_naddr_new.pos.slice(op.host_gnode_level-1, levels)
+                // w1_peer_naddr = new_identity_data.my_naddr.pos.slice(op.host_gnode_level-1, levels)
                 //             + w0_peer_naddr.pos.slice(0, op.host_gnode_level-1)
                 ArrayList<int> _w1_peer_naddr = new ArrayList<int>();
                 _w1_peer_naddr.add_all(w0_peer_naddr.pos.slice(0, op.host_gnode_level-1));
-                _w1_peer_naddr.add_all(my_naddr_new.pos.slice(op.host_gnode_level-1, levels));
+                _w1_peer_naddr.add_all(new_identity_data.my_naddr.pos.slice(op.host_gnode_level-1, levels));
                 Naddr w1_peer_naddr = new Naddr(_w1_peer_naddr.to_array(), _gsizes.to_array());
 
                 // Now add: the 2 ArrayList should have same size at the end.
@@ -854,12 +882,12 @@ Command list:
         };
         // Create new qspn manager
         QspnManager qspn_mgr = new QspnManager.enter_net(
-            my_naddr_new,
+            new_identity_data.my_naddr,
             internal_arc_set,
             internal_arc_peer_naddr_set,
             external_arc_set,
             old_arc_to_new_arc,
-            my_fp_new,
+            new_identity_data.my_fp,
             new QspnStubFactory(new_identity_data),
             /*hooking_gnode_level*/ op.guest_gnode_level,
             /*into_gnode_level*/ op.host_gnode_level,
@@ -929,22 +957,25 @@ Command list:
         if (op.prev_op_id == null)
         {
             // Immediately change address of new identity.
-            int ch_level = op.host_gnode_level-1;
-            int ch_pos = op.in_host_pos2;
-            int ch_eldership = op.in_host_pos2_eldership;
+            {
+                // Change address of new identity.
+                int ch_level = op.host_gnode_level-1;
+                int ch_pos = op.in_host_pos2;
+                int ch_eldership = op.in_host_pos2_eldership;
+                int64 fp_id = new_identity_data.my_fp.id;
 
-            ArrayList<int> _naddr_new_2 = new ArrayList<int>();
-            _naddr_new_2.add_all(my_naddr_new.pos);
-            _naddr_new_2[ch_level] = ch_pos;
-            Naddr my_naddr_new_2 = new Naddr(_naddr_new_2.to_array(), _gsizes.to_array());
-            new_identity_data.my_naddr = my_naddr_new_2;
+                ArrayList<int> _naddr_temp = new ArrayList<int>();
+                _naddr_temp.add_all(new_identity_data.my_naddr.pos);
+                _naddr_temp[ch_level] = ch_pos;
 
-            ArrayList<int> _elderships_2 = new ArrayList<int>();
-            _elderships_2.add_all(my_fp_new.elderships);
-            _elderships_2[ch_level] = ch_eldership;
-            Fingerprint my_fp_new_2 = new Fingerprint(_elderships_2.to_array(), my_fp_new.id);
+                ArrayList<int> _elderships_temp = new ArrayList<int>();
+                _elderships_temp.add_all(new_identity_data.my_fp.elderships);
+                _elderships_temp[ch_level] = ch_eldership;
 
-            qspn_mgr.make_real(my_naddr_new_2, my_fp_new_2);
+                new_identity_data.my_naddr = new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+                new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+                qspn_mgr.make_real(new_identity_data.my_naddr, new_identity_data.my_fp);
+            }
 
             int bid4 = cm.begin_block();
             // tablenames = set of tables of new identity in old network namespace
@@ -957,7 +988,7 @@ Command list:
             }
             HashMap<int,HashMap<int,DestinationIPSet>> prev_new_identity_destination_ip_set;
             prev_new_identity_destination_ip_set = copy_destination_ip_set(new_identity_data.destination_ip_set);
-            compute_destination_ip_set(new_identity_data.destination_ip_set, my_naddr_new_2);
+            compute_destination_ip_set(new_identity_data.destination_ip_set, new_identity_data.my_naddr);
             foreach (string tablename in tablenames)
              for (int i = levels-1; i >= subnetlevel; i--)
              for (int j = 0; j < _gsizes[i]; j++)
@@ -1037,7 +1068,7 @@ Command list:
 
                 LocalIPSet prev_new_identity_local_ip_set;
                 prev_new_identity_local_ip_set = copy_local_ip_set(new_identity_data.local_ip_set);
-                compute_local_ip_set(new_identity_data.local_ip_set, my_naddr_new_2);
+                compute_local_ip_set(new_identity_data.local_ip_set, new_identity_data.my_naddr);
 
                 for (int i = 1; i < levels; i++)
                 {
@@ -1057,7 +1088,7 @@ Command list:
                             @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.global)", @"dev", @"$(dev)"}));
                     if (! no_anonymize)
                     {
-                        string anonymousrange = ip_anonymizing_gnode(my_naddr_new_2.pos, levels);
+                        string anonymousrange = ip_anonymizing_gnode(new_identity_data.my_naddr.pos, levels);
                         cm.single_command(new ArrayList<string>.wrap({
                             @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$(anonymousrange)",
                             @"-j", @"SNAT", @"--to", @"$(new_identity_data.local_ip_set.global)"}));
