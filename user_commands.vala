@@ -836,7 +836,7 @@ Command list:
                 Arc _arc = __arc.arc;
                 w1.qspn_arc = new QspnArc(_arc, sourceid, destid, w1.peer_mac);
                 tn.get_table(null, w1.peer_mac, out w1.tid, out w1.tablename);
-                w1.rule_added = false;
+                w1.rule_added = w0.prev_rule_added;
 
                 assert(w0.qspn_arc != null);
                 IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
