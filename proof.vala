@@ -1445,16 +1445,18 @@ namespace ProofOfConcept
 
     class QspnArc : Object, IQspnArc
     {
-        public QspnArc(Arc arc, NodeID sourceid, NodeID destid, string peer_mac)
+        public QspnArc(Arc arc, NodeID sourceid, NodeID destid, IdentityArc ia, string peer_mac)
         {
             this.arc = arc;
             this.sourceid = sourceid;
             this.destid = destid;
+            this.ia = ia;
             this.peer_mac = peer_mac;
         }
         public weak Arc arc;
         public NodeID sourceid;
         public NodeID destid;
+        public weak IdentityArc ia;
         public string peer_mac;
 
         public IQspnCost i_qspn_get_cost()

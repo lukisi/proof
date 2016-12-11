@@ -89,7 +89,7 @@ namespace ProofOfConcept
             QspnArc path_arc = (QspnArc)path.i_qspn_get_arc();
             string realnic = path_arc.arc.neighborhood_arc.nic.dev;
             string path_dev = identity_mgr.get_pseudodev(path_arc.sourceid, realnic);
-            string gw = path_arc.arc.neighborhood_arc.neighbour_nic_addr;
+            string gw = path_arc.ia.peer_linklocal;
             if (best_route_foreach_table.is_empty)
             {
                 // absolute best.

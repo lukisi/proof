@@ -834,7 +834,7 @@ Command list:
                 NodeID sourceid = w1.id; // == new_id
                 IdmgmtArc __arc = (IdmgmtArc)w1.arc;
                 Arc _arc = __arc.arc;
-                w1.qspn_arc = new QspnArc(_arc, sourceid, destid, w1.peer_mac);
+                w1.qspn_arc = new QspnArc(_arc, sourceid, destid, w1, w1.peer_mac);
                 tn.get_table(null, w1.peer_mac, out w1.tid, out w1.tablename);
                 w1.rule_added = w0.prev_rule_added;
 
@@ -864,7 +864,7 @@ Command list:
             NodeID sourceid = w1.id; // == new_id
             IdmgmtArc __arc = (IdmgmtArc)w1.arc;
             Arc _arc = __arc.arc;
-            w1.qspn_arc = new QspnArc(_arc, sourceid, destid, w1.peer_mac);
+            w1.qspn_arc = new QspnArc(_arc, sourceid, destid, w1, w1.peer_mac);
             tn.get_table(null, w1.peer_mac, out w1.tid, out w1.tablename);
             w1.rule_added = false;
 
@@ -1139,7 +1139,7 @@ Command list:
             NodeID destid = ia.id_arc.get_peer_nodeid();
             IdmgmtArc _arc = (IdmgmtArc)ia.arc;
             Arc arc = _arc.arc;
-            ia.qspn_arc = new QspnArc(arc, sourceid, destid, ia.peer_mac);
+            ia.qspn_arc = new QspnArc(arc, sourceid, destid, ia, ia.peer_mac);
             tn.get_table(null, ia.peer_mac, out ia.tid, out ia.tablename);
             ia.rule_added = false;
             qspn_mgr.arc_add(ia.qspn_arc);
