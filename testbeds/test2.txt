@@ -72,12 +72,12 @@ cat <<EOF | ssh delta bash
 /home/luca/bin/qspnclient prepare_enter_net_phase_1 0 1 2 2.1 0.0 2 1 0 2 2 1 [2] 8191409 null
 EOF
 cat <<EOF | ssh mu bash
-/home/luca/bin/qspnclient prepare_enter_net_phase_1 1 1 2 2.1 0.0 2 1 0 2 2 1 [2] 8191409 null
+/home/luca/bin/qspnclient prepare_enter_net_phase_1 1 1 2 2.1 0.0 2 1 0 2 2 1 [] 8191409 null
 EOF
 cat <<EOF | ssh delta bash &
 /home/luca/bin/qspnclient enter_net_phase_1 0 8191409
 EOF
-cat <<EOF | ssh mu bash
+cat <<EOF | ssh mu bash &
 /home/luca/bin/qspnclient enter_net_phase_1 1 8191409
 EOF
 sleep 1
