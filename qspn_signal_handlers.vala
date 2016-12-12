@@ -28,6 +28,8 @@ namespace ProofOfConcept
     void per_identity_qspn_arc_removed(IdentityData id, IQspnArc arc, bool bad_link)
     {
         warning("signal qspn_arc_removed: not implemented yet");
+        QspnArc _arc = (QspnArc)arc;
+        print(@"Identity # $(id.local_identity_index), arc to $(_arc.peer_mac), bad_link=$(bad_link)\n");
         /*
         QspnArc _arc = (QspnArc)arc;
         my_arcs.remove(_arc);

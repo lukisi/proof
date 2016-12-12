@@ -99,8 +99,8 @@ namespace ProofOfConcept
                 TaskletCommandResult com_ret = tasklet.exec_command_argv(cmd_args);
                 if (log_console)
                 {
-                    print(@"ret: $(com_ret.exit_status)\n");
-                    if (com_ret.stdout != "") print(@"OUT: $(com_ret.stdout)");
+                    if (com_ret.exit_status != 0) print(@"ret: $(com_ret.exit_status)\n");
+                    if (com_ret.stdout != "" && ! ("sysctl" in cmd)) print(@"OUT: $(com_ret.stdout)");
                     if (com_ret.stderr != "") print(@"ERR: $(com_ret.stderr)");
                 }
                 if (com_ret.exit_status != 0)

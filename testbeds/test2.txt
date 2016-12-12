@@ -85,7 +85,13 @@ cat <<EOF | ssh gamma bash
 /home/luca/bin/qspnclient add_qspn_arc 0 eth1 00:16:3E:1A:C4:45
 EOF
 
+ssh gamma /home/luca/bin/qspnclient show_local_identities
+ssh gamma /home/luca/bin/qspnclient show_identity_arcs 0
+ssh gamma /home/luca/bin/qspnclient show_qspn_data 0
 
+ssh delta /home/luca/bin/qspnclient show_local_identities
+ssh delta /home/luca/bin/qspnclient show_identity_arcs 1
+ssh delta /home/luca/bin/qspnclient show_qspn_data 1
 
 
 

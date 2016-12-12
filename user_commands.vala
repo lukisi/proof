@@ -59,6 +59,9 @@ Command list:
 > add_qspn_arc <local_identity_index> <my_dev> <peer_mac>
   Add a QspnArc.
 
+> show_qspn_data <local_identity_index>
+  Shows info from QspnManager of a given local identity.
+
 > check_connectivity <local_identity_index>
   Checks whether a connectivity identity is still necessary.
 
@@ -267,6 +270,21 @@ Command list:
                         string peer_mac = _args[3].up();
                         add_qspn_arc(local_identity_index, my_dev, peer_mac);
                         write_empty_response(command_id);
+                    }
+                    else if (_args[0] == "show_qspn_data")
+                    {
+                        if (_args.size != 2)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        int local_identity_index = int.parse(_args[1]);
+                        if (! (local_identity_index in local_identities.keys))
+                        {
+                            write_oneline_response(command_id, @"wrong local_identity_index '$(local_identity_index)'", 1);
+                            continue;
+                        }
+                        write_block_response(command_id, show_qspn_data(local_identity_index));
                     }
                     else if (_args[0] == "check_connectivity")
                     {
@@ -1187,6 +1205,38 @@ Command list:
             }
             cm.end_block(bid);
         }
+    }
+
+    Gee.List<string> show_qspn_data(int local_identity_index)
+    {
+        ArrayList<string> ret = new ArrayList<string>();
+        IdentityData identity_data = local_identities[local_identity_index];
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
+        Gee.List<QspnArc> arcs = (Gee.List<QspnArc>)qspn_mgr.current_arcs();
+        foreach (QspnArc arc in arcs)
+        {
+            IQspnNaddr? naddr = qspn_mgr.get_naddr_for_arc(arc);
+            string s_naddr = "null";
+            if (naddr != null) s_naddr = naddr_repr((Naddr)naddr);
+            ret.add(@"QspnArc to $(s_naddr), cost $(arc.arc.cost)");
+        }
+        for (int lvl = 0; lvl < levels; lvl++)
+        {
+            try {
+                Gee.List<HCoord> lst_h = qspn_mgr.get_known_destinations(lvl);
+                foreach (HCoord h in lst_h)
+                {
+                    // public Gee.List<Netsukuku.Qspn.IQspnNodePath> get_paths_to (Netsukuku.HCoord d)
+                    Gee.List<IQspnNodePath> lst_paths = qspn_mgr.get_paths_to(h);
+                    foreach (IQspnNodePath path in lst_paths)
+                    {
+                        ret.add(@"Path to ($(h.lvl), $(h.pos)) with $(path.i_qspn_get_hops().size) hops");
+                    }
+                }
+            } catch (QspnBootstrapInProgressError e) {
+            }
+        }
+        return ret;
     }
 
     Gee.List<string> check_connectivity(int local_identity_index)
