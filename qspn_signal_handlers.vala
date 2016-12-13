@@ -27,13 +27,8 @@ namespace ProofOfConcept
 {
     void per_identity_qspn_arc_removed(IdentityData id, IQspnArc arc, bool bad_link)
     {
-        warning("signal qspn_arc_removed: not implemented yet");
         QspnArc _arc = (QspnArc)arc;
         print(@"Identity # $(id.local_identity_index), arc to $(_arc.peer_mac), bad_link=$(bad_link)\n");
-        /*
-        QspnArc _arc = (QspnArc)arc;
-        my_arcs.remove(_arc);
-        network_stack.remove_neighbour(_arc.peer_mac);
         if (bad_link)
         {
             // Remove arc from neighborhood, because it fails.
@@ -41,9 +36,24 @@ namespace ProofOfConcept
         }
         else
         {
-            identity_mgr.remove_identity_arc(_arc.arc.idmgmt_arc, _arc.sourceid, _arc.destid, true);
+            bool is_main_id_arc = false;
+            // check if it is.
+            if (id.main_id)
+            {
+                IdentityArc ia = _arc.ia;
+                Arc node_arc = ((IdmgmtArc)ia.arc).arc;
+                if (ia.peer_mac == node_arc.neighborhood_arc.neighbour_mac) is_main_id_arc = true;
+            }
+            if (is_main_id_arc)
+            {
+                neighborhood_mgr.remove_my_arc(_arc.arc.neighborhood_arc, false);
+            }
+            else
+            {
+                identity_mgr.remove_identity_arc(_arc.arc.idmgmt_arc, _arc.sourceid, _arc.destid, true);
+            }
         }
-        */
+        // Further actions are taken on signal identity_arc_removing of identity_mgr.
     }
 
     void per_identity_qspn_changed_fp(IdentityData id, int l)
