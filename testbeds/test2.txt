@@ -68,6 +68,19 @@ EOF
 
 sleep 2
 
+cat <<EOF | ssh beta bash
+/home/luca/bin/qspnclient print_time_ruler on
+EOF
+cat <<EOF | ssh gamma bash
+/home/luca/bin/qspnclient print_time_ruler on
+EOF
+cat <<EOF | ssh delta bash
+/home/luca/bin/qspnclient print_time_ruler on
+EOF
+cat <<EOF | ssh mu bash
+/home/luca/bin/qspnclient print_time_ruler on
+EOF
+
 cat <<EOF | ssh delta bash
 /home/luca/bin/qspnclient prepare_enter_net_phase_1 0 1 2 2.1 0.0 2 1 0 2 2 1 [2] 8191409 null
 EOF

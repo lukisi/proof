@@ -65,6 +65,9 @@ Command list:
 > check_connectivity <local_identity_index>
   Checks whether a connectivity identity is still necessary.
 
+> print_time_ruler ON/OFF
+  Useful during debugging.
+
 > help
   Show this menu.
 
@@ -79,6 +82,7 @@ Command list:
         {
             try
             {
+                ITaskletHandle? h_time_ruler = null;
                 while (true)
                 {
                     string line = read_command();
@@ -300,6 +304,29 @@ Command list:
                             continue;
                         }
                         write_block_response(command_id, check_connectivity(local_identity_index));
+                    }
+                    else if (_args[0] == "print_time_ruler")
+                    {
+                        if (_args.size != 2)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        string on_off = _args[1].up();
+                        if (on_off == "ON" && h_time_ruler == null)
+                        {
+                            // start a tasklet to keep time on console output.
+                            h_time_ruler = tasklet.spawn(new KeepTimeTasklet());
+                            write_empty_response(command_id);
+                        }
+                        else if (on_off == "OFF" && h_time_ruler != null)
+                        {
+                            // kill the tasklet
+                            h_time_ruler.kill();
+                            h_time_ruler = null;
+                            write_empty_response(command_id);
+                        }
+                        else write_oneline_response(command_id, @"Bad argument $(on_off).", 1);
                     }
                     else
                     {
@@ -1250,4 +1277,22 @@ Command list:
         return ret;
     }
 
+    class KeepTimeTasklet : Object, ITaskletSpawnable
+    {
+        public void * func()
+        {
+            int prev_second = 0;
+            while (true)
+            {
+                print(".\n");
+                GLib.DateTime now = new DateTime.now_local();
+                if (now.get_second() != prev_second)
+                {
+                    prev_second = now.get_second();
+                    print(@". $(now)\n");
+                }
+                tasklet.ms_wait(5);
+            }
+        }
+    }
 }
