@@ -28,7 +28,7 @@ namespace ProofOfConcept
     void per_identity_qspn_arc_removed(IdentityData id, IQspnArc arc, bool bad_link)
     {
         QspnArc _arc = (QspnArc)arc;
-        print(@"Identity # $(id.local_identity_index), arc to $(_arc.peer_mac), bad_link=$(bad_link)\n");
+        print(@"per_identity_qspn_arc_removed: Identity # $(id.local_identity_index), arc to $(_arc.peer_mac), bad_link=$(bad_link)\n");
         if (bad_link)
         {
             // Remove arc from neighborhood, because it fails.

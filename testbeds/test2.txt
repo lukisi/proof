@@ -93,10 +93,42 @@ EOF
 cat <<EOF | ssh mu bash &
 /home/luca/bin/qspnclient enter_net_phase_1 1 8191409
 EOF
-sleep 1
+sleep 4
 cat <<EOF | ssh gamma bash
 /home/luca/bin/qspnclient add_qspn_arc 0 eth1 00:16:3E:1A:C4:45
 EOF
+
+# wait 3 sec, turn off time-ruler, wait 4 sec, quit.
+sleep 3
+cat <<EOF | ssh beta bash
+/home/luca/bin/qspnclient print_time_ruler off
+EOF
+cat <<EOF | ssh gamma bash
+/home/luca/bin/qspnclient print_time_ruler off
+EOF
+cat <<EOF | ssh delta bash
+/home/luca/bin/qspnclient print_time_ruler off
+EOF
+cat <<EOF | ssh mu bash
+/home/luca/bin/qspnclient print_time_ruler off
+EOF
+sleep 4
+cat <<EOF | ssh beta bash
+/home/luca/bin/qspnclient quit
+EOF
+cat <<EOF | ssh gamma bash
+/home/luca/bin/qspnclient quit
+EOF
+cat <<EOF | ssh delta bash
+/home/luca/bin/qspnclient quit
+EOF
+cat <<EOF | ssh mu bash
+/home/luca/bin/qspnclient quit
+EOF
+
+
+
+
 
 ssh gamma /home/luca/bin/qspnclient show_local_identities
 ssh gamma /home/luca/bin/qspnclient show_identity_arcs 0
