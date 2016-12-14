@@ -132,6 +132,7 @@ namespace ProofOfConcept
 
     void per_identity_qspn_remove_identity(IdentityData id)
     {
+        // The qspn manager wants to remove this connectivity identity because the connectivity is guaranteed.
         warning("signal qspn_remove_identity: not implemented yet");
         /*
         // The qspn manager wants to remove this identity.

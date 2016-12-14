@@ -646,18 +646,21 @@ Command list:
             int ch_eldership = op.connectivity_pos_eldership;
             int64 fp_id = old_identity_data.my_fp.id;
 
-            ArrayList<int> _naddr_temp = new ArrayList<int>();
-            _naddr_temp.add_all(old_identity_data.my_naddr.pos);
-            _naddr_temp[ch_level] = ch_pos;
+            QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+                Naddr a = (Naddr)_a;
+                ArrayList<int> _naddr_temp = new ArrayList<int>();
+                _naddr_temp.add_all(a.pos);
+                _naddr_temp[ch_level] = ch_pos;
+                return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+            };
 
             ArrayList<int> _elderships_temp = new ArrayList<int>();
             _elderships_temp.add_all(old_identity_data.my_fp.elderships);
             _elderships_temp[ch_level] = ch_eldership;
 
-            old_identity_data.my_naddr = new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+            old_identity_data.my_naddr = (Naddr)update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
-            // Anyway, in the scenario of enter_net, there is no need to call `make_connectivity` on
-            //  the QspnManager of old_identity_data.
+            old_id_qspn_mgr.make_connectivity(op.guest_gnode_level+1, levels, update_naddr, old_identity_data.my_fp);
         }
 
         HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
@@ -1009,17 +1012,21 @@ Command list:
                 int ch_eldership = op.in_host_pos2_eldership;
                 int64 fp_id = new_identity_data.my_fp.id;
 
-                ArrayList<int> _naddr_temp = new ArrayList<int>();
-                _naddr_temp.add_all(new_identity_data.my_naddr.pos);
-                _naddr_temp[ch_level] = ch_pos;
+                QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+                    Naddr a = (Naddr)_a;
+                    ArrayList<int> _naddr_temp = new ArrayList<int>();
+                    _naddr_temp.add_all(a.pos);
+                    _naddr_temp[ch_level] = ch_pos;
+                    return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+                };
 
                 ArrayList<int> _elderships_temp = new ArrayList<int>();
                 _elderships_temp.add_all(new_identity_data.my_fp.elderships);
                 _elderships_temp[ch_level] = ch_eldership;
 
-                new_identity_data.my_naddr = new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+                new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
                 new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
-                qspn_mgr.make_real(new_identity_data.my_naddr, new_identity_data.my_fp);
+                qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
             }
 
             int bid4 = cm.begin_block();
