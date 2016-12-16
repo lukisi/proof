@@ -1176,6 +1176,23 @@ Command list:
         identity_mgr.remove_identity(old_identity_data.nodeid);
         old_id_qspn_mgr.stop_operations();
         remove_local_identity(old_identity_data.nodeid);
+        foreach (IdentityArc ia in old_identity_data.identity_arcs)
+        {
+            bool still_used = false;
+            foreach (IdentityData id1 in local_identities.values)
+            {
+                foreach (IdentityArc idarc1 in id1.identity_arcs.values)
+                {
+                    if (idarc1.tid == ia.tid)
+                    {
+                        still_used = true;
+                        break;
+                    }
+                }
+                if (still_used) break;
+            }
+            if (! still_used) tn.release_table(null, ia.peer_mac);
+        }
     }
 
     void add_qspn_arc(int local_identity_index, string my_dev, string peer_mac)
