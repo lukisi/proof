@@ -718,9 +718,11 @@ Command list:
             }
             ia.rule_added = false;
         }
-        // Then update routes we already know
-        Gee.List<NeighborData> neighbors = find_neighbors(old_identity_data);
-        per_identity_foreach_table_update_all_best_paths(old_identity_data, bid6, neighbors);
+        // Then update routes for those neighbor we already know
+        ArrayList<LookupTable> tables = new ArrayList<LookupTable>();
+        foreach (NeighborData neighbor in all_neighbors(old_identity_data, true))
+            tables.add(new LookupTable.forwarding(neighbor.tablename, neighbor));
+        per_identity_foreach_lookuptable_update_all_best_paths(old_identity_data, tables, bid6);
         update_rules(old_identity_data, bid6);
         cm.end_block(bid6);
 
@@ -1030,21 +1032,19 @@ Command list:
             }
 
             int bid4 = cm.begin_block();
-            // tablenames = set of tables of new identity in old network namespace
-            tablenames = new ArrayList<string>();
-            if (old_ns == "") tablenames.add("ntk");
+            tables = new ArrayList<LookupTable>();
+            if (old_ns == "") tables.add(new LookupTable.egress("ntk"));
             // Add a table for each qspn-arc of new identity
             foreach (IdentityArc ia in new_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
-            {
-                tablenames.add(ia.tablename);
-            }
+                tables.add(new LookupTable.forwarding(ia.tablename, get_neighbor(new_identity_data, ia)));
             HashMap<int,HashMap<int,DestinationIPSet>> prev_new_identity_destination_ip_set;
             prev_new_identity_destination_ip_set = copy_destination_ip_set(new_identity_data.destination_ip_set);
             compute_destination_ip_set(new_identity_data.destination_ip_set, new_identity_data.my_naddr);
-            foreach (string tablename in tablenames)
+            foreach (LookupTable table in tables)
              for (int i = levels-1; i >= subnetlevel; i--)
              for (int j = 0; j < _gsizes[i]; j++)
             {
+                string tablename = table.tablename;
                 bool must_update = false;
                 if (new_identity_data.destination_ip_set[i][j].global != "" &&
                     prev_new_identity_destination_ip_set[i][j].global == "")
@@ -1102,14 +1102,12 @@ Command list:
                 }
                 if (must_update)
                 {
-                    // update route for whole (i,j) for $tablename
-                    NeighborData? neighbor;
-                    BestRouteToDest? best = per_identity_per_table_find_best_path_to_h(
-                            new_identity_data, new HCoord(i, j), tablename, out neighbor);
-                    per_identity_per_table_update_best_path_to_h(
+                    // update route for whole (i,j) for $table
+                    BestRouteToDest? best = per_identity_per_lookuptable_find_best_path_to_h(
+                                            new_identity_data, table, new HCoord(i, j));
+                    per_identity_per_lookuptable_update_best_path_to_h(
                         new_identity_data,
-                        tablename,
-                        neighbor,
+                        table,
                         best,
                         new HCoord(i, j),
                         bid4);
@@ -1158,7 +1156,9 @@ Command list:
 
                 // update only table ntk because of updated "src"
                 int bid5 = cm.begin_block();
-                per_identity_foreach_table_update_all_best_paths(new_identity_data, bid5, new ArrayList<NeighborData>());
+                tables = new ArrayList<LookupTable>();
+                tables.add(new LookupTable.egress("ntk"));
+                per_identity_foreach_lookuptable_update_all_best_paths(new_identity_data, tables, bid5);
                 cm.end_block(bid5);
             }
         }

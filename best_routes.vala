@@ -25,49 +25,60 @@ using TaskletSystem;
 
 namespace ProofOfConcept
 {
+    class LookupTable : Object
+    {
+        public string tablename;
+        public bool pkt_egress;
+        public NeighborData? pkt_from;
+
+        public LookupTable.egress(string tablename)
+        {
+            this.tablename = tablename;
+            pkt_egress = true;
+            pkt_from = null;
+        }
+
+        public LookupTable.forwarding(string tablename, NeighborData pkt_from)
+        {
+            this.tablename = tablename;
+            pkt_egress = false;
+            this.pkt_from = pkt_from;
+        }
+    }
+
     class NeighborData : Object
     {
         public string mac;
         public string tablename;
-        public HCoord h;
+        public HCoord? h;
     }
 
-    NeighborData? get_neighbor(IdentityData id, IdentityArc ia)
+    NeighborData get_neighbor(IdentityData id, IdentityArc ia)
     {
-        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
+        assert(ia.qspn_arc != null);
 
         // Compute neighbor.
-        NeighborData? neighbor = null;
-        assert(ia.qspn_arc != null);
-        IQspnNaddr? neighbour_naddr = qspn_mgr.get_naddr_for_arc(ia.qspn_arc);
-        if (neighbour_naddr != null)
-        {
-            neighbor = new NeighborData();
-            neighbor.h = id.my_naddr.i_qspn_get_coord_by_address(neighbour_naddr);
-            neighbor.mac = ia.id_arc.get_peer_mac();
-            neighbor.tablename = ia.tablename;
-        }
-        return neighbor;
-    }
+        NeighborData ret = new NeighborData();
+        ret.mac = ia.id_arc.get_peer_mac();
+        ret.tablename = ia.tablename;
 
-    NeighborData? get_neighbor_by_tablename(IdentityData id, string tablename)
-    {
-        NeighborData? ret = null;
-        foreach (IdentityArc ia in id.identity_arcs.values) if (ia.qspn_arc != null) if (ia.tablename == tablename)
-        {
-            ret = get_neighbor(id, ia);
-        }
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
+        IQspnNaddr? neighbour_naddr = qspn_mgr.get_naddr_for_arc(ia.qspn_arc);
+        if (neighbour_naddr == null) ret.h = null;
+        else ret.h = id.my_naddr.i_qspn_get_coord_by_address(neighbour_naddr);
+
         return ret;
     }
 
-    Gee.List<NeighborData> find_neighbors(IdentityData id)
+    Gee.List<NeighborData> all_neighbors(IdentityData id, bool only_known_peers=false)
     {
         // Compute list of neighbors.
         ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
         foreach (IdentityArc ia in id.identity_arcs.values) if (ia.qspn_arc != null)
         {
             NeighborData neighbor = get_neighbor(id, ia);
-            if (neighbor != null) neighbors.add(neighbor);
+            if ((! only_known_peers) || neighbor.h != null)
+                neighbors.add(neighbor);
         }
         return neighbors;
     }
@@ -124,24 +135,17 @@ namespace ProofOfConcept
         return best_route_foreach_table;
     }
 
-    BestRouteToDest? per_identity_per_table_find_best_path_to_h(
+    BestRouteToDest? per_identity_per_lookuptable_find_best_path_to_h(
         IdentityData id,
-        HCoord h,
-        string tablename,
-        out NeighborData? neighbor)
+        LookupTable table,
+        HCoord h)
     {
         if (h.pos >= _gsizes[h.lvl]) return null; // ignore virtual destination.
 
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
 
         ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
-        // Compute neighbor.
-        neighbor = null;
-        if (tablename != "ntk")
-        {
-            neighbor = get_neighbor_by_tablename(id, tablename);
-            if (neighbor != null) neighbors.add(neighbor);
-        }
+        if (! table.pkt_egress) neighbors.add(table.pkt_from);
 
         // Retrieve all routes towards `h`.
         Gee.List<IQspnNodePath> paths;
@@ -156,25 +160,24 @@ namespace ProofOfConcept
             find_best_route_to_dest_foreach_table(paths, neighbors);
 
         BestRouteToDest? ret = null;
-        if (best_route_foreach_table.has_key(tablename)) ret = best_route_foreach_table[tablename];
+        if (best_route_foreach_table.has_key(table.tablename)) ret = best_route_foreach_table[table.tablename];
         return ret;
     }
 
-    void per_identity_per_table_update_best_path_to_h(
+    void per_identity_per_lookuptable_update_best_path_to_h(
         IdentityData id,
-        string tablename,
-        NeighborData? pkt_from,
+        LookupTable table,
         BestRouteToDest? best,
         HCoord h,
         int bid)
     {
+        string tablename = table.tablename;
         string ns = id.network_namespace;
         ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
         if (ns != "") prefix_cmd_ns.add_all_array({
             @"ip", @"netns", @"exec", @"$(ns)"});
         DestinationIPSet h_ip_set = id.destination_ip_set[h.lvl][h.pos];
-        bool egress_table = pkt_from == null;
-        if (egress_table) assert(ns == "");
+        if (table.pkt_egress) assert(ns == "");
         if (h_ip_set.global != "")
         {
             assert(h_ip_set.anonymous != "");
@@ -185,7 +188,7 @@ namespace ProofOfConcept
                 cmd.add_all_array({
                     @"ip", @"route", @"change",
                     @"$(h_ip_set.global)", @"table", @"$(tablename)", @"via", @"$(best.gw)", @"dev", @"$(best.dev)"});
-                if (egress_table)
+                if (table.pkt_egress)
                  if (id.local_ip_set.global != "")
                     cmd.add_all_array({@"src", @"$(id.local_ip_set.global)"});
                 cm.single_command_in_block(bid, cmd);
@@ -194,7 +197,7 @@ namespace ProofOfConcept
                 cmd.add_all_array({
                     @"ip", @"route", @"change",
                     @"$(h_ip_set.anonymous)", @"table", @"$(tablename)", @"via", @"$(best.gw)", @"dev", @"$(best.dev)"});
-                if (egress_table)
+                if (table.pkt_egress)
                  if (id.local_ip_set.global != "")
                     cmd.add_all_array({@"src", @"$(id.local_ip_set.global)"});
                 cm.single_command_in_block(bid, cmd);
@@ -219,7 +222,7 @@ namespace ProofOfConcept
         {
             if (h_ip_set.intern[k] != "")
             {
-                if (pkt_from != null && pkt_from.h.lvl >= k)
+                if ((! table.pkt_egress) && table.pkt_from.h.lvl >= k)
                 {
                     // set blackhole intern
                     ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
@@ -235,7 +238,7 @@ namespace ProofOfConcept
                     cmd.add_all_array({
                         @"ip", @"route", @"change",
                         @"$(h_ip_set.intern[k])", @"table", @"$(tablename)", @"via", @"$(best.gw)", @"dev", @"$(best.dev)"});
-                    if (egress_table)
+                    if (table.pkt_egress)
                      if (id.local_ip_set.intern[k] != "")
                         cmd.add_all_array({@"src", @"$(id.local_ip_set.intern[k])"});
                     cm.single_command_in_block(bid, cmd);
@@ -253,10 +256,9 @@ namespace ProofOfConcept
         }
     }
 
-    void per_identity_per_table_update_all_best_paths(
+    void per_identity_per_lookuptable_update_all_best_paths(
         IdentityData id,
-        string tablename,
-        NeighborData? pkt_from,
+        LookupTable table,
         HashMap<HCoord, HashMap<string, BestRouteToDest>> all_best_routes,
         int bid)
     {
@@ -266,18 +268,20 @@ namespace ProofOfConcept
         {
             HCoord h = new HCoord(lvl, pos);
             BestRouteToDest? best = null;
-            if (all_best_routes[h].has_key(tablename)) best = all_best_routes[h][tablename];
-            per_identity_per_table_update_best_path_to_h(id, tablename, pkt_from, best, h, bid);
+            if (all_best_routes[h].has_key(table.tablename)) best = all_best_routes[h][table.tablename];
+            per_identity_per_lookuptable_update_best_path_to_h(id, table, best, h, bid);
         }
     }
 
-    void per_identity_foreach_table_update_all_best_paths(
+    void per_identity_foreach_lookuptable_update_all_best_paths(
         IdentityData id,
-        int bid,
-        Gee.List<NeighborData> neighbors,
-        bool include_ntk=true)
+        Gee.List<LookupTable> tables,
+        int bid)
     {
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
+
+        ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
+        foreach (LookupTable table in tables) if (! table.pkt_egress) neighbors.add(table.pkt_from);
 
         HashMap<HCoord, HashMap<string, BestRouteToDest>>
             all_best_routes = new HashMap<HCoord, HashMap<string, BestRouteToDest>>(
@@ -299,13 +303,11 @@ namespace ProofOfConcept
             // Find best routes towards `h` for table 'ntk' and for tables 'ntk_from_<MAC>'
             all_best_routes[h] = find_best_route_to_dest_foreach_table(paths, neighbors);
         }
-        if (include_ntk && id.network_namespace == "")
-            per_identity_per_table_update_all_best_paths(id, "ntk", null, all_best_routes, bid);
-        foreach (NeighborData neighbor in neighbors)
-            per_identity_per_table_update_all_best_paths(id, neighbor.tablename, neighbor, all_best_routes, bid);
+        foreach (LookupTable table in tables)
+            per_identity_per_lookuptable_update_all_best_paths(id, table, all_best_routes, bid);
     }
 
-    void per_identity_foreach_table_update_best_path_to_h(
+    void per_identity_foreach_lookuptable_update_best_path_to_h(
         IdentityData id,
         HCoord h,
         int bid)
@@ -315,7 +317,13 @@ namespace ProofOfConcept
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
 
         // Compute list of neighbors.
-        Gee.List<NeighborData> neighbors = find_neighbors(id);
+        Gee.List<NeighborData> neighbors = all_neighbors(id, true);
+
+        // Compute list of tables.
+        ArrayList<LookupTable> tables = new ArrayList<LookupTable>();
+        if (id.network_namespace == "") tables.add(new LookupTable.egress("ntk"));
+        foreach (NeighborData neighbor in neighbors)
+            tables.add(new LookupTable.forwarding(neighbor.tablename, neighbor));
 
         // Retrieve all routes towards `h`.
         Gee.List<IQspnNodePath> paths;
@@ -328,17 +336,11 @@ namespace ProofOfConcept
         // Find best routes towards `h` for table 'ntk' and for tables 'ntk_from_<MAC>'
         HashMap<string, BestRouteToDest> best_route_foreach_table = find_best_route_to_dest_foreach_table(paths, neighbors);
 
-        if (id.network_namespace == "")
+        foreach (LookupTable table in tables)
         {
             BestRouteToDest? best = null;
-            if (best_route_foreach_table.has_key("ntk")) best = best_route_foreach_table["ntk"];
-            per_identity_per_table_update_best_path_to_h(id, "ntk", null, best, h, bid);
-        }
-        foreach (NeighborData neighbor in neighbors)
-        {
-            BestRouteToDest? best = null;
-            if (best_route_foreach_table.has_key(neighbor.tablename)) best = best_route_foreach_table[neighbor.tablename];
-            per_identity_per_table_update_best_path_to_h(id, neighbor.tablename, neighbor, best, h, bid);
+            if (best_route_foreach_table.has_key(table.tablename)) best = best_route_foreach_table[table.tablename];
+            per_identity_per_lookuptable_update_best_path_to_h(id, table, best, h, bid);
         }
     }
 

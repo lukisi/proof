@@ -88,7 +88,7 @@ namespace ProofOfConcept
     {
         print("path_added\n");
         int bid = cm.begin_block();
-        per_identity_foreach_table_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        per_identity_foreach_lookuptable_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
         update_rules(id, bid);
         cm.end_block(bid);
     }
@@ -97,7 +97,7 @@ namespace ProofOfConcept
     {
         print("path_changed\n");
         int bid = cm.begin_block();
-        per_identity_foreach_table_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        per_identity_foreach_lookuptable_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
         update_rules(id, bid);
         cm.end_block(bid);
     }
@@ -106,7 +106,7 @@ namespace ProofOfConcept
     {
         print("path_removed\n");
         int bid = cm.begin_block();
-        per_identity_foreach_table_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        per_identity_foreach_lookuptable_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
         update_rules(id, bid);
         cm.end_block(bid);
     }
@@ -119,14 +119,13 @@ namespace ProofOfConcept
     void per_identity_qspn_qspn_bootstrap_complete(IdentityData id)
     {
         print("qspn_bootstrap_complete\n");
-        update_best_paths_forall_destinations_per_identity(id);
-    }
-
-    void update_best_paths_forall_destinations_per_identity(IdentityData id)
-    {
+        // Update routes for table egress and tables forward of those neighbor we already know
         int bid = cm.begin_block();
-        Gee.List<NeighborData> neighbors = find_neighbors(id);
-        per_identity_foreach_table_update_all_best_paths(id, bid, neighbors);
+        ArrayList<LookupTable> tables = new ArrayList<LookupTable>();
+        if (id.network_namespace == "") tables.add(new LookupTable.egress("ntk"));
+        foreach (NeighborData neighbor in all_neighbors(id, true))
+            tables.add(new LookupTable.forwarding(neighbor.tablename, neighbor));
+        per_identity_foreach_lookuptable_update_all_best_paths(id, tables, bid);
         update_rules(id, bid);
         cm.end_block(bid);
     }
