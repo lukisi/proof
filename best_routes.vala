@@ -127,7 +127,8 @@ namespace ProofOfConcept
     BestRouteToDest? per_identity_per_table_find_best_path_to_h(
         IdentityData id,
         HCoord h,
-        string tablename)
+        string tablename,
+        out NeighborData? neighbor)
     {
         if (h.pos >= _gsizes[h.lvl]) return null; // ignore virtual destination.
 
@@ -135,9 +136,10 @@ namespace ProofOfConcept
 
         ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
         // Compute neighbor.
+        neighbor = null;
         if (tablename != "ntk")
         {
-            NeighborData? neighbor = get_neighbor_by_tablename(id, tablename);
+            neighbor = get_neighbor_by_tablename(id, tablename);
             if (neighbor != null) neighbors.add(neighbor);
         }
 
@@ -161,6 +163,7 @@ namespace ProofOfConcept
     void per_identity_per_table_update_best_path_to_h(
         IdentityData id,
         string tablename,
+        NeighborData? pkt_from,
         BestRouteToDest? best,
         HCoord h,
         int bid)
@@ -170,7 +173,7 @@ namespace ProofOfConcept
         if (ns != "") prefix_cmd_ns.add_all_array({
             @"ip", @"netns", @"exec", @"$(ns)"});
         DestinationIPSet h_ip_set = id.destination_ip_set[h.lvl][h.pos];
-        bool egress_table = tablename == "ntk";
+        bool egress_table = pkt_from == null;
         if (egress_table) assert(ns == "");
         if (h_ip_set.global != "")
         {
@@ -216,7 +219,16 @@ namespace ProofOfConcept
         {
             if (h_ip_set.intern[k] != "")
             {
-                if (best != null)
+                if (pkt_from != null && pkt_from.h.lvl >= k)
+                {
+                    // set blackhole intern
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"change",
+                        @"blackhole", @"$(h_ip_set.intern[k])", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid, cmd);
+                }
+                else if (best != null)
                 {
                     // set route intern
                     ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
@@ -244,6 +256,7 @@ namespace ProofOfConcept
     void per_identity_per_table_update_all_best_paths(
         IdentityData id,
         string tablename,
+        NeighborData? pkt_from,
         HashMap<HCoord, HashMap<string, BestRouteToDest>> all_best_routes,
         int bid)
     {
@@ -254,7 +267,7 @@ namespace ProofOfConcept
             HCoord h = new HCoord(lvl, pos);
             BestRouteToDest? best = null;
             if (all_best_routes[h].has_key(tablename)) best = all_best_routes[h][tablename];
-            per_identity_per_table_update_best_path_to_h(id, tablename, best, h, bid);
+            per_identity_per_table_update_best_path_to_h(id, tablename, pkt_from, best, h, bid);
         }
     }
 
@@ -287,9 +300,9 @@ namespace ProofOfConcept
             all_best_routes[h] = find_best_route_to_dest_foreach_table(paths, neighbors);
         }
         if (include_ntk && id.network_namespace == "")
-            per_identity_per_table_update_all_best_paths(id, "ntk", all_best_routes, bid);
+            per_identity_per_table_update_all_best_paths(id, "ntk", null, all_best_routes, bid);
         foreach (NeighborData neighbor in neighbors)
-            per_identity_per_table_update_all_best_paths(id, neighbor.tablename, all_best_routes, bid);
+            per_identity_per_table_update_all_best_paths(id, neighbor.tablename, neighbor, all_best_routes, bid);
     }
 
     void per_identity_foreach_table_update_best_path_to_h(
@@ -319,13 +332,13 @@ namespace ProofOfConcept
         {
             BestRouteToDest? best = null;
             if (best_route_foreach_table.has_key("ntk")) best = best_route_foreach_table["ntk"];
-            per_identity_per_table_update_best_path_to_h(id, "ntk", best, h, bid);
+            per_identity_per_table_update_best_path_to_h(id, "ntk", null, best, h, bid);
         }
         foreach (NeighborData neighbor in neighbors)
         {
             BestRouteToDest? best = null;
             if (best_route_foreach_table.has_key(neighbor.tablename)) best = best_route_foreach_table[neighbor.tablename];
-            per_identity_per_table_update_best_path_to_h(id, neighbor.tablename, best, h, bid);
+            per_identity_per_table_update_best_path_to_h(id, neighbor.tablename, neighbor, best, h, bid);
         }
     }
 

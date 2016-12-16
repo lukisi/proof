@@ -1103,11 +1103,14 @@ Command list:
                 if (must_update)
                 {
                     // update route for whole (i,j) for $tablename
+                    NeighborData? neighbor;
+                    BestRouteToDest? best = per_identity_per_table_find_best_path_to_h(
+                            new_identity_data, new HCoord(i, j), tablename, out neighbor);
                     per_identity_per_table_update_best_path_to_h(
                         new_identity_data,
                         tablename,
-                        per_identity_per_table_find_best_path_to_h(
-                            new_identity_data, new HCoord(i, j), tablename),
+                        neighbor,
+                        best,
                         new HCoord(i, j),
                         bid4);
                 }
