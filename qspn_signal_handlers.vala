@@ -69,11 +69,23 @@ namespace ProofOfConcept
 
     void per_identity_qspn_destination_added(IdentityData id, HCoord h)
     {
+        {
+            int _id = id.local_identity_index;
+            string _naddr = naddr_repr(id.my_naddr);
+            string _dest = @"($(h.lvl), $(h.pos))";
+            print(@"destination_added: Identity #$(_id) ($(_naddr)), to $(_dest).\n");;
+        }
         // something to do?
     }
 
     void per_identity_qspn_destination_removed(IdentityData id, HCoord h)
     {
+        {
+            int _id = id.local_identity_index;
+            string _naddr = naddr_repr(id.my_naddr);
+            string _dest = @"($(h.lvl), $(h.pos))";
+            print(@"destination_removed: Identity #$(_id) ($(_naddr)), to $(_dest).\n");;
+        }
         // something to do?
     }
 
@@ -86,39 +98,66 @@ namespace ProofOfConcept
 
     void per_identity_qspn_path_added(IdentityData id, IQspnNodePath p)
     {
-        print("path_added\n");
+        HCoord dest = p.i_qspn_get_hops().last().i_qspn_get_hcoord();
+        {
+            int _id = id.local_identity_index;
+            string _naddr = naddr_repr(id.my_naddr);
+            string _dest = @"($(dest.lvl), $(dest.pos))";
+            print(@"path_added: Identity #$(_id) ($(_naddr)), to $(_dest).\n");;
+        }
         int bid = cm.begin_block();
-        per_identity_foreach_lookuptable_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        per_identity_foreach_lookuptable_update_best_path_to_h(id, dest, bid);
         update_rules(id, bid);
         cm.end_block(bid);
     }
 
     void per_identity_qspn_path_changed(IdentityData id, IQspnNodePath p)
     {
-        print("path_changed\n");
+        HCoord dest = p.i_qspn_get_hops().last().i_qspn_get_hcoord();
+        {
+            int _id = id.local_identity_index;
+            string _naddr = naddr_repr(id.my_naddr);
+            string _dest = @"($(dest.lvl), $(dest.pos))";
+            print(@"path_changed: Identity #$(_id) ($(_naddr)), to $(_dest).\n");;
+        }
         int bid = cm.begin_block();
-        per_identity_foreach_lookuptable_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        per_identity_foreach_lookuptable_update_best_path_to_h(id, dest, bid);
         update_rules(id, bid);
         cm.end_block(bid);
     }
 
     void per_identity_qspn_path_removed(IdentityData id, IQspnNodePath p)
     {
-        print("path_removed\n");
+        HCoord dest = p.i_qspn_get_hops().last().i_qspn_get_hcoord();
+        {
+            int _id = id.local_identity_index;
+            string _naddr = naddr_repr(id.my_naddr);
+            string _dest = @"($(dest.lvl), $(dest.pos))";
+            print(@"path_removed: Identity #$(_id) ($(_naddr)), to $(_dest).\n");;
+        }
         int bid = cm.begin_block();
-        per_identity_foreach_lookuptable_update_best_path_to_h(id, p.i_qspn_get_hops().last().i_qspn_get_hcoord(), bid);
+        per_identity_foreach_lookuptable_update_best_path_to_h(id, dest, bid);
         update_rules(id, bid);
         cm.end_block(bid);
     }
 
     void per_identity_qspn_presence_notified(IdentityData id)
     {
+        {
+            int _id = id.local_identity_index;
+            string _naddr = naddr_repr(id.my_naddr);
+            print(@"presence_notified: Identity #$(_id) ($(_naddr)).\n");;
+        }
         // TODO
     }
 
     void per_identity_qspn_qspn_bootstrap_complete(IdentityData id)
     {
-        print("qspn_bootstrap_complete\n");
+        {
+            int _id = id.local_identity_index;
+            string _naddr = naddr_repr(id.my_naddr);
+            print(@"qspn_bootstrap_complete: Identity #$(_id) ($(_naddr)).\n");;
+        }
         // Update routes for table egress and tables forward of those neighbor we already know
         int bid = cm.begin_block();
         ArrayList<LookupTable> tables = new ArrayList<LookupTable>();
@@ -132,6 +171,11 @@ namespace ProofOfConcept
 
     void per_identity_qspn_remove_identity(IdentityData id)
     {
+        {
+            int _id = id.local_identity_index;
+            string _naddr = naddr_repr(id.my_naddr);
+            print(@"remove_identity: Identity #$(_id) ($(_naddr)).\n");;
+        }
         // The qspn manager wants to remove this connectivity identity because the connectivity is guaranteed.
         warning("signal qspn_remove_identity: not implemented yet");
         /*
