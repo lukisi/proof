@@ -1181,6 +1181,7 @@ Command list:
         remove_local_identity(old_identity_data.nodeid);
         foreach (IdentityArc ia in old_identity_data.identity_arcs) if (ia.tid != null)
         {
+            print(@"check arc to $(ia.peer_mac): still used?\n");
             bool still_used = false;
             foreach (IdentityData id1 in local_identities.values)
             {
@@ -1194,8 +1195,10 @@ Command list:
                 }
                 if (still_used) break;
             }
-            if (! still_used) tn.release_table(null, ia.peer_mac);
+            if (! still_used) {print("no.\n"); tn.release_table(null, ia.peer_mac);}
+            else print("yes.\n");
         }
+        print("done.\n");
     }
 
     void add_qspn_arc(int local_identity_index, string my_dev, string peer_mac)

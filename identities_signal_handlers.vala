@@ -84,15 +84,20 @@ namespace ProofOfConcept
 
     void identities_identity_arc_removing(IIdmgmtArc arc, NodeID id, NodeID peer_nodeid)
     {
+        print("An identity-arc is going to be removed.\n");
         // Retrieve my identity.
         IdentityData identity_data = find_or_create_local_identity(id);
+        // Retrieve identity-arc.
+        IdentityArc ia = find_identity_arc(identity_data, arc, peer_nodeid);
+
+        foreach (string s in print_identity_arc(identity_data.local_identity_index, ia.identity_arc_index)) print(s + "\n");
+
         string ns = identity_data.network_namespace;
         ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
         if (ns != "") prefix_cmd_ns.add_all_array({
             @"ip", @"netns", @"exec", @"$(ns)"});
         ArrayList<string> cmd;
-        // Retrieve identity-arc.
-        IdentityArc ia = find_identity_arc(identity_data, arc, peer_nodeid);
+
         if (ia.qspn_arc != null)
         {
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
@@ -116,6 +121,7 @@ namespace ProofOfConcept
                 @"iptables", @"-t", @"mangle", @"-D", @"PREROUTING", @"-m", @"mac",
                 @"--mac-source", @"$(ia.peer_mac)", @"-j", @"MARK", @"--set-mark", @"$(ia.tid)"});
             cm.single_command(cmd);
+            print(@"check arc to $(ia.peer_mac): still used?\n");
             bool still_used = false;
             foreach (IdentityData id1 in local_identities.values)
             {
@@ -132,7 +138,8 @@ namespace ProofOfConcept
                     if (still_used) break;
                 }
             }
-            if (! still_used) tn.release_table(null, ia.peer_mac);
+            if (! still_used) {print("no.\n"); tn.release_table(null, ia.peer_mac);}
+            else print("yes.\n");
 
             ia.qspn_arc = null;
             ia.tid = null;
