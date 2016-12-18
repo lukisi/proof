@@ -110,7 +110,7 @@ namespace ProofOfConcept
                 best_route_foreach_table["ntk"] = r;
             }
             bool completed = true;
-            foreach (NeighborData neighbor in neighbors)
+            foreach (NeighborData neighbor in neighbors) if (neighbor.h != null)
             {
                 // is it best without neighbor?
                 // best_route_foreach_table contains tablename?
