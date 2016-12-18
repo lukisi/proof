@@ -1179,7 +1179,7 @@ Command list:
         identity_mgr.remove_identity(old_identity_data.nodeid);
         old_id_qspn_mgr.stop_operations();
         remove_local_identity(old_identity_data.nodeid);
-        foreach (IdentityArc ia in old_identity_data.identity_arcs)
+        foreach (IdentityArc ia in old_identity_data.identity_arcs) if (ia.tid != null)
         {
             bool still_used = false;
             foreach (IdentityData id1 in local_identities.values)
