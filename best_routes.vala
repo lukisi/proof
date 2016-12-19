@@ -389,4 +389,36 @@ namespace ProofOfConcept
             }
         }
     }
+
+    void per_identity_update_all_routes(IdentityData id)
+    {
+        // Update routes for table egress and tables forward of those neighbor we already know
+        int bid = cm.begin_block();
+        ArrayList<LookupTable> tables = new ArrayList<LookupTable>();
+        if (id.network_namespace == "") tables.add(new LookupTable.egress("ntk"));
+        foreach (NeighborData neighbor in all_neighbors(id, true))
+            tables.add(new LookupTable.forwarding(neighbor.tablename, neighbor));
+        per_identity_foreach_lookuptable_update_all_best_paths(id, tables, bid);
+        check_first_etp_from_arcs(id, bid);
+        cm.end_block(bid);
+    }
+
+    class UpdateAllRoutesTasklet : Object, ITaskletSpawnable
+    {
+        public void * func()
+        {
+            while (true)
+            {
+                tasklet.ms_wait(10 * 60 * 1000);
+                // iterate all identities (double check because the operations are lengthy)
+                ArrayList<int> local_identities_keys = new ArrayList<int>();
+                local_identities_keys.add_all(local_identities.keys);
+                foreach (int i in local_identities_keys) if (local_identities.has_key(i))
+                {
+                    IdentityData id = local_identities[i];
+                    per_identity_update_all_routes(id);
+                }
+            }
+        }
+    }
 }

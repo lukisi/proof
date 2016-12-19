@@ -423,6 +423,10 @@ namespace ProofOfConcept
         ReadCommandsTasklet ts = new ReadCommandsTasklet();
         ITaskletHandle h_read_commands = tasklet.spawn(ts);
 
+        // start a tasklet to periodically update all routes.
+        UpdateAllRoutesTasklet ts_up = new UpdateAllRoutesTasklet();
+        ITaskletHandle h_update_all_routes = tasklet.spawn(ts_up);
+
         // register handlers for SIGINT and SIGTERM to exit
         Posix.@signal(Posix.SIGINT, safe_exit);
         Posix.@signal(Posix.SIGTERM, safe_exit);
@@ -434,6 +438,7 @@ namespace ProofOfConcept
         }
         h_read_commands.kill();
         remove_pipe_commands();
+        h_update_all_routes.kill();
 
         // TODO cleanup
 

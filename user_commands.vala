@@ -50,6 +50,9 @@ Command list:
 > show_identity_arcs <local_identity_index>
   List current identity-arcs of a given local identity.
 
+> update_all_routes <local_identity_index>
+  Update lookup-tables of this identity based on its knowledge.
+
 > prepare_enter_net_phase_1
   Prepare ...
 
@@ -202,6 +205,17 @@ Command list:
                         }
                         int local_identity_index = int.parse(_args[1]);
                         write_block_response(command_id, show_identity_arcs(local_identity_index));
+                    }
+                    else if (_args[0] == "update_all_routes")
+                    {
+                        if (_args.size != 2)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        int local_identity_index = int.parse(_args[1]);
+                        update_all_routes(local_identity_index);
+                        write_empty_response(command_id);
                     }
                     else if (_args[0] == "prepare_enter_net_phase_1")
                     {
@@ -531,6 +545,12 @@ Command list:
         }
         // TODO ....
         return ret;
+    }
+
+    void update_all_routes(int local_identity_index)
+    {
+        IdentityData identity_data = local_identities[local_identity_index];
+        per_identity_update_all_routes(identity_data);
     }
 
     void prepare_enter_net_phase_1(
