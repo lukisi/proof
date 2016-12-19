@@ -107,7 +107,7 @@ namespace ProofOfConcept
         }
         int bid = cm.begin_block();
         per_identity_foreach_lookuptable_update_best_path_to_h(id, dest, bid);
-        update_rules(id, bid);
+        check_first_etp_from_arcs(id, bid);
         cm.end_block(bid);
     }
 
@@ -122,7 +122,7 @@ namespace ProofOfConcept
         }
         int bid = cm.begin_block();
         per_identity_foreach_lookuptable_update_best_path_to_h(id, dest, bid);
-        update_rules(id, bid);
+        check_first_etp_from_arcs(id, bid);
         cm.end_block(bid);
     }
 
@@ -137,7 +137,7 @@ namespace ProofOfConcept
         }
         int bid = cm.begin_block();
         per_identity_foreach_lookuptable_update_best_path_to_h(id, dest, bid);
-        update_rules(id, bid);
+        check_first_etp_from_arcs(id, bid);
         cm.end_block(bid);
     }
 
@@ -165,7 +165,7 @@ namespace ProofOfConcept
         foreach (NeighborData neighbor in all_neighbors(id, true))
             tables.add(new LookupTable.forwarding(neighbor.tablename, neighbor));
         per_identity_foreach_lookuptable_update_all_best_paths(id, tables, bid);
-        update_rules(id, bid);
+        check_first_etp_from_arcs(id, bid);
         cm.end_block(bid);
     }
 

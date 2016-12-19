@@ -723,7 +723,7 @@ Command list:
         foreach (NeighborData neighbor in all_neighbors(old_identity_data, true))
             tables.add(new LookupTable.forwarding(neighbor.tablename, neighbor));
         per_identity_foreach_lookuptable_update_all_best_paths(old_identity_data, tables, bid6);
-        update_rules(old_identity_data, bid6);
+        check_first_etp_from_arcs(old_identity_data, bid6);
         cm.end_block(bid6);
 
         // Remove old destination IPs from all tables in old network namespace

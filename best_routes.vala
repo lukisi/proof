@@ -344,16 +344,35 @@ namespace ProofOfConcept
         }
     }
 
-    void update_rules(IdentityData id, int bid)
+    void check_first_etp_from_arcs(IdentityData id, int bid)
     {
-        // Every time the Qspn module updates its map, it means an ETP is being processed. Then this function gets called.
-
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
+
+        // First iteration to gather lookup-tables
+        ArrayList<LookupTable> update_tables = new ArrayList<LookupTable>();
         foreach (IdentityArc ia in id.identity_arcs.values) if (ia.qspn_arc != null)
         {
-            //  Module Qspn has received already at least one ETP from this arc?
+            // Module Qspn has received already at least one ETP from this arc?
             if (qspn_mgr.get_naddr_for_arc(ia.qspn_arc) != null)
             {
+                // It is first ETP?
+                if (ia.rule_added == false) /*it is a `maybe boolean`*/
+                {
+                    NeighborData neighbor = get_neighbor(id, ia);
+                    update_tables.add(new LookupTable.forwarding(neighbor.tablename, neighbor));
+                }
+            }
+        }
+        // then update best routes for all.
+        per_identity_foreach_lookuptable_update_all_best_paths(id, update_tables, bid);
+
+        // Second iteration to add rules
+        foreach (IdentityArc ia in id.identity_arcs.values) if (ia.qspn_arc != null)
+        {
+            // Module Qspn has received already at least one ETP from this arc?
+            if (qspn_mgr.get_naddr_for_arc(ia.qspn_arc) != null)
+            {
+                // It is first ETP?
                 if (ia.rule_added == false) /*it is a `maybe boolean`*/
                 {
                     string ns = id.network_namespace;
