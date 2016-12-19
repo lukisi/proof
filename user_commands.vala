@@ -1102,15 +1102,18 @@ Command list:
                 }
                 if (must_update)
                 {
-                    // update route for whole (i,j) for $table
-                    BestRouteToDest? best = per_identity_per_lookuptable_find_best_path_to_h(
-                                            new_identity_data, table, new HCoord(i, j));
-                    per_identity_per_lookuptable_update_best_path_to_h(
-                        new_identity_data,
-                        table,
-                        best,
-                        new HCoord(i, j),
-                        bid4);
+                    if (table.pkt_egress || table.pkt_from.h != null)
+                    {
+                        // update route for whole (i,j) for $table
+                        BestRouteToDest? best = per_identity_per_lookuptable_find_best_path_to_h(
+                                                new_identity_data, table, new HCoord(i, j));
+                        per_identity_per_lookuptable_update_best_path_to_h(
+                            new_identity_data,
+                            table,
+                            best,
+                            new HCoord(i, j),
+                            bid4);
+                    }
                 }
             }
             cm.end_block(bid4);
@@ -1179,7 +1182,7 @@ Command list:
         identity_mgr.remove_identity(old_identity_data.nodeid);
         old_id_qspn_mgr.stop_operations();
         remove_local_identity(old_identity_data.nodeid);
-        foreach (IdentityArc ia in old_identity_data.identity_arcs) if (ia.tid != null)
+        foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.tid != null)
         {
             print(@"check arc to $(ia.peer_mac): still used?\n");
             bool still_used = false;
@@ -1311,17 +1314,21 @@ Command list:
     {
         public void * func()
         {
-            int prev_second = 0;
+            int prev_second = -1;
+            int prev_quarter = -1;
             while (true)
             {
                 print(".\n");
-                GLib.DateTime now = new DateTime.now_local();
-                if (now.get_second() != prev_second)
+                DateTime now = new DateTime.now_local();
+                int now_second = now.get_second();
+                int now_quarter = now.get_microsecond() / 250000;
+                if (now_second != prev_second || now_quarter != prev_quarter)
                 {
-                    prev_second = now.get_second();
-                    print(@". $(now)\n");
+                    prev_second = now_second;
+                    prev_quarter = now_quarter;
+                    print(@". $(now.format("%FT%H:%M:%S"))+$(now_quarter*25)\n");
                 }
-                tasklet.ms_wait(5);
+                tasklet.ms_wait(3);
             }
         }
     }

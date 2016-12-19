@@ -92,7 +92,7 @@ namespace ProofOfConcept
              if (ia.id_arc.get_peer_nodeid().equals(peer_nodeid))
                 return ia;
         }
-        error("IdentityArc not found in identity_data.identity_arcs");
+        error("IdentityArc not found in identity_data.identity_arcs.values");
     }
 
     AddressManagerForNode node_skeleton;
