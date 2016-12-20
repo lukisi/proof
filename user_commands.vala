@@ -625,6 +625,8 @@ Command list:
         NodeID old_id = old_identity_data.nodeid;
         QspnManager old_id_qspn_mgr = (QspnManager)(identity_mgr.get_identity_module(old_id, "qspn"));
         NodeID new_id = identity_mgr.add_identity(op_id, old_id);
+        Naddr prev_naddr_old_identity = old_identity_data.my_naddr;
+        Fingerprint prev_fp_old_identity = old_identity_data.my_fp;
         // This produced some signal `identity_arc_added`: hence some IdentityArc instances have been created
         //  and stored in `new_identity_data.my_identityarcs`.
         IdentityData new_identity_data = find_or_create_local_identity(new_id);
@@ -792,7 +794,7 @@ Command list:
             // remove SNAT rule
             if (! no_anonymize && old_identity_data.local_ip_set.global != "")
             {
-                string anonymousrange = ip_anonymizing_gnode(old_identity_data.my_naddr.pos, levels);
+                string anonymousrange = ip_anonymizing_gnode(prev_naddr_old_identity.pos, levels);
                 cm.single_command(new ArrayList<string>.wrap({
                     @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$(anonymousrange)",
                     @"-j", @"SNAT", @"--to", @"$(old_identity_data.local_ip_set.global)"}));
@@ -820,22 +822,22 @@ Command list:
 
         // Prepare Netsukuku address
         // new address = op.host_gnode_address + op.in_host_pos1
-        //             + old_identity_data.my_naddr.pos.slice(0, op.host_gnode_level-1)
+        //             + prev_naddr_old_identity.pos.slice(0, op.host_gnode_level-1)
         ArrayList<int> _naddr_new = new ArrayList<int>();
         foreach (string s_piece in op.host_gnode_address.split(".")) _naddr_new.insert(0, int.parse(s_piece));
         _naddr_new.insert(0, op.in_host_pos1);
-        _naddr_new.insert_all(0, old_identity_data.my_naddr.pos.slice(0, op.host_gnode_level-1));
+        _naddr_new.insert_all(0, prev_naddr_old_identity.pos.slice(0, op.host_gnode_level-1));
         new_identity_data.my_naddr = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
         // Prepare fingerprint
         // new elderships = op.host_gnode_elderships + op.in_host_pos1_eldership
         //                + 0 * (op.host_gnode_level - 1 - op.guest_gnode_level)
-        //                + old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level)
+        //                + prev_fp_old_identity.elderships.slice(0, op.guest_gnode_level)
         ArrayList<int> _elderships = new ArrayList<int>();
         foreach (string s_piece in op.host_gnode_elderships.split(".")) _elderships.insert(0, int.parse(s_piece));
         _elderships.insert(0, op.in_host_pos1_eldership);
         for (int jj = 0; jj < op.host_gnode_level - 1 - op.guest_gnode_level; jj++) _elderships.insert(0, 0);
-        _elderships.insert_all(0, old_identity_data.my_fp.elderships.slice(0, op.guest_gnode_level));
-        new_identity_data.my_fp = new Fingerprint(_elderships.to_array(), old_identity_data.my_fp.id);
+        _elderships.insert_all(0, prev_fp_old_identity.elderships.slice(0, op.guest_gnode_level));
+        new_identity_data.my_fp = new Fingerprint(_elderships.to_array(), prev_fp_old_identity.id);
 
         // Compute local IPs. The valid intern IP are already set in old network namespace.
         compute_local_ip_set(new_identity_data.local_ip_set, new_identity_data.my_naddr);
