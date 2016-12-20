@@ -800,7 +800,7 @@ Command list:
                     @"-j", @"SNAT", @"--to", @"$(old_identity_data.local_ip_set.global)"}));
             }
 
-            // remove local addresses (global, anon, intern)
+            // remove local addresses (global, anon, intern) that are no more valid.
             if (old_identity_data.local_ip_set.global != "")
                 foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
@@ -809,7 +809,7 @@ Command list:
                 foreach (string dev in real_nics)
                 cm.single_command(new ArrayList<string>.wrap({
                     @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.anonymous)/32", @"dev", @"$(dev)"}));
-            for (int i = levels-1; i > op.guest_gnode_level; i--)
+            for (int i = levels-1; i > op.host_gnode_level-1; i--)
             {
                 if (old_identity_data.local_ip_set.intern[i] != "")
                     foreach (string dev in real_nics)
