@@ -74,10 +74,95 @@ namespace ProofOfConcept
             //  In this case we must do some work if we have a qspn_arc on this identity_arc.
             if (ia.qspn_arc != null)
             {
-                // TODO 
+                string ns = identity_data.network_namespace;
+                ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
+                if (ns != "") prefix_cmd_ns.add_all_array({
+                    @"ip", @"netns", @"exec", @"$(ns)"});
+                ArrayList<string> cmd;
+                string ipaddr;
                 int bid = cm.begin_block();
-                warning("Do something when peer_mac changes. not implemented yet.");
+
+                // remove old forwarding table
+                if (ia.prev_rule_added)
+                {
+                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                    cmd.add_all_array({
+                        @"ip", @"rule", @"del", @"fwmark", @"$(ia.prev_tid)",
+                        @"table", @"$(ia.prev_tablename)"});
+                    cm.single_command_in_block(bid, cmd);
+                    ia.rule_added = false;
+                }
+                cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                cmd.add_all_array({
+                    @"ip", @"route", @"flush", @"table", @"$(ia.prev_tablename)"});
+                cm.single_command_in_block(bid, cmd);
+                cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                cmd.add_all_array({
+                    @"iptables", @"-t", @"mangle", @"-D", @"PREROUTING", @"-m", @"mac",
+                    @"--mac-source", @"$(ia.prev_peer_mac)", @"-j", @"MARK", @"--set-mark", @"$(ia.prev_tid)"});
+                cm.single_command_in_block(bid, cmd);
+                bool still_used = false;
+                foreach (IdentityData id1 in local_identities.values)
+                {
+                    if (id1 != identity_data)
+                    {
+                        foreach (IdentityArc idarc1 in id1.identity_arcs.values)
+                        {
+                            if (idarc1.tid == ia.prev_tid)
+                            {
+                                still_used = true;
+                                break;
+                            }
+                        }
+                        if (still_used) break;
+                    }
+                }
+                if (! still_used) tn.release_table(null, ia.prev_peer_mac);
+
+                // add new forwarding table
+                cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                cmd.add_all_array({
+                    @"iptables", @"-t", @"mangle", @"-A", @"PREROUTING",
+                    @"-m", @"mac", @"--mac-source", @"$(ia.peer_mac)",
+                    @"-j", @"MARK", @"--set-mark", @"$(ia.tid)"});
+                cm.single_command_in_block(bid, cmd);
+                // Add to the table the new destination IP set of old identity. Initially as unreachable.
+                for (int i = levels-1; i >= subnetlevel; i--)
+                 for (int j = 0; j < _gsizes[i]; j++)
+                {
+                    if (identity_data.destination_ip_set[i][j].global != "")
+                    {
+                        ipaddr = identity_data.destination_ip_set[i][j].global;
+                        cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
+                        cm.single_command_in_block(bid, cmd);
+                        ipaddr = identity_data.destination_ip_set[i][j].anonymous;
+                        cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                        cmd.add_all_array({
+                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
+                        cm.single_command_in_block(bid, cmd);
+                    }
+                    for (int k = levels-1; k >= i+1; k--)
+                    {
+                        if (identity_data.destination_ip_set[i][j].intern[k] != "")
+                        {
+                            ipaddr = identity_data.destination_ip_set[i][j].intern[k];
+                            cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
+                            cmd.add_all_array({
+                                @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(ia.tablename)"});
+                            cm.single_command_in_block(bid, cmd);
+                        }
+                    }
+                }
                 cm.end_block(bid);
+
+                // if neighbor was known
+                if (ia.prev_rule_added)
+                {
+                    // update all routes in all tables and add rule.
+                    per_identity_update_all_routes(identity_data);
+                }
             }
         }
     }
@@ -121,7 +206,6 @@ namespace ProofOfConcept
                 @"iptables", @"-t", @"mangle", @"-D", @"PREROUTING", @"-m", @"mac",
                 @"--mac-source", @"$(ia.peer_mac)", @"-j", @"MARK", @"--set-mark", @"$(ia.tid)"});
             cm.single_command(cmd);
-            print(@"check arc to $(ia.peer_mac): still used?\n");
             bool still_used = false;
             foreach (IdentityData id1 in local_identities.values)
             {
@@ -138,8 +222,7 @@ namespace ProofOfConcept
                     if (still_used) break;
                 }
             }
-            if (! still_used) {print("no.\n"); tn.release_table(null, ia.peer_mac);}
-            else print("yes.\n");
+            if (! still_used) tn.release_table(null, ia.peer_mac);
 
             ia.qspn_arc = null;
             ia.tid = null;
