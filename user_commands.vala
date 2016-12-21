@@ -732,7 +732,7 @@ Command list:
         new_identity_data.connectivity_to_level = old_identity_data.connectivity_to_level;
 
         old_identity_data.connectivity_from_level = op.guest_gnode_level + 1;
-        old_identity_data.connectivity_to_level = levels - 1;
+        old_identity_data.connectivity_to_level = levels;
 
         HashMap<IdentityArc, IdentityArc> old_to_new_id_arc = new HashMap<IdentityArc, IdentityArc>();
         foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
@@ -779,7 +779,10 @@ Command list:
 
             old_identity_data.my_naddr = (Naddr)update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
-            old_id_qspn_mgr.make_connectivity(op.guest_gnode_level+1, levels, update_naddr, old_identity_data.my_fp);
+            old_id_qspn_mgr.make_connectivity(
+                old_identity_data.connectivity_from_level,
+                old_identity_data.connectivity_to_level,
+                update_naddr, old_identity_data.my_fp);
         }
 
         HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
@@ -1404,6 +1407,94 @@ Command list:
         string kk = @"$(old_local_identity_index)+$(op_id)";
         assert(kk in pending_prepared_migrate_operations.keys);
         PreparedMigrate op = pending_prepared_migrate_operations[kk];
+
+        IdentityData old_identity_data = local_identities[old_local_identity_index];
+        NodeID old_id = old_identity_data.nodeid;
+        QspnManager old_id_qspn_mgr = (QspnManager)(identity_mgr.get_identity_module(old_id, "qspn"));
+        NodeID new_id = identity_mgr.add_identity(op_id, old_id);
+        Naddr prev_naddr_old_identity = old_identity_data.my_naddr;
+        Fingerprint prev_fp_old_identity = old_identity_data.my_fp;
+        // This produced some signal `identity_arc_added`: hence some IdentityArc instances have been created
+        //  and stored in `new_identity_data.my_identityarcs`.
+        IdentityData new_identity_data = find_or_create_local_identity(new_id);
+        op.new_local_identity_index = new_identity_data.local_identity_index;
+        new_identity_data.copy_of_identity = old_identity_data;
+        new_identity_data.connectivity_from_level = old_identity_data.connectivity_from_level;
+        new_identity_data.connectivity_to_level = old_identity_data.connectivity_to_level;
+
+        // Prepare Netsukuku address
+        // new address = op.host_gnode_address + op.in_host_pos1
+        //             + prev_naddr_old_identity.pos.slice(0, op.host_gnode_level-1)
+        ArrayList<int> _naddr_new = new ArrayList<int>();
+        foreach (string s_piece in op.host_gnode_address.split(".")) _naddr_new.insert(0, int.parse(s_piece));
+        _naddr_new.insert(0, op.in_host_pos1);
+        _naddr_new.insert_all(0, prev_naddr_old_identity.pos.slice(0, op.host_gnode_level-1));
+        Naddr new_naddr_old_identity = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
+
+        old_identity_data.connectivity_from_level = op.guest_gnode_level + 1;
+        old_identity_data.connectivity_to_level =
+            prev_naddr_old_identity.i_qspn_get_coord_by_address(new_naddr_old_identity).lvl;
+
+        HashMap<IdentityArc, IdentityArc> old_to_new_id_arc = new HashMap<IdentityArc, IdentityArc>();
+        foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
+        {
+            bool old_identity_arc_changed_peer_mac = (w0.prev_peer_mac != null);
+            // find appropriate w1
+            foreach (IdentityArc w1 in new_identity_data.identity_arcs.values)
+            {
+                if (w1.arc != w0.arc) continue;
+                if (old_identity_arc_changed_peer_mac)
+                {
+                    if (w1.peer_mac != w0.prev_peer_mac) continue;
+                }
+                else
+                {
+                    if (w1.peer_mac != w0.peer_mac) continue;
+                }
+                old_to_new_id_arc[w0] = w1;
+                break;
+            }
+        }
+
+        string old_ns = new_identity_data.network_namespace;
+        string new_ns = old_identity_data.network_namespace;
+
+        {
+            // Change address of connectivity identity.
+            int ch_level = op.guest_gnode_level;
+            int ch_pos = op.connectivity_pos;
+            int ch_eldership = op.connectivity_pos_eldership;
+            int64 fp_id = old_identity_data.my_fp.id;
+
+            QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+                Naddr a = (Naddr)_a;
+                ArrayList<int> _naddr_temp = new ArrayList<int>();
+                _naddr_temp.add_all(a.pos);
+                _naddr_temp[ch_level] = ch_pos;
+                return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+            };
+
+            ArrayList<int> _elderships_temp = new ArrayList<int>();
+            _elderships_temp.add_all(old_identity_data.my_fp.elderships);
+            _elderships_temp[ch_level] = ch_eldership;
+
+            old_identity_data.my_naddr = (Naddr)update_naddr(old_identity_data.my_naddr);
+            old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+            old_id_qspn_mgr.make_connectivity(
+                old_identity_data.connectivity_from_level,
+                old_identity_data.connectivity_to_level,
+                update_naddr, old_identity_data.my_fp);
+        }
+
+        HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
+        old_destination_ip_set = copy_destination_ip_set(old_identity_data.destination_ip_set);
+        compute_destination_ip_set(old_identity_data.destination_ip_set, old_identity_data.my_naddr);
+
+        ArrayList<string> prefix_cmd_old_ns = new ArrayList<string>();
+        if (old_ns != "") prefix_cmd_old_ns.add_all_array({
+            @"ip", @"netns", @"exec", @"$(old_ns)"});
+        ArrayList<string> prefix_cmd_new_ns = new ArrayList<string>.wrap({
+            @"ip", @"netns", @"exec", @"$(new_ns)"});
 
         // TODO
         error("not implemented yet");
