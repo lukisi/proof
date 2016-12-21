@@ -660,6 +660,7 @@ Command list:
         // This produced some signal `identity_arc_added`: hence some IdentityArc instances have been created
         //  and stored in `new_identity_data.my_identityarcs`.
         IdentityData new_identity_data = find_or_create_local_identity(new_id);
+        op.new_local_identity_index = new_identity_data.local_identity_index;
         new_identity_data.copy_of_identity = old_identity_data;
         new_identity_data.connectivity_from_level = old_identity_data.connectivity_from_level;
         new_identity_data.connectivity_to_level = old_identity_data.connectivity_to_level;
@@ -1059,168 +1060,9 @@ Command list:
         if (op.prev_op_id == null)
         {
             // Immediately change address of new identity.
-            {
-                // Change address of new identity.
-                int ch_level = op.host_gnode_level-1;
-                int ch_pos = op.in_host_pos2;
-                int ch_eldership = op.in_host_pos2_eldership;
-                int64 fp_id = new_identity_data.my_fp.id;
-
-                QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
-                    Naddr a = (Naddr)_a;
-                    ArrayList<int> _naddr_temp = new ArrayList<int>();
-                    _naddr_temp.add_all(a.pos);
-                    _naddr_temp[ch_level] = ch_pos;
-                    return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
-                };
-
-                ArrayList<int> _elderships_temp = new ArrayList<int>();
-                _elderships_temp.add_all(new_identity_data.my_fp.elderships);
-                _elderships_temp[ch_level] = ch_eldership;
-
-                new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
-                new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
-                qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
-            }
-
-            int bid4 = cm.begin_block();
-            tables = new ArrayList<LookupTable>();
-            if (old_ns == "") tables.add(new LookupTable.egress("ntk"));
-            // Add a table for each qspn-arc of new identity
-            foreach (IdentityArc ia in new_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
-                tables.add(new LookupTable.forwarding(ia.tablename, get_neighbor(new_identity_data, ia)));
-            HashMap<int,HashMap<int,DestinationIPSet>> prev_new_identity_destination_ip_set;
-            prev_new_identity_destination_ip_set = copy_destination_ip_set(new_identity_data.destination_ip_set);
-            compute_destination_ip_set(new_identity_data.destination_ip_set, new_identity_data.my_naddr);
-            foreach (LookupTable table in tables)
-             for (int i = levels-1; i >= subnetlevel; i--)
-             for (int j = 0; j < _gsizes[i]; j++)
-            {
-                string tablename = table.tablename;
-                bool must_update = false;
-                if (new_identity_data.destination_ip_set[i][j].global != "" &&
-                    prev_new_identity_destination_ip_set[i][j].global == "")
-                {
-                    must_update = true;
-                    // add route for i,j.global for $tablename
-                    string ipaddr = new_identity_data.destination_ip_set[i][j].global;
-                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
-                    cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
-                    cm.single_command_in_block(bid4, cmd);
-                    // add route for i,j.anonymous for $tablename
-                    ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
-                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
-                    cmd.add_all_array({
-                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
-                    cm.single_command_in_block(bid4, cmd);
-                }
-                else if (new_identity_data.destination_ip_set[i][j].global == "" &&
-                    prev_new_identity_destination_ip_set[i][j].global != "")
-                {
-                    string ipaddr = prev_new_identity_destination_ip_set[i][j].global;
-                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
-                    cmd.add_all_array({
-                        @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
-                    cm.single_command_in_block(bid4, cmd);
-                    ipaddr = prev_new_identity_destination_ip_set[i][j].anonymous;
-                    cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
-                    cmd.add_all_array({
-                        @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
-                    cm.single_command_in_block(bid4, cmd);
-                }
-                for (int k = levels-1; k >= i+1; k--)
-                {
-                    if (new_identity_data.destination_ip_set[i][j].intern[k] != "" &&
-                        prev_new_identity_destination_ip_set[i][j].intern[k] == "")
-                    {
-                        must_update = true;
-                        // add route for i,j.intern[k] for $tablename
-                        string ipaddr = new_identity_data.destination_ip_set[i][j].intern[k];
-                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
-                        cmd.add_all_array({
-                            @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
-                        cm.single_command_in_block(bid4, cmd);
-                    }
-                    else if (new_identity_data.destination_ip_set[i][j].intern[k] == "" &&
-                        prev_new_identity_destination_ip_set[i][j].intern[k] != "")
-                    {
-                        string ipaddr = prev_new_identity_destination_ip_set[i][j].intern[k];
-                        ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
-                        cmd.add_all_array({
-                            @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
-                        cm.single_command_in_block(bid4, cmd);
-                    }
-                }
-                if (must_update)
-                {
-                    if (table.pkt_egress || table.pkt_from.h != null)
-                    {
-                        // update route for whole (i,j) for $table
-                        BestRouteToDest? best = per_identity_per_lookuptable_find_best_path_to_h(
-                                                new_identity_data, table, new HCoord(i, j));
-                        per_identity_per_lookuptable_update_best_path_to_h(
-                            new_identity_data,
-                            table,
-                            best,
-                            new HCoord(i, j),
-                            bid4);
-                    }
-                }
-            }
-            cm.end_block(bid4);
-
-            if (old_ns == "")
-            {
-                // Add, when needed, local IPs and SNAT rule.
-
-                LocalIPSet prev_new_identity_local_ip_set;
-                prev_new_identity_local_ip_set = copy_local_ip_set(new_identity_data.local_ip_set);
-                compute_local_ip_set(new_identity_data.local_ip_set, new_identity_data.my_naddr);
-
-                for (int i = 1; i < levels; i++)
-                {
-                    if (new_identity_data.local_ip_set.intern[i] != "" &&
-                        prev_new_identity_local_ip_set.intern[i] == "")
-                    {
-                        foreach (string dev in real_nics)
-                            cm.single_command(new ArrayList<string>.wrap({
-                                @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.intern[i])", @"dev", @"$(dev)"}));
-                    }
-                }
-                if (new_identity_data.local_ip_set.global != "" &&
-                    prev_new_identity_local_ip_set.global == "")
-                {
-                    foreach (string dev in real_nics)
-                        cm.single_command(new ArrayList<string>.wrap({
-                            @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.global)", @"dev", @"$(dev)"}));
-                    if (! no_anonymize)
-                    {
-                        string anonymousrange = ip_anonymizing_gnode(new_identity_data.my_naddr.pos, levels);
-                        cm.single_command(new ArrayList<string>.wrap({
-                            @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$(anonymousrange)",
-                            @"-j", @"SNAT", @"--to", @"$(new_identity_data.local_ip_set.global)"}));
-                    }
-                    if (accept_anonymous_requests)
-                    {
-                        foreach (string dev in real_nics)
-                            cm.single_command(new ArrayList<string>.wrap({
-                                @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.anonymous)", @"dev", @"$(dev)"}));
-                    }
-                }
-
-                // update only table ntk because of updated "src"
-                int bid5 = cm.begin_block();
-                tables = new ArrayList<LookupTable>();
-                tables.add(new LookupTable.egress("ntk"));
-                per_identity_foreach_lookuptable_update_all_best_paths(new_identity_data, tables, bid5);
-                cm.end_block(bid5);
-            }
+            enter_net_phase_2(old_local_identity_index, op_id);
         }
-        else
-        {
-            // TODO we wait for command `enter_net_phase_2`
-        }
+        // Else, just wait for command `enter_net_phase_2`
 
         // Finally, the peer_mac and peer_linklocal of the identity-arcs of old identity
         // can be updated (if they need to).
@@ -1254,7 +1096,6 @@ Command list:
             else print("yes.\n");
         }
         print("done.\n");
-        op.new_local_identity_index = new_identity_data.local_identity_index;
         return op.new_local_identity_index;
     }
 
