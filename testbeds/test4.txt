@@ -148,7 +148,7 @@ cat <<EOF | ssh epsilon bash
 /home/luca/bin/qspnclient add_qspn_arc ${NEW_EPSILON} eth1 00:16:3E:EC:A3:E1
 EOF
 cat <<EOF | ssh epsilon bash
-/home/luca/bin/qspnclient enter_net_phase_2 ${NEW_EPSILON} 262359
+/home/luca/bin/qspnclient enter_net_phase_2 0 4958850
 EOF
 
 
