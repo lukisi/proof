@@ -304,6 +304,72 @@ Command list:
                             op_id);
                         write_empty_response(command_id);
                     }
+                    else if (_args[0] == "prepare_migrate_phase_1")
+                    {
+                        if (_args.size != 14)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        int local_identity_index = int.parse(_args[1]);
+                        int guest_gnode_level = int.parse(_args[2]);
+                        int host_gnode_level = int.parse(_args[3]);
+                        string host_gnode_address = _args[4];
+                        string host_gnode_elderships = _args[5];
+                        int in_host_pos1 = int.parse(_args[6]);
+                        int in_host_pos1_eldership = int.parse(_args[7]);
+                        int in_host_pos2 = int.parse(_args[8]);
+                        int in_host_pos2_eldership = int.parse(_args[9]);
+                        int connectivity_pos = int.parse(_args[10]);
+                        int connectivity_pos_eldership = int.parse(_args[11]);
+                        int op_id = int.parse(_args[12]);
+                        string prev_op_id_str = _args[13];
+                        int? prev_op_id = null;
+                        if (prev_op_id_str != "null") prev_op_id = int.parse(prev_op_id_str);
+                        prepare_migrate_phase_1(
+                            local_identity_index,
+                            guest_gnode_level,
+                            host_gnode_level,
+                            host_gnode_address,
+                            host_gnode_elderships,
+                            in_host_pos1,
+                            in_host_pos1_eldership,
+                            in_host_pos2,
+                            in_host_pos2_eldership,
+                            connectivity_pos,
+                            connectivity_pos_eldership,
+                            op_id,
+                            prev_op_id);
+                        write_empty_response(command_id);
+                    }
+                    else if (_args[0] == "migrate_phase_1")
+                    {
+                        if (_args.size != 3)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        int local_identity_index = int.parse(_args[1]);
+                        int op_id = int.parse(_args[2]);
+                        int ret_id = migrate_phase_1(
+                            local_identity_index,
+                            op_id);
+                        write_oneline_response(command_id, @"$(ret_id)");
+                    }
+                    else if (_args[0] == "migrate_phase_2")
+                    {
+                        if (_args.size != 3)
+                        {
+                            write_oneline_response(command_id, @"Bad arguments number.", 1);
+                            continue;
+                        }
+                        int local_identity_index = int.parse(_args[1]);
+                        int op_id = int.parse(_args[2]);
+                        migrate_phase_2(
+                            local_identity_index,
+                            op_id);
+                        write_empty_response(command_id);
+                    }
                     else if (_args[0] == "add_qspn_arc")
                     {
                         if (_args.size != 4)
@@ -1271,6 +1337,88 @@ Command list:
             per_identity_foreach_lookuptable_update_all_best_paths(new_identity_data, tables, bid5);
             cm.end_block(bid5);
         }
+    }
+
+    void prepare_migrate_phase_1(
+        int local_identity_index,
+        int guest_gnode_level,
+        int host_gnode_level,
+        string host_gnode_address,
+        string host_gnode_elderships,
+        int in_host_pos1,
+        int in_host_pos1_eldership,
+        int in_host_pos2,
+        int in_host_pos2_eldership,
+        int connectivity_pos,
+        int connectivity_pos_eldership,
+        int op_id,
+        int? prev_op_id)
+    {
+        string k = @"$(local_identity_index)+$(op_id)";
+        assert(! (k in pending_prepared_migrate_operations.keys));
+        PreparedMigrate pending = new PreparedMigrate();
+        pending.local_identity_index = local_identity_index;
+        pending.guest_gnode_level = guest_gnode_level;
+        pending.host_gnode_level = host_gnode_level;
+        pending.host_gnode_address = host_gnode_address;
+        pending.host_gnode_elderships = host_gnode_elderships;
+        pending.in_host_pos1 = in_host_pos1;
+        pending.in_host_pos1_eldership = in_host_pos1_eldership;
+        pending.in_host_pos2 = in_host_pos2;
+        pending.in_host_pos2_eldership = in_host_pos2_eldership;
+        pending.connectivity_pos = connectivity_pos;
+        pending.connectivity_pos_eldership = connectivity_pos_eldership;
+        pending.op_id = op_id;
+        pending.prev_op_id = prev_op_id;
+        pending.new_local_identity_index = null;
+        pending_prepared_migrate_operations[k] = pending;
+
+        IdentityData id = local_identities[local_identity_index];
+        NodeID old_id = id.nodeid;
+        identity_mgr.prepare_add_identity(op_id, old_id);
+    }
+
+    class PreparedMigrate : Object
+    {
+        public int local_identity_index;
+        public int guest_gnode_level;
+        public int host_gnode_level;
+        public string host_gnode_address;
+        public string host_gnode_elderships;
+        public int in_host_pos1;
+        public int in_host_pos1_eldership;
+        public int in_host_pos2;
+        public int in_host_pos2_eldership;
+        public int connectivity_pos;
+        public int connectivity_pos_eldership;
+        public int op_id;
+        public int? prev_op_id;
+        public int? new_local_identity_index;
+    }
+    HashMap<string,PreparedMigrate> pending_prepared_migrate_operations;
+
+    int migrate_phase_1(
+        int old_local_identity_index,
+        int op_id)
+    {
+        string kk = @"$(old_local_identity_index)+$(op_id)";
+        assert(kk in pending_prepared_migrate_operations.keys);
+        PreparedMigrate op = pending_prepared_migrate_operations[kk];
+
+        // TODO
+        error("not implemented yet");
+    }
+
+    void migrate_phase_2(
+        int old_local_identity_index,
+        int op_id)
+    {
+        string kk = @"$(old_local_identity_index)+$(op_id)";
+        assert(kk in pending_prepared_migrate_operations.keys);
+        PreparedMigrate op = pending_prepared_migrate_operations[kk];
+
+        // TODO
+        error("not implemented yet");
     }
 
     void add_qspn_arc(int local_identity_index, string my_dev, string peer_mac)
