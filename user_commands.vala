@@ -1549,6 +1549,76 @@ Command list:
         // Wait for our neighbors to react on signal identity_mgr.identity_arc_changed.
         tasklet.ms_wait(300); // TODO adjust if needed.
 
+        // Remove old destination IPs from all tables in old network namespace
+        int bid = cm.begin_block();
+        ArrayList<string> tablenames = new ArrayList<string>();
+        if (old_ns == "") tablenames.add("ntk");
+        // Add the table that was in old namespace for each qspn-arc of old identity
+        foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
+        {
+            tablenames.add(ia.prev_tablename);
+        }
+        foreach (string tablename in tablenames)
+         for (int i = levels-1; i >= subnetlevel; i--)
+         for (int j = 0; j < _gsizes[i]; j++)
+        {
+            if (old_destination_ip_set[i][j].global != "")
+            {
+                string ipaddr = old_destination_ip_set[i][j].global;
+                ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                cmd.add_all_array({
+                    @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
+                cm.single_command_in_block(bid, cmd);
+                ipaddr = old_destination_ip_set[i][j].anonymous;
+                cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                cmd.add_all_array({
+                    @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
+                cm.single_command_in_block(bid, cmd);
+            }
+            for (int k = levels-1; k >= i+1 && k > op.guest_gnode_level; k--)
+            {
+                if (old_destination_ip_set[i][j].intern[k] != "")
+                {
+                    string ipaddr = old_destination_ip_set[i][j].intern[k];
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"del", @"$(ipaddr)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid, cmd);
+                }
+            }
+        }
+        cm.end_block(bid);
+
+        // Remove addresses
+        if (old_ns == "")
+        {
+            // remove SNAT rule
+            if (! no_anonymize && old_identity_data.local_ip_set.global != "")
+            {
+                string anonymousrange = ip_anonymizing_gnode(prev_naddr_old_identity.pos, levels);
+                cm.single_command(new ArrayList<string>.wrap({
+                    @"iptables", @"-t", @"nat", @"-D", @"POSTROUTING", @"-d", @"$(anonymousrange)",
+                    @"-j", @"SNAT", @"--to", @"$(old_identity_data.local_ip_set.global)"}));
+            }
+
+            // remove local addresses (global, anon, intern) that are no more valid.
+            if (old_identity_data.local_ip_set.global != "")
+                foreach (string dev in real_nics)
+                cm.single_command(new ArrayList<string>.wrap({
+                    @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.global)/32", @"dev", @"$(dev)"}));
+            if (old_identity_data.local_ip_set.anonymous != "" && accept_anonymous_requests)
+                foreach (string dev in real_nics)
+                cm.single_command(new ArrayList<string>.wrap({
+                    @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.anonymous)/32", @"dev", @"$(dev)"}));
+            for (int i = levels-1; i > op.host_gnode_level-1; i--)
+            {
+                if (old_identity_data.local_ip_set.intern[i] != "")
+                    foreach (string dev in real_nics)
+                    cm.single_command(new ArrayList<string>.wrap({
+                        @"ip", @"address", @"del", @"$(old_identity_data.local_ip_set.intern[i])/32", @"dev", @"$(dev)"}));
+            }
+        }
+
         // TODO
         error("not implemented yet");
     }
