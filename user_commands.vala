@@ -1619,6 +1619,24 @@ Command list:
             }
         }
 
+        // Remove rules in old network namespace for forwarding tables for
+        //  neighbors outside the migrating g-node.
+        foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
+        {
+            bool outside = (w0.prev_peer_mac == null);
+            if (outside)
+            {
+                bool was_rule_added = (w0.rule_added == true);
+                if (was_rule_added)
+                {
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"rule", @"del", @"fwmark", @"$(w0.tid)", @"table", @"$(w0.tablename)"});
+                    cm.single_command_in_block(bid, cmd);
+                }
+            }
+        }
+
         // TODO
         error("not implemented yet");
     }
