@@ -1426,11 +1426,11 @@ Command list:
         foreach (string s_piece in op.host_gnode_address.split(".")) _naddr_new.insert(0, int.parse(s_piece));
         _naddr_new.insert(0, op.in_host_pos1);
         _naddr_new.insert_all(0, prev_naddr_old_identity.pos.slice(0, op.host_gnode_level-1));
-        Naddr new_naddr_old_identity = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
+        Naddr new_naddr_new_identity = new Naddr(_naddr_new.to_array(), _gsizes.to_array());
 
         old_identity_data.connectivity_from_level = op.guest_gnode_level + 1;
         old_identity_data.connectivity_to_level =
-            prev_naddr_old_identity.i_qspn_get_coord_by_address(new_naddr_old_identity).lvl;
+            prev_naddr_old_identity.i_qspn_get_coord_by_address(new_naddr_new_identity).lvl;
 
         HashMap<IdentityArc, IdentityArc> old_to_new_id_arc = new HashMap<IdentityArc, IdentityArc>();
         foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
@@ -1636,6 +1636,165 @@ Command list:
                 }
             }
         }
+
+        // Add routes of new identity into old network namespace
+
+        // Netsukuku address was prepared
+        new_identity_data.my_naddr = new_naddr_new_identity;
+        // Prepare fingerprint
+        // new elderships = op.host_gnode_elderships + op.in_host_pos1_eldership
+        //                + 0 * (op.host_gnode_level - 1 - op.guest_gnode_level)
+        //                + prev_fp_old_identity.elderships.slice(0, op.guest_gnode_level)
+        ArrayList<int> _elderships = new ArrayList<int>();
+        foreach (string s_piece in op.host_gnode_elderships.split(".")) _elderships.insert(0, int.parse(s_piece));
+        _elderships.insert(0, op.in_host_pos1_eldership);
+        for (int jj = 0; jj < op.host_gnode_level - 1 - op.guest_gnode_level; jj++) _elderships.insert(0, 0);
+        _elderships.insert_all(0, prev_fp_old_identity.elderships.slice(0, op.guest_gnode_level));
+        new_identity_data.my_fp = new Fingerprint(_elderships.to_array(), prev_fp_old_identity.id);
+
+        // Compute local IPs. The valid intern IP are already set in old network namespace.
+        compute_local_ip_set(new_identity_data.local_ip_set, new_identity_data.my_naddr);
+        // Compute destination IPs. Then, we add the routes in old network namespace.
+        compute_destination_ip_set(new_identity_data.destination_ip_set, new_identity_data.my_naddr);
+
+        // Add new destination IPs into all tables in old network namespace
+        int bid2 = cm.begin_block();
+        tablenames = new ArrayList<string>();
+        if (old_ns == "") tablenames.add("ntk");
+        // Add a table for each qspn-arc of old identity that will be also in new identity
+        foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
+        {
+            bool old_identity_arc_changed_peer_mac = (ia.prev_peer_mac != null);
+            // If old identity's identity_arc has changed its peer_mac, then the previous mac will be
+            //  used by new identity.
+            if (old_identity_arc_changed_peer_mac)
+            {
+                tablenames.add(ia.prev_tablename);
+            }
+        }
+        foreach (string tablename in tablenames)
+         for (int i = levels-1; i >= subnetlevel; i--)
+         for (int j = 0; j < _gsizes[i]; j++)
+        {
+            if (new_identity_data.destination_ip_set[i][j].global != "")
+            {
+                string ipaddr = new_identity_data.destination_ip_set[i][j].global;
+                ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                cmd.add_all_array({
+                    @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                cm.single_command_in_block(bid2, cmd);
+                ipaddr = new_identity_data.destination_ip_set[i][j].anonymous;
+                cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                cmd.add_all_array({
+                    @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                cm.single_command_in_block(bid2, cmd);
+            }
+            for (int k = levels-1; k >= i+1 && k > op.guest_gnode_level; k--)
+            {
+                if (new_identity_data.destination_ip_set[i][j].intern[k] != "")
+                {
+                    string ipaddr = new_identity_data.destination_ip_set[i][j].intern[k];
+                    ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
+                    cmd.add_all_array({
+                        @"ip", @"route", @"add", @"unreachable", @"$(ipaddr)", @"table", @"$(tablename)"});
+                    cm.single_command_in_block(bid2, cmd);
+                }
+            }
+        }
+        cm.end_block(bid2);
+
+        // New qspn manager
+
+        // Prepare internal/external arcs
+        ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
+        ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = new ArrayList<IQspnNaddr>();
+        ArrayList<IQspnArc> external_arc_set = new ArrayList<IQspnArc>();
+        foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
+        {
+            bool old_identity_arc_is_internal = (w0.prev_peer_mac != null);
+            if (old_identity_arc_is_internal)
+            {
+                // It is an internal arc
+                IdentityArc w1 = old_to_new_id_arc[w0]; // w1 is already in new_identity_data.my_identityarcs
+                NodeID destid = w1.id_arc.get_peer_nodeid();
+                NodeID sourceid = w1.id; // == new_id
+                IdmgmtArc __arc = (IdmgmtArc)w1.arc;
+                Arc _arc = __arc.arc;
+                w1.qspn_arc = new QspnArc(_arc, sourceid, destid, w1, w1.peer_mac);
+                tn.get_table(null, w1.peer_mac, out w1.tid, out w1.tablename);
+                w1.rule_added = w0.prev_rule_added;
+
+                assert(w0.qspn_arc != null);
+                IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
+                assert(_w0_peer_naddr != null);
+                Naddr w0_peer_naddr = (Naddr)_w0_peer_naddr;
+                // w1_peer_naddr = new_identity_data.my_naddr.pos.slice(op.host_gnode_level-1, levels)
+                //             + w0_peer_naddr.pos.slice(0, op.host_gnode_level-1)
+                ArrayList<int> _w1_peer_naddr = new ArrayList<int>();
+                _w1_peer_naddr.add_all(w0_peer_naddr.pos.slice(0, op.host_gnode_level-1));
+                _w1_peer_naddr.add_all(new_identity_data.my_naddr.pos.slice(op.host_gnode_level-1, levels));
+                Naddr w1_peer_naddr = new Naddr(_w1_peer_naddr.to_array(), _gsizes.to_array());
+
+                // Now add: the 2 ArrayList should have same size at the end.
+                internal_arc_set.add(w1.qspn_arc);
+                internal_arc_peer_naddr_set.add(w1_peer_naddr);
+            }
+            else
+            {
+                // It is an external arc
+                IdentityArc w1 = old_to_new_id_arc[w0]; // w1 is already in new_identity_data.my_identityarcs
+                NodeID destid = w1.id_arc.get_peer_nodeid();
+                NodeID sourceid = w1.id; // == new_id
+                IdmgmtArc __arc = (IdmgmtArc)w1.arc;
+                Arc _arc = __arc.arc;
+                w1.qspn_arc = new QspnArc(_arc, sourceid, destid, w1, w1.peer_mac);
+                tn.get_table(null, w1.peer_mac, out w1.tid, out w1.tablename);
+                w1.rule_added = false;
+
+                external_arc_set.add(w1.qspn_arc);
+            }
+        }
+        // Prepare mapping old-arcs to new-arcs (duplicates)
+        QspnManager.PreviousArcToNewArcDelegate old_arc_to_new_arc = (/*IQspnArc*/ old_arc) => {
+            // return IQspnArc or null.
+            foreach (IdentityArc old_identity_arc in old_to_new_id_arc.keys)
+            {
+                if (old_identity_arc.qspn_arc == old_arc)
+                    return old_to_new_id_arc[old_identity_arc].qspn_arc;
+            }
+            return null;
+        };
+        // Create new qspn manager
+        QspnManager qspn_mgr = new Netsukuku.Qspn.QspnManager.migration(
+            new_identity_data.my_naddr,
+            internal_arc_set,
+            internal_arc_peer_naddr_set,
+            external_arc_set,
+            old_arc_to_new_arc,
+            new_identity_data.my_fp,
+            new QspnStubFactory(new_identity_data),
+            /*hooking_gnode_level*/ op.guest_gnode_level,
+            /*into_gnode_level*/ op.host_gnode_level,
+            /*previous_identity*/ old_id_qspn_mgr);
+        // soon after creation, connect to signals.
+        qspn_mgr.arc_removed.connect(new_identity_data.arc_removed);
+        qspn_mgr.changed_fp.connect(new_identity_data.changed_fp);
+        qspn_mgr.changed_nodes_inside.connect(new_identity_data.changed_nodes_inside);
+        qspn_mgr.destination_added.connect(new_identity_data.destination_added);
+        qspn_mgr.destination_removed.connect(new_identity_data.destination_removed);
+        qspn_mgr.gnode_splitted.connect(new_identity_data.gnode_splitted);
+        qspn_mgr.path_added.connect(new_identity_data.path_added);
+        qspn_mgr.path_changed.connect(new_identity_data.path_changed);
+        qspn_mgr.path_removed.connect(new_identity_data.path_removed);
+        qspn_mgr.presence_notified.connect(new_identity_data.presence_notified);
+        qspn_mgr.qspn_bootstrap_complete.connect(new_identity_data.qspn_bootstrap_complete);
+        qspn_mgr.remove_identity.connect(new_identity_data.remove_identity);
+
+        identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
+        new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
+
+
+
 
         // TODO
         error("not implemented yet");
