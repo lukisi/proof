@@ -148,7 +148,12 @@ namespace ProofOfConcept
             string _naddr = naddr_repr(id.my_naddr);
             print(@"presence_notified: Identity #$(_id) ($(_naddr)).\n");;
         }
-        // TODO
+        if (id.copy_of_identity != null)
+        {
+            // Continue operations of connectivity: remove outer arcs and
+            //  in a new tasklet keep an eye for when we can dismiss.
+            do_connectivity(id.copy_of_identity);
+        }
     }
 
     void per_identity_qspn_qspn_bootstrap_complete(IdentityData id)
