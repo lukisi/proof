@@ -127,7 +127,12 @@ sleep 1
 cat <<EOF | ssh epsilon bash
 /home/luca/bin/qspnclient prepare_enter_net_phase_1 0 0 1 2.1.1 0.0.0 2 3 1 4 2 1 [0] 4958850 262359
 EOF
-NEW_EPSILON=$(ssh epsilon /home/luca/bin/qspnclient enter_net_phase_1 0 4958850)
+NEW_EPSILON=$(
+cat <<EOF | ssh epsilon bash
+    /home/luca/bin/qspnclient enter_net_phase_1 0 4958850
+EOF
+)
+echo NEW_EPSILON ${NEW_EPSILON}
 sleep 1
 cat <<EOF | ssh beta bash
 /home/luca/bin/qspnclient add_qspn_arc 1 eth1 00:16:3E:3C:14:33
