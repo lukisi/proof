@@ -1458,16 +1458,18 @@ namespace ProofOfConcept
             this.destid = destid;
             this.ia = ia;
             this.peer_mac = peer_mac;
+            cost_seed = Random.int_range(0, 1000);
         }
         public weak Arc arc;
         public NodeID sourceid;
         public NodeID destid;
         public weak IdentityArc ia;
         public string peer_mac;
+        private int cost_seed;
 
         public IQspnCost i_qspn_get_cost()
         {
-            return new Cost(arc.cost);
+            return new Cost(arc.cost + cost_seed);
         }
 
         public bool i_qspn_equals(IQspnArc other)
