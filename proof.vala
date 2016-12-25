@@ -243,6 +243,7 @@ namespace ProofOfConcept
         neighborhood_arcs = new HashMap<string, INeighborhoodArc>();
         real_arcs = new HashMap<string, Arc>();
         pending_prepared_enter_net_operations = new HashMap<string,PreparedEnterNet>();
+        pending_prepared_migrate_operations = new HashMap<string,PreparedMigrate>();
 
         // Init module Neighborhood
         NeighborhoodManager.init(tasklet);
