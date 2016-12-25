@@ -2073,11 +2073,19 @@ Command list:
                 Gee.List<HCoord> lst_h = qspn_mgr.get_known_destinations(lvl);
                 foreach (HCoord h in lst_h)
                 {
+                    ret.add(@"Destination ($(h.lvl), $(h.pos)):");
                     // public Gee.List<Netsukuku.Qspn.IQspnNodePath> get_paths_to (Netsukuku.HCoord d)
                     Gee.List<IQspnNodePath> lst_paths = qspn_mgr.get_paths_to(h);
+                    ret.add(@" We've got $(lst_paths.size) paths.");
                     foreach (IQspnNodePath path in lst_paths)
                     {
-                        ret.add(@"Path to ($(h.lvl), $(h.pos)) with $(path.i_qspn_get_hops().size) hops");
+                        Cost path_cost = (Cost)path.i_qspn_get_cost();
+                        ret.add(@" Path cost $(path_cost.usec_rtt) with $(path.i_qspn_get_hops().size) hops:");
+                        foreach (IQspnHop hop in path.i_qspn_get_hops())
+                        {
+                            HCoord hop_h = hop.i_qspn_get_hcoord();
+                            ret.add(@"  Hop to ($(hop_h.lvl), $(hop_h.pos)) via arc $(hop.i_qspn_get_arc_id())");
+                        }
                     }
                 }
             } catch (QspnBootstrapInProgressError e) {
