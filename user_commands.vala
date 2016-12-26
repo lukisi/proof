@@ -995,6 +995,7 @@ Command list:
         // Prepare internal arcs
         ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
         ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = new ArrayList<IQspnNaddr>();
+        ArrayList<IQspnArc> internal_arc_prev_arc_set = new ArrayList<IQspnArc>();
         foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
         {
             bool old_identity_arc_is_internal = (w0.prev_peer_mac != null);
@@ -1021,9 +1022,10 @@ Command list:
                 _w1_peer_naddr.add_all(new_identity_data.my_naddr.pos.slice(op.host_gnode_level-1, levels));
                 Naddr w1_peer_naddr = new Naddr(_w1_peer_naddr.to_array(), _gsizes.to_array());
 
-                // Now add: the 2 ArrayList should have same size at the end.
+                // Now add: the 3 ArrayList should have same size at the end.
                 internal_arc_set.add(w1.qspn_arc);
                 internal_arc_peer_naddr_set.add(w1_peer_naddr);
+                internal_arc_prev_arc_set.add(w0.qspn_arc);
             }
         }
         // Prepare external arcs
@@ -1057,6 +1059,7 @@ Command list:
             new_identity_data.my_naddr,
             internal_arc_set,
             internal_arc_peer_naddr_set,
+            internal_arc_prev_arc_set,
             external_arc_set,
             old_arc_to_new_arc,
             new_identity_data.my_fp,
@@ -1708,6 +1711,7 @@ Command list:
         // Prepare internal/external arcs
         ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
         ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = new ArrayList<IQspnNaddr>();
+        ArrayList<IQspnArc> internal_arc_prev_arc_set = new ArrayList<IQspnArc>();
         ArrayList<IQspnArc> external_arc_set = new ArrayList<IQspnArc>();
         foreach (IdentityArc w0 in old_identity_data.identity_arcs.values)
         {
@@ -1735,9 +1739,10 @@ Command list:
                 _w1_peer_naddr.add_all(new_identity_data.my_naddr.pos.slice(op.host_gnode_level-1, levels));
                 Naddr w1_peer_naddr = new Naddr(_w1_peer_naddr.to_array(), _gsizes.to_array());
 
-                // Now add: the 2 ArrayList should have same size at the end.
+                // Now add: the 3 ArrayList should have same size at the end.
                 internal_arc_set.add(w1.qspn_arc);
                 internal_arc_peer_naddr_set.add(w1_peer_naddr);
+                internal_arc_prev_arc_set.add(w0.qspn_arc);
             }
             else
             {
@@ -1769,6 +1774,7 @@ Command list:
             new_identity_data.my_naddr,
             internal_arc_set,
             internal_arc_peer_naddr_set,
+            internal_arc_prev_arc_set,
             external_arc_set,
             old_arc_to_new_arc,
             new_identity_data.my_fp,
