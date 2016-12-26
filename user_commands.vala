@@ -1044,24 +1044,13 @@ Command list:
 
             external_arc_set.add(w1.qspn_arc);
         }
-        // Prepare mapping old-arcs to new-arcs (duplicates)
-        QspnManager.PreviousArcToNewArcDelegate old_arc_to_new_arc = (/*IQspnArc*/ old_arc) => {
-            // return IQspnArc or null.
-            foreach (IdentityArc old_identity_arc in old_to_new_id_arc.keys)
-            {
-                if (old_identity_arc.qspn_arc == old_arc)
-                    return old_to_new_id_arc[old_identity_arc].qspn_arc;
-            }
-            return null;
-        };
         // Create new qspn manager
         QspnManager qspn_mgr = new QspnManager.enter_net(
             new_identity_data.my_naddr,
             internal_arc_set,
-            internal_arc_peer_naddr_set,
             internal_arc_prev_arc_set,
+            internal_arc_peer_naddr_set,
             external_arc_set,
-            old_arc_to_new_arc,
             new_identity_data.my_fp,
             new QspnStubFactory(new_identity_data),
             /*hooking_gnode_level*/ op.guest_gnode_level,
@@ -1759,24 +1748,13 @@ Command list:
                 external_arc_set.add(w1.qspn_arc);
             }
         }
-        // Prepare mapping old-arcs to new-arcs (duplicates)
-        QspnManager.PreviousArcToNewArcDelegate old_arc_to_new_arc = (/*IQspnArc*/ old_arc) => {
-            // return IQspnArc or null.
-            foreach (IdentityArc old_identity_arc in old_to_new_id_arc.keys)
-            {
-                if (old_identity_arc.qspn_arc == old_arc)
-                    return old_to_new_id_arc[old_identity_arc].qspn_arc;
-            }
-            return null;
-        };
         // Create new qspn manager
         QspnManager qspn_mgr = new Netsukuku.Qspn.QspnManager.migration(
             new_identity_data.my_naddr,
             internal_arc_set,
-            internal_arc_peer_naddr_set,
             internal_arc_prev_arc_set,
+            internal_arc_peer_naddr_set,
             external_arc_set,
-            old_arc_to_new_arc,
             new_identity_data.my_fp,
             new QspnStubFactory(new_identity_data),
             /*hooking_gnode_level*/ op.guest_gnode_level,
