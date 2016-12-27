@@ -509,7 +509,7 @@ Command list:
         string my_elderships_str = fp_elderships_repr(identity_data.my_fp);
         string my_fp0 = @"$(identity_data.my_fp.id)";
         int nodes_inside_0 = identity_data.main_id ? 1 : 0;
-        string line = @"local_identity #$(index):";
+        string line = @"local_identity #$(index) (nodeid $(identity_data.nodeid.id)):";
         ret.add(line);
         if (identity_data.connectivity_from_level == 0) line = @"    main,";
         else line = @"    connectivity from level $(identity_data.connectivity_from_level) "
@@ -624,25 +624,24 @@ Command list:
         IdentityArc ia = identity_data.identity_arcs[identity_arc_index];
         ArrayList<string> ret = new ArrayList<string>();
         ret.add(@"identity_arc #$(identity_arc_index) of local_identity #$(local_identity_index):");
-        ret.add(@"    to $(ia.peer_mac)");
-        if (ia.qspn_arc == null)
-        {
-            ret.add(@"    no qspn_arc");
-        }
-        else
-        {
-            if (ia.tablename == null)
-            {
-                ret.add(@"    no tablename");
-            }
-            else
-            {
-                string rule_added = "no rule.";
-                if (ia.rule_added == true) rule_added = "rule added.";
-                ret.add(@"    tablename $(ia.tablename), tid $(ia.tid), $(rule_added)");
-            }
-        }
-        // TODO ....
+        ret.add(@"    from nodeid $(ia.id.id) to nodeid $(ia.id_arc.get_peer_nodeid().id)");
+        ret.add(@"    id_arc.get_peer_mac() = $(ia.id_arc.get_peer_mac())");
+        ret.add(@"    id_arc.get_peer_linklocal() = $(ia.id_arc.get_peer_linklocal())");
+        ret.add(@"    peer_mac = $(ia.peer_mac)");
+        ret.add(@"    peer_linklocal = $(ia.peer_linklocal)");
+        ret.add(@"    qspn_arc = $(ia.qspn_arc == null ? "null" : "present")");
+        ret.add(@"    tablename = $(ia.tablename == null ? "null" : ia.tablename)");
+        if (ia.tid == null) ret.add(@"    tid = null");
+        else ret.add(@"    tid = $(ia.tid)");
+        if (ia.rule_added == null) ret.add(@"    rule_added = null");
+        else ret.add(@"    rule_added = $(ia.rule_added)");
+        ret.add(@"    prev_peer_mac = $(ia.prev_peer_mac == null ? "null" : ia.prev_peer_mac)");
+        ret.add(@"    prev_peer_linklocal = $(ia.prev_peer_linklocal == null ? "null" : ia.prev_peer_linklocal)");
+        ret.add(@"    prev_tablename = $(ia.prev_tablename == null ? "null" : ia.prev_tablename)");
+        if (ia.prev_tid == null) ret.add(@"    prev_tid = null");
+        else ret.add(@"    prev_tid = $(ia.prev_tid)");
+        if (ia.prev_rule_added == null) ret.add(@"    prev_rule_added = null");
+        else ret.add(@"    prev_rule_added = $(ia.prev_rule_added)");
         return ret;
     }
 
@@ -860,6 +859,9 @@ Command list:
 
         // Remove old destination IPs from all tables in old network namespace
         int bid = cm.begin_block();
+        print("enter_net: Remove old destination IPs from all tables in old network namespace\n");
+        print("identity arcs of old_identity_data now:\n");
+        foreach (string s in show_identity_arcs(old_identity_data.local_identity_index)) print(s + "\n");
         ArrayList<string> tablenames = new ArrayList<string>();
         if (old_ns == "") tablenames.add("ntk");
         // Add the table that was in old namespace for each qspn-arc of old identity
@@ -1146,7 +1148,8 @@ Command list:
         }
 
         // Remove old identity
-        print(@"going to remove identity #$(old_identity_data.local_identity_index)\n");
+        print(@"enter_net: Remove old identity #$(old_identity_data.local_identity_index)\n");
+        print("identity arcs of old_identity_data now:\n");
         foreach (string s in show_identity_arcs(old_identity_data.local_identity_index)) print(s + "\n");
         identity_mgr.remove_identity(old_identity_data.nodeid);
         old_id_qspn_mgr.stop_operations();
@@ -1565,6 +1568,9 @@ Command list:
 
         // Remove old destination IPs from all tables in old network namespace
         int bid = cm.begin_block();
+        print("migrate: Remove old destination IPs from all tables in old network namespace\n");
+        print("identity arcs of old_identity_data now:\n");
+        foreach (string s in show_identity_arcs(old_identity_data.local_identity_index)) print(s + "\n");
         ArrayList<string> tablenames = new ArrayList<string>();
         if (old_ns == "") tablenames.add("ntk");
         // Add the table that was in old namespace for each qspn-arc of old identity

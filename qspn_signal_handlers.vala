@@ -160,8 +160,8 @@ namespace ProofOfConcept
     {
         {
             int _id = id.local_identity_index;
-            string _naddr = naddr_repr(id.my_naddr);
-            print(@"qspn_bootstrap_complete: Identity #$(_id) ($(_naddr)).\n");;
+            print(@"qspn_bootstrap_complete: Identity #$(_id)).\n");
+            foreach (string s in print_local_identity(_id)) print(s + "\n");
         }
         // Update routes for table egress and tables forward of those neighbor we already know
         int bid = cm.begin_block();
