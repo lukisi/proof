@@ -1073,6 +1073,8 @@ Command list:
         identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
         new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
+        foreach (string s in print_local_identity(new_identity_data.local_identity_index)) print(s + "\n");
+
         // Add new destination IPs into new forwarding-tables in old network namespace
         int bid3 = cm.begin_block();
         foreach (IdentityArc ia in new_identity_data.identity_arcs.values)
@@ -1134,6 +1136,8 @@ Command list:
         }
 
         // Remove old identity
+        print(@"going to remove identity #$(old_identity_data.local_identity_index)\n");
+        foreach (string s in show_identity_arcs(old_identity_data.local_identity_index)) print(s + "\n");
         identity_mgr.remove_identity(old_identity_data.nodeid);
         old_id_qspn_mgr.stop_operations();
         remove_local_identity(old_identity_data.nodeid);
@@ -1777,6 +1781,8 @@ Command list:
         identity_mgr.set_identity_module(new_id, "qspn", qspn_mgr);
         new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
+        foreach (string s in print_local_identity(new_identity_data.local_identity_index)) print(s + "\n");
+
         // Netsukuku Address of new identity will be changing.
         if (op.prev_op_id == null)
         {
@@ -2049,7 +2055,8 @@ Command list:
             IQspnNaddr? naddr = qspn_mgr.get_naddr_for_arc(arc);
             string s_naddr = "null";
             if (naddr != null) s_naddr = naddr_repr((Naddr)naddr);
-            ret.add(@"QspnArc to $(s_naddr), cost $(arc.arc.cost)");
+            int64 cost = ((Cost)arc.i_qspn_get_cost()).usec_rtt;
+            ret.add(@"QspnArc to $(s_naddr), cost $(cost)");
         }
         for (int lvl = 0; lvl < levels; lvl++)
         {
