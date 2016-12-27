@@ -509,14 +509,19 @@ Command list:
         string my_elderships_str = fp_elderships_repr(identity_data.my_fp);
         string my_fp0 = @"$(identity_data.my_fp.id)";
         int nodes_inside_0 = identity_data.main_id ? 1 : 0;
-        string l0 = @"local_identity #$(index):";
-        l0 += @" address $(my_naddr_str), elderships $(my_elderships_str),";
+        string line = @"local_identity #$(index):";
+        ret.add(line);
+        if (identity_data.connectivity_from_level == 0) line = @"    main,";
+        else line = @"    connectivity from level $(identity_data.connectivity_from_level) "
+                + @"to level $(identity_data.connectivity_to_level),";
+        ret.add(line);
+        line = @"    address $(my_naddr_str), elderships $(my_elderships_str),";
         string network_namespace_str = identity_data.network_namespace;
         if (network_namespace_str == "") network_namespace_str = "default";
-        l0 += @" namespace $(network_namespace_str),";
-        string l1 = @"                   Level 0: Fingerprint $(my_fp0). Nodes inside #$(nodes_inside_0).";
-        ret.add(l0);
-        ret.add(l1);
+        line += @" namespace $(network_namespace_str),";
+        ret.add(line);
+        line = @"    Level 0: Fingerprint $(my_fp0). Nodes inside #$(nodes_inside_0).";
+        ret.add(line);
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
         for (int i = 1; i <= levels; i++)
         {
@@ -528,8 +533,8 @@ Command list:
                 int nodes_inside_i = qspn_mgr.get_nodes_inside(i);
                 nodes_inside_i_s = @"$(nodes_inside_i)";
             } catch (QspnBootstrapInProgressError e) {}
-            string l2 = @"                   Level $(i): Fingerprint $(fp_i_s). Nodes inside #$(nodes_inside_i_s).";
-            ret.add(l2);
+            line = @"    Level $(i): Fingerprint $(fp_i_s). Nodes inside #$(nodes_inside_i_s).";
+            ret.add(line);
         }
         return ret;
     }
@@ -783,6 +788,11 @@ Command list:
                 old_identity_data.connectivity_from_level,
                 old_identity_data.connectivity_to_level,
                 update_naddr, old_identity_data.my_fp);
+            int _lf = old_identity_data.connectivity_from_level;
+            int _lt = old_identity_data.connectivity_to_level;
+            int _id = old_identity_data.local_identity_index;
+            print(@"make_connectivity from level $(_lf) to level $(_lt) identity #$(_id).\n");
+            foreach (string s in print_local_identity(_id)) print(s + "\n");
         }
 
         HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
@@ -1198,6 +1208,9 @@ Command list:
             new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
             new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
             qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
+            int _id = new_identity_data.local_identity_index;
+            print(@"make_real at level $(ch_level) identity #$(_id).\n");
+            foreach (string s in print_local_identity(_id)) print(s + "\n");
         }
 
         int bid4 = cm.begin_block();
@@ -1477,6 +1490,11 @@ Command list:
                 old_identity_data.connectivity_from_level,
                 old_identity_data.connectivity_to_level,
                 update_naddr, old_identity_data.my_fp);
+            int _lf = old_identity_data.connectivity_from_level;
+            int _lt = old_identity_data.connectivity_to_level;
+            int _id = old_identity_data.local_identity_index;
+            print(@"make_connectivity from level $(_lf) to level $(_lt) identity #$(_id).\n");
+            foreach (string s in print_local_identity(_id)) print(s + "\n");
         }
 
         HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
@@ -1844,6 +1862,9 @@ Command list:
             new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
             new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
             qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
+            int _id = new_identity_data.local_identity_index;
+            print(@"make_real at level $(ch_level) identity #$(_id).\n");
+            foreach (string s in print_local_identity(_id)) print(s + "\n");
         }
 
         int bid4 = cm.begin_block();
