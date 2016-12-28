@@ -1,26 +1,38 @@
 Terminale alfa:
 
-ssh alfa /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 3.0.1.0
+ssh alfa
+export G_DEBUG=fatal-criticals
+sudo gdb -ex run --args /home/luca/proof-0.1/qspnclient -i eth1 -k init 4.2.2.2 3.0.1.0
 
 Terminale beta:
 
-ssh beta /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 1.0.1.0
+ssh beta
+export G_DEBUG=fatal-criticals
+sudo gdb -ex run --args /home/luca/proof-0.1/qspnclient -i eth1 -k init 4.2.2.2 1.0.1.0
 
 Terminale gamma:
 
-ssh gamma /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 2.1.1.0
+ssh gamma
+export G_DEBUG=fatal-criticals
+sudo gdb -ex run --args /home/luca/proof-0.1/qspnclient -i eth1 -k init 4.2.2.2 2.1.1.0
 
 Terminale delta:
 
-ssh delta /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 3.1.0.1
+ssh delta
+export G_DEBUG=fatal-criticals
+sudo gdb -ex run --args /home/luca/proof-0.1/qspnclient -i eth1 -k init 4.2.2.2 3.1.0.1
 
 Terminale mu:
 
-ssh mu /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 1.0.1.1
+ssh mu
+export G_DEBUG=fatal-criticals
+sudo gdb -ex run --args /home/luca/proof-0.1/qspnclient -i eth1 -k init 4.2.2.2 1.0.1.1
 
 Terminale epsilon:
 
-ssh epsilon /home/luca/bin/qspnclient -i eth1 -k init 4.2.2.2 3.1.0.0
+ssh epsilon
+export G_DEBUG=fatal-criticals
+sudo gdb -ex run --args /home/luca/proof-0.1/qspnclient -i eth1 -k init 4.2.2.2 3.1.0.0
 
 Terminale comandi:
 
