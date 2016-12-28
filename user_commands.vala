@@ -964,6 +964,7 @@ Command list:
         // Add a table for each qspn-arc of old identity that will be also in new identity
         foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
         {
+            // We are in enter_net: so only internal arcs will be also in new identity
             bool old_identity_arc_changed_peer_mac = (ia.prev_peer_mac != null);
             // If old identity's identity_arc has changed its peer_mac, then the previous mac will be
             //  used by new identity.
@@ -1686,13 +1687,9 @@ Command list:
         // Add a table for each qspn-arc of old identity that will be also in new identity
         foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
         {
-            bool old_identity_arc_changed_peer_mac = (ia.prev_peer_mac != null);
-            // If old identity's identity_arc has changed its peer_mac, then the previous mac will be
-            //  used by new identity.
-            if (old_identity_arc_changed_peer_mac)
-            {
-                tablenames.add(ia.prev_tablename);
-            }
+            // We are in migrate: so all arcs will be also in new identity
+            if (ia.prev_tablename != null) tablenames.add(ia.prev_tablename);
+            else tablenames.add(ia.tablename);
         }
         foreach (string tablename in tablenames)
          for (int i = levels-1; i >= subnetlevel; i--)
