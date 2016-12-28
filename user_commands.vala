@@ -1654,7 +1654,7 @@ Command list:
                     ArrayList<string> cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_old_ns);
                     cmd.add_all_array({
                         @"ip", @"rule", @"del", @"fwmark", @"$(w0.tid)", @"table", @"$(w0.tablename)"});
-                    cm.single_command_in_block(bid, cmd);
+                    cm.single_command(cmd);
                 }
             }
         }
