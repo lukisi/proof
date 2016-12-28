@@ -867,7 +867,8 @@ Command list:
         // Add the table that was in old namespace for each qspn-arc of old identity
         foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
         {
-            tablenames.add(ia.prev_tablename);
+            if (ia.prev_tablename != null) tablenames.add(ia.prev_tablename);
+            else tablenames.add(ia.tablename);
         }
         foreach (string tablename in tablenames)
          for (int i = levels-1; i >= subnetlevel; i--)
@@ -1576,7 +1577,8 @@ Command list:
         // Add the table that was in old namespace for each qspn-arc of old identity
         foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.qspn_arc != null)
         {
-            tablenames.add(ia.prev_tablename);
+            if (ia.prev_tablename != null) tablenames.add(ia.prev_tablename);
+            else tablenames.add(ia.tablename);
         }
         foreach (string tablename in tablenames)
          for (int i = levels-1; i >= subnetlevel; i--)
