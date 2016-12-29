@@ -1957,7 +1957,6 @@ Command list:
                 }
             }
         }
-        cm.end_block(bid4);
 
         if (old_ns == "")
         {
@@ -1973,7 +1972,7 @@ Command list:
                     prev_new_identity_local_ip_set.intern[i] == "")
                 {
                     foreach (string dev in real_nics)
-                        cm.single_command(new ArrayList<string>.wrap({
+                        cm.single_command_in_block(bid4, new ArrayList<string>.wrap({
                             @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.intern[i])", @"dev", @"$(dev)"}));
                 }
             }
@@ -1981,30 +1980,29 @@ Command list:
                 prev_new_identity_local_ip_set.global == "")
             {
                 foreach (string dev in real_nics)
-                    cm.single_command(new ArrayList<string>.wrap({
+                    cm.single_command_in_block(bid4, new ArrayList<string>.wrap({
                         @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.global)", @"dev", @"$(dev)"}));
                 if (! no_anonymize)
                 {
                     string anonymousrange = ip_anonymizing_gnode(new_identity_data.my_naddr.pos, levels);
-                    cm.single_command(new ArrayList<string>.wrap({
+                    cm.single_command_in_block(bid4, new ArrayList<string>.wrap({
                         @"iptables", @"-t", @"nat", @"-A", @"POSTROUTING", @"-d", @"$(anonymousrange)",
                         @"-j", @"SNAT", @"--to", @"$(new_identity_data.local_ip_set.global)"}));
                 }
                 if (accept_anonymous_requests)
                 {
                     foreach (string dev in real_nics)
-                        cm.single_command(new ArrayList<string>.wrap({
+                        cm.single_command_in_block(bid4, new ArrayList<string>.wrap({
                             @"ip", @"address", @"add", @"$(new_identity_data.local_ip_set.anonymous)", @"dev", @"$(dev)"}));
                 }
             }
 
             // update only table ntk because of updated "src"
-            int bid5 = cm.begin_block();
             tables = new ArrayList<LookupTable>();
             tables.add(new LookupTable.egress("ntk"));
-            per_identity_foreach_lookuptable_update_all_best_paths(new_identity_data, tables, bid5);
-            cm.end_block(bid5);
+            per_identity_foreach_lookuptable_update_all_best_paths(new_identity_data, tables, bid4);
         }
+        cm.end_block(bid4);
     }
 
     void add_qspn_arc(int local_identity_index, string my_dev, string peer_mac)
