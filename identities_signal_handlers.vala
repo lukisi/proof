@@ -71,9 +71,11 @@ namespace ProofOfConcept
         //  But this might also happen when only our neighbour is doing `add_identity`.
         if (only_neighbour_migrated)
         {
+            print("   Only neighbour migrated.\n");
             //  In this case we must do some work if we have a qspn_arc on this identity_arc.
             if (ia.qspn_arc != null)
             {
+                print("   Neighbour is in my network.\n");
                 string ns = identity_data.network_namespace;
                 ArrayList<string> prefix_cmd_ns = new ArrayList<string>();
                 if (ns != "") prefix_cmd_ns.add_all_array({
@@ -83,7 +85,7 @@ namespace ProofOfConcept
                 int bid = cm.begin_block();
 
                 // remove old forwarding table
-                if (ia.prev_rule_added)
+                if (ia.prev_rule_added == true)
                 {
                     cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                     cmd.add_all_array({
@@ -117,7 +119,7 @@ namespace ProofOfConcept
                         if (still_used) break;
                     }
                 }
-                if (! still_used) tn.release_table(null, ia.prev_peer_mac);
+                if (! still_used) tn.release_table(bid, ia.prev_peer_mac);
 
                 // add new forwarding table
                 cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
@@ -158,12 +160,17 @@ namespace ProofOfConcept
                 cm.end_block(bid);
 
                 // if neighbor was known
-                if (ia.prev_rule_added)
+                if (ia.prev_rule_added == true)
                 {
                     // update all routes in all tables and add rule.
                     per_identity_update_all_routes(identity_data);
                 }
             }
+            ia.prev_peer_mac = null;
+            ia.prev_peer_linklocal = null;
+            ia.prev_tablename = null;
+            ia.prev_tid = null;
+            ia.prev_rule_added = null;
         }
     }
 
@@ -188,7 +195,7 @@ namespace ProofOfConcept
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
             qspn_mgr.arc_remove(ia.qspn_arc);
 
-            if (ia.rule_added)
+            if (ia.rule_added == true)
             {
                 cmd = new ArrayList<string>(); cmd.add_all(prefix_cmd_ns);
                 cmd.add_all_array({

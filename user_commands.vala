@@ -1818,6 +1818,15 @@ Command list:
         //  `presence_notified` is emitted on `new_identity_data.qspn`.
         //  See function `do_connectivity`.
 
+        foreach (IdentityArc ia in old_identity_data.identity_arcs.values)
+        {
+            ia.prev_peer_mac = null;
+            ia.prev_peer_linklocal = null;
+            ia.prev_tablename = null;
+            ia.prev_tid = null;
+            ia.prev_rule_added = null;
+        }
+
         return op.new_local_identity_index;
     }
 
