@@ -1154,6 +1154,7 @@ Command list:
         print("identity arcs of old_identity_data now:\n");
         foreach (string s in show_identity_arcs(old_identity_data.local_identity_index)) print(s + "\n");
         identity_mgr.remove_identity(old_identity_data.nodeid);
+        old_identity_data.qspn_handlers_disabled = true;
         old_id_qspn_mgr.stop_operations();
         remove_local_identity(old_identity_data.nodeid);
         foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.tid != null)
