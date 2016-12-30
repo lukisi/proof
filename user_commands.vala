@@ -2152,9 +2152,9 @@ Command list:
             }
         }
     }
-    string get_time_now(DateTime? now=null)
+    string get_time_now(DateTime? _now=null)
     {
-        DateTime _now = now == null ? new DateTime.now_local() : now;
+        DateTime now = _now == null ? new DateTime.now_local() : _now;
         int now_msec = now.get_microsecond() / 1000;
         if (now_msec < 10) return @"$(now.format("%FT%H:%M:%S")).00$(now_msec)";
         if (now_msec < 100) return @"$(now.format("%FT%H:%M:%S")).0$(now_msec)";
