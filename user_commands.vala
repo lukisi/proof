@@ -593,6 +593,7 @@ Command list:
          if (ia.arc == arc.idmgmt_arc && ia.qspn_arc != null)
         {
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
+            print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): call arc_is_changed.\n");
             qspn_mgr.arc_is_changed(ia.qspn_arc);
         }
     }
@@ -783,6 +784,7 @@ Command list:
 
             old_identity_data.my_naddr = (Naddr)update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+            print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): call make_connectivity.\n");
             old_id_qspn_mgr.make_connectivity(
                 old_identity_data.connectivity_from_level,
                 old_identity_data.connectivity_to_level,
@@ -1026,6 +1028,7 @@ Command list:
                 w1.rule_added = w0.prev_rule_added;
 
                 assert(w0.qspn_arc != null);
+                print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): call get_naddr_for_arc.\n");
                 IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
                 assert(_w0_peer_naddr != null);
                 Naddr w0_peer_naddr = (Naddr)_w0_peer_naddr;
@@ -1059,6 +1062,7 @@ Command list:
             external_arc_set.add(w1.qspn_arc);
         }
         // Create new qspn manager
+        print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): construct Qspn.enter_net.\n");
         QspnManager qspn_mgr = new QspnManager.enter_net(
             new_identity_data.my_naddr,
             internal_arc_set,
@@ -1154,7 +1158,9 @@ Command list:
         print("identity arcs of old_identity_data now:\n");
         foreach (string s in show_identity_arcs(old_identity_data.local_identity_index)) print(s + "\n");
         identity_mgr.remove_identity(old_identity_data.nodeid);
+        print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): disabling handlers for Qspn signals.\n");
         old_identity_data.qspn_handlers_disabled = true;
+        print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): call stop_operations.\n");
         old_id_qspn_mgr.stop_operations();
         remove_local_identity(old_identity_data.nodeid);
         foreach (IdentityArc ia in old_identity_data.identity_arcs.values) if (ia.tid != null)
@@ -1213,6 +1219,7 @@ Command list:
 
             new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
             new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+            print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): call make_real.\n");
             qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
             int _id = new_identity_data.local_identity_index;
             print(@"make_real at level $(ch_level) identity #$(_id).\n");
@@ -1492,6 +1499,7 @@ Command list:
 
             old_identity_data.my_naddr = (Naddr)update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+            print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): call make_connectivity.\n");
             old_id_qspn_mgr.make_connectivity(
                 old_identity_data.connectivity_from_level,
                 old_identity_data.connectivity_to_level,
@@ -1746,6 +1754,7 @@ Command list:
                 w1.rule_added = w0.prev_rule_added;
 
                 assert(w0.qspn_arc != null);
+                print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): call get_naddr_for_arc.\n");
                 IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
                 assert(_w0_peer_naddr != null);
                 Naddr w0_peer_naddr = (Naddr)_w0_peer_naddr;
@@ -1777,7 +1786,8 @@ Command list:
             }
         }
         // Create new qspn manager
-        QspnManager qspn_mgr = new Netsukuku.Qspn.QspnManager.migration(
+        print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): construct Qspn.migration.\n");
+        QspnManager qspn_mgr = new QspnManager.migration(
             new_identity_data.my_naddr,
             internal_arc_set,
             internal_arc_prev_arc_set,
@@ -1876,6 +1886,7 @@ Command list:
 
             new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
             new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+            print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): call make_real.\n");
             qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
             int _id = new_identity_data.local_identity_index;
             print(@"make_real at level $(ch_level) identity #$(_id).\n");
@@ -2031,6 +2042,7 @@ Command list:
             ia.qspn_arc = new QspnArc(arc, sourceid, destid, ia, ia.peer_mac);
             tn.get_table(null, ia.peer_mac, out ia.tid, out ia.tablename);
             ia.rule_added = false;
+            print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): call arc_add.\n");
             qspn_mgr.arc_add(ia.qspn_arc);
 
             // Add new forwarding-table
@@ -2122,8 +2134,9 @@ Command list:
     Gee.List<string> check_connectivity(int local_identity_index)
     {
         ArrayList<string> ret = new ArrayList<string>();
-        NodeID id = local_identities[local_identity_index].nodeid;
-        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
+        IdentityData identity_data = local_identities[local_identity_index];
+        QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
+        print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): call check_connectivity.\n");
         bool _ret = qspn_mgr.check_connectivity();
         if (_ret) ret.add("This identity can be removed.");
         else ret.add("This identity CANNOT be removed.");

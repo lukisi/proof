@@ -393,7 +393,9 @@ namespace ProofOfConcept
         }
 
         // First qspn manager
+        print(@"$(get_time_now()): static Qspn.init.\n");
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
+        print(@"$(get_time_now()): Identity #$(first_identity_data.local_identity_index): construct Qspn.create_net.\n");
         QspnManager qspn_mgr = new QspnManager.create_net(
             my_naddr,
             my_fp,
@@ -481,8 +483,10 @@ namespace ProofOfConcept
         qspn_mgr.presence_notified.disconnect(identity_data.presence_notified);
         qspn_mgr.qspn_bootstrap_complete.disconnect(identity_data.qspn_bootstrap_complete);
         qspn_mgr.remove_identity.disconnect(identity_data.remove_identity);
+        print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): disabling handlers for Qspn signals.\n");
         identity_data.qspn_handlers_disabled = true;
         identity_mgr.unset_identity_module(identity_data.nodeid, "qspn");
+        print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): call stop_operations.\n");
         qspn_mgr.stop_operations();
         qspn_mgr = null;
 
@@ -842,72 +846,84 @@ namespace ProofOfConcept
 
         public void arc_removed(IQspnArc arc, string message, bool bad_link)
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.arc_removed.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_arc_removed(this, arc, message, bad_link);
         }
 
         public void changed_fp(int l)
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.changed_fp.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_changed_fp(this, l);
         }
 
         public void changed_nodes_inside(int l)
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.changed_nodes_inside.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_changed_nodes_inside(this, l);
         }
 
         public void destination_added(HCoord h)
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.destination_added.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_destination_added(this, h);
         }
 
         public void destination_removed(HCoord h)
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.destination_removed.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_destination_removed(this, h);
         }
 
         public void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.gnode_splitted.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_gnode_splitted(this, a, d, fp);
         }
 
         public void path_added(IQspnNodePath p)
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.path_added.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_path_added(this, p);
         }
 
         public void path_changed(IQspnNodePath p)
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.path_changed.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_path_changed(this, p);
         }
 
         public void path_removed(IQspnNodePath p)
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.path_removed.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_path_removed(this, p);
         }
 
         public void presence_notified()
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.presence_notified.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_presence_notified(this);
         }
 
         public void qspn_bootstrap_complete()
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.qspn_bootstrap_complete.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_qspn_bootstrap_complete(this);
         }
 
         public void remove_identity()
         {
+            print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.remove_identity.\n");
             if (qspn_handlers_disabled) return;
             per_identity_qspn_remove_identity(this);
         }
@@ -1343,28 +1359,33 @@ namespace ProofOfConcept
                 this.addr = addr;
             }
             private IAddressManagerStub addr;
+            public string msg_hdr;
 
             public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
             throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
             {
+                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC get_full_etp: $(msg_hdr).\n");
                 return addr.qspn_manager.get_full_etp(requesting_address);
             }
 
             public void got_destroy()
             throws StubError, DeserializeError
             {
+                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC got_destroy: $(msg_hdr).\n");
                 addr.qspn_manager.got_destroy();
             }
 
             public void got_prepare_destroy()
             throws StubError, DeserializeError
             {
+                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC got_prepare_destroy: $(msg_hdr).\n");
                 addr.qspn_manager.got_prepare_destroy();
             }
 
             public void send_etp(IQspnEtpMessage etp, bool is_full)
             throws QspnNotAcceptedError, StubError, DeserializeError
             {
+                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC send_etp: $(msg_hdr).\n");
                 addr.qspn_manager.send_etp(etp, is_full);
             }
         }
@@ -1382,16 +1403,19 @@ namespace ProofOfConcept
             public void got_destroy()
             throws StubError, DeserializeError
             {
+                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): would call RPC got_destroy, but have no (other) arcs.\n");
             }
 
             public void got_prepare_destroy()
             throws StubError, DeserializeError
             {
+                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): would call RPC got_prepare_destroy, but have no (other) arcs.\n");
             }
 
             public void send_etp(IQspnEtpMessage etp, bool is_full)
             throws QspnNotAcceptedError, StubError, DeserializeError
             {
+                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): would call RPC send_etp, but have no (other) arcs.\n");
             }
         }
 
@@ -1420,6 +1444,8 @@ namespace ProofOfConcept
                 broadcast_node_id_set,
                 n_missing_handler);
             QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub);
+            string to_set = ""; foreach (NodeID i in broadcast_node_id_set) to_set += @"$(i.id) ";
+            ret.msg_hdr = @"RPC from $(source_node_id.id) to {$(to_set)}";
             return ret;
         }
 
@@ -1437,6 +1463,7 @@ namespace ProofOfConcept
                 _arc.destid,
                 wait_reply);
             QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub);
+            ret.msg_hdr = @"RPC from $(_arc.sourceid.id) to $(_arc.destid.id)";
             return ret;
         }
     }
