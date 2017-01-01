@@ -1354,12 +1354,15 @@ namespace ProofOfConcept
          */
         private class QspnManagerStubHolder : Object, IQspnManagerStub
         {
-            public QspnManagerStubHolder(IAddressManagerStub addr)
+            public QspnManagerStubHolder(IAddressManagerStub addr, string msg_hdr, IdentityData identity_data)
             {
                 this.addr = addr;
+                this.msg_hdr = msg_hdr;
+                this.identity_data = identity_data;
             }
             private IAddressManagerStub addr;
-            public string msg_hdr;
+            private string msg_hdr;
+            private weak IdentityData identity_data;
 
             public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
             throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
@@ -1394,6 +1397,12 @@ namespace ProofOfConcept
          */
         private class QspnManagerStubVoid : Object, IQspnManagerStub
         {
+            public QspnManagerStubVoid(IdentityData identity_data)
+            {
+                this.identity_data = identity_data;
+            }
+            private weak IdentityData identity_data;
+
             public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
             throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
             {
@@ -1425,7 +1434,7 @@ namespace ProofOfConcept
                             IQspnMissingArcHandler? missing_handler=null
                         )
         {
-            if(arcs.is_empty) return new QspnManagerStubVoid();
+            if(arcs.is_empty) return new QspnManagerStubVoid(identity_data);
             NodeID source_node_id = ((QspnArc)arcs[0]).sourceid;
             ArrayList<NodeID> broadcast_node_id_set = new ArrayList<NodeID>();
             foreach (IQspnArc arc in arcs)
@@ -1443,9 +1452,9 @@ namespace ProofOfConcept
                 source_node_id,
                 broadcast_node_id_set,
                 n_missing_handler);
-            QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub);
             string to_set = ""; foreach (NodeID i in broadcast_node_id_set) to_set += @"$(i.id) ";
-            ret.msg_hdr = @"RPC from $(source_node_id.id) to {$(to_set)}";
+            string msg_hdr = @"RPC from $(source_node_id.id) to {$(to_set)}";
+            QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub, msg_hdr, identity_data);
             return ret;
         }
 
@@ -1462,8 +1471,8 @@ namespace ProofOfConcept
                 _arc.sourceid,
                 _arc.destid,
                 wait_reply);
-            QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub);
-            ret.msg_hdr = @"RPC from $(_arc.sourceid.id) to $(_arc.destid.id)";
+            string msg_hdr = @"RPC from $(_arc.sourceid.id) to $(_arc.destid.id)";
+            QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub, msg_hdr, identity_data);
             return ret;
         }
     }
