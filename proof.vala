@@ -394,7 +394,29 @@ namespace ProofOfConcept
 
         // First qspn manager
         print(@"$(get_time_now()): static Qspn.init.\n");
-        QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
+        QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator(),
+            (/*CallerInfo*/ rpc_caller) => {
+                if (rpc_caller is TcpclientCallerInfo)
+                {
+                    TcpclientCallerInfo caller = (TcpclientCallerInfo)rpc_caller;
+                    print(@"   peer_address = $(caller.peer_address)\n");
+                }
+                else if (rpc_caller is BroadcastCallerInfo)
+                {
+                    BroadcastCallerInfo caller = (BroadcastCallerInfo)rpc_caller;
+                    print(@"   peer_address = $(caller.peer_address)\n");
+                }
+                else if (rpc_caller is UnicastCallerInfo)
+                {
+                    UnicastCallerInfo caller = (UnicastCallerInfo)rpc_caller;
+                    print(@"   peer_address = $(caller.peer_address)\n");
+                }
+                else
+                {
+                    assert_not_reached();
+                }
+            }
+        );
         print(@"$(get_time_now()): Identity #$(first_identity_data.local_identity_index): construct Qspn.create_net.\n");
         {
             string _naddr_s = naddr_repr(my_naddr);
