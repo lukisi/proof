@@ -396,6 +396,12 @@ namespace ProofOfConcept
         print(@"$(get_time_now()): static Qspn.init.\n");
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
         print(@"$(get_time_now()): Identity #$(first_identity_data.local_identity_index): construct Qspn.create_net.\n");
+        {
+            string _naddr_s = naddr_repr(my_naddr);
+            string _elderships_s = fp_elderships_repr(my_fp);
+            string _fp0_id_s = @"$(my_fp.id)";
+            print(@"   my_naddr=$(_naddr_s) elderships=$(_elderships_s) fp0=$(_fp0_id_s) nodeid=$(first_identity_data.nodeid.id)");
+        }
         QspnManager qspn_mgr = new QspnManager.create_net(
             my_naddr,
             my_fp,
@@ -917,7 +923,27 @@ namespace ProofOfConcept
         public void qspn_bootstrap_complete()
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.qspn_bootstrap_complete.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
+            {
+                QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+                for (int i = 1; i <= levels; i++)
+                {
+                    try {
+                        print(@"   Level $(i): calling get_fingerprint($(i)) and get_nodes_inside($(i)) ...\n");
+                        Fingerprint fp_i = (Fingerprint)qspn_mgr.get_fingerprint(i);
+                        int nodes_inside_i = qspn_mgr.get_nodes_inside(i);
+                        print(@"   Level $(i): Fingerprint $(fp_i.id), " +
+                            @"elderships $(fp_elderships_repr(fp_i)). " +
+                            @"Nodes inside #$(nodes_inside_i).\n");
+                    } catch (QspnBootstrapInProgressError e) {
+                        assert_not_reached();
+                    }
+                }
+            }
             per_identity_qspn_qspn_bootstrap_complete(this);
         }
 
