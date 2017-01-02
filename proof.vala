@@ -437,7 +437,7 @@ namespace ProofOfConcept
             string _naddr_s = naddr_repr(my_naddr);
             string _elderships_s = fp_elderships_repr(my_fp);
             string _fp0_id_s = @"$(my_fp.id)";
-            print(@"   my_naddr=$(_naddr_s) elderships=$(_elderships_s) fp0=$(_fp0_id_s) nodeid=$(first_identity_data.nodeid.id)");
+            print(@"   my_naddr=$(_naddr_s) elderships=$(_elderships_s) fp0=$(_fp0_id_s) nodeid=$(first_identity_data.nodeid.id).\n");
         }
         QspnManager qspn_mgr = new QspnManager.create_net(
             my_naddr,

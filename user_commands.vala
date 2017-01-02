@@ -470,7 +470,7 @@ Command list:
     {
         string my_elderships_str = "";
         string sep = "";
-        for (int i = my_fp.level; i < levels; i++)
+        for (int i = 0; i < levels-my_fp.level; i++)
         {
             my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
             sep = ":";
@@ -2044,6 +2044,7 @@ Command list:
             tn.get_table(null, ia.peer_mac, out ia.tid, out ia.tablename);
             ia.rule_added = false;
             print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): call arc_add.\n");
+            print(@"   dev=$(arc.neighborhood_arc.nic.dev)\n");
             print(@"   peer_address=$(arc.neighborhood_arc.neighbour_nic_addr)\n");
             print(@"   source-dest=$(sourceid.id)-$(destid.id)\n");
             qspn_mgr.arc_add(ia.qspn_arc);
