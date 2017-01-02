@@ -395,21 +395,36 @@ namespace ProofOfConcept
         // First qspn manager
         print(@"$(get_time_now()): static Qspn.init.\n");
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator(),
-            (/*CallerInfo*/ rpc_caller) => {
+            (/*CallerInfo*/ rpc_caller, /*QspnManager*/ t) => {
                 if (rpc_caller is TcpclientCallerInfo)
                 {
                     TcpclientCallerInfo caller = (TcpclientCallerInfo)rpc_caller;
+                    print(@"   Caller is TcpclientCallerInfo\n");
+                    print(@"   my_address = $(caller.my_address)\n");
                     print(@"   peer_address = $(caller.peer_address)\n");
+                    NodeID? sourceid = neighborhood_mgr.get_identity(caller.sourceid);
+                    if (sourceid == null) print(@"   sourceid = null\n");
+                    else print(@"   sourceid = $(sourceid.id)\n");
                 }
                 else if (rpc_caller is BroadcastCallerInfo)
                 {
                     BroadcastCallerInfo caller = (BroadcastCallerInfo)rpc_caller;
+                    print(@"   Caller is BroadcastCallerInfo\n");
+                    print(@"   dev = $(caller.dev)\n");
                     print(@"   peer_address = $(caller.peer_address)\n");
+                    NodeID? sourceid = neighborhood_mgr.get_identity(caller.sourceid);
+                    if (sourceid == null) print(@"   sourceid = null\n");
+                    else print(@"   sourceid = $(sourceid.id)\n");
                 }
                 else if (rpc_caller is UnicastCallerInfo)
                 {
                     UnicastCallerInfo caller = (UnicastCallerInfo)rpc_caller;
+                    print(@"   Caller is UnicastCallerInfo\n");
+                    print(@"   dev = $(caller.dev)\n");
                     print(@"   peer_address = $(caller.peer_address)\n");
+                    NodeID? sourceid = neighborhood_mgr.get_identity(caller.sourceid);
+                    if (sourceid == null) print(@"   sourceid = null\n");
+                    else print(@"   sourceid = $(sourceid.id)\n");
                 }
                 else
                 {

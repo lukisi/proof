@@ -2045,6 +2045,7 @@ Command list:
             ia.rule_added = false;
             print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): call arc_add.\n");
             print(@"   peer_address=$(arc.neighborhood_arc.neighbour_nic_addr)\n");
+            print(@"   source-dest=$(sourceid.id)-$(destid.id)\n");
             qspn_mgr.arc_add(ia.qspn_arc);
 
             // Add new forwarding-table
