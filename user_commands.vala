@@ -470,8 +470,7 @@ Command list:
     {
         string my_elderships_str = "";
         string sep = "";
-        assert(my_fp.level == 0);
-        for (int i = 0; i < levels; i++)
+        for (int i = my_fp.level; i < levels; i++)
         {
             my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
             sep = ":";
@@ -526,14 +525,16 @@ Command list:
         for (int i = 1; i <= levels; i++)
         {
             string fp_i_s = "<BootstrapInProgress>";
+            string fp_elderships_s = "<BootstrapInProgress>";
             string nodes_inside_i_s = "<BootstrapInProgress>";
             try {
                 Fingerprint fp_i = (Fingerprint)qspn_mgr.get_fingerprint(i);
                 fp_i_s = @"$(fp_i.id)";
+                fp_elderships_s = fp_elderships_repr(fp_i);
                 int nodes_inside_i = qspn_mgr.get_nodes_inside(i);
                 nodes_inside_i_s = @"$(nodes_inside_i)";
             } catch (QspnBootstrapInProgressError e) {}
-            line = @"    Level $(i): Fingerprint $(fp_i_s). Nodes inside #$(nodes_inside_i_s).";
+            line = @"    Level $(i): Fingerprint $(fp_i_s), elderships $(fp_elderships_s). Nodes inside #$(nodes_inside_i_s).";
             ret.add(line);
         }
         return ret;
