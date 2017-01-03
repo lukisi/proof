@@ -786,6 +786,8 @@ Command list:
             old_identity_data.my_naddr = (Naddr)update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
             print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): call make_connectivity.\n");
+            print(@"   from_level=$(old_identity_data.connectivity_from_level) to_level=$(old_identity_data.connectivity_to_level) " +
+                    @"changing at level $(ch_level) pos=$(ch_pos) eldership=$(ch_eldership).\n");
             old_id_qspn_mgr.make_connectivity(
                 old_identity_data.connectivity_from_level,
                 old_identity_data.connectivity_to_level,
@@ -1501,6 +1503,8 @@ Command list:
             old_identity_data.my_naddr = (Naddr)update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
             print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): call make_connectivity.\n");
+            print(@"   from_level=$(old_identity_data.connectivity_from_level) to_level=$(old_identity_data.connectivity_to_level) " +
+                    @"changing at level $(ch_level) pos=$(ch_pos) eldership=$(ch_eldership).\n");
             old_id_qspn_mgr.make_connectivity(
                 old_identity_data.connectivity_from_level,
                 old_identity_data.connectivity_to_level,
