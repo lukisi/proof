@@ -1,3 +1,4 @@
+*~
 proof.c
 best_routes.c
 ipv4_compute.c
@@ -36,5 +37,6 @@ missing
 test-driver
 compile
 .valencia
+.buildconfig
 debug
 finalbuild
