@@ -1536,8 +1536,23 @@ namespace ProofOfConcept
             public void send_etp(IQspnEtpMessage etp, bool is_full)
             throws QspnNotAcceptedError, StubError, DeserializeError
             {
-                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC send_etp: $(msg_hdr).\n");
-                addr.qspn_manager.send_etp(etp, is_full);
+                string call_id = @"$(get_time_now())";
+                print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC send_etp: $(msg_hdr).\n");
+                print(@"   etp=$(json_string_object(etp)).\n");
+                print(@"   is_full=$(is_full).\n");
+                try {
+                    addr.qspn_manager.send_etp(etp, is_full);
+                    print(@"$(get_time_now()): RPC call sent at $(call_id): completed.\n");
+                } catch (QspnNotAcceptedError e) {
+                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed QspnNotAcceptedError.\n");
+                    throw e;
+                } catch (StubError e) {
+                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed StubError.\n");
+                    throw e;
+                } catch (DeserializeError e) {
+                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed DeserializeError.\n");
+                    throw e;
+                }
             }
         }
 
