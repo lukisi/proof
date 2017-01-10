@@ -920,7 +920,12 @@ namespace ProofOfConcept
         public void destination_added(HCoord h)
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.destination_added.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
+            print(@"   New destination to ($(h.lvl), $(h.pos)).\n");
             per_identity_qspn_destination_added(this, h);
         }
 
@@ -941,7 +946,31 @@ namespace ProofOfConcept
         public void path_added(IQspnNodePath p)
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.path_added.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
+            {
+                QspnArc arc = (QspnArc)p.i_qspn_get_arc();
+                Arc real_arc = arc.arc;
+                print(@"   Real arc is through $(real_arc.neighborhood_arc.nic.dev) to $(real_arc.neighborhood_arc.neighbour_mac).\n");
+                print(@"   Identity arc is from $(arc.sourceid.id) to $(arc.destid.id).\n");
+                Cost arc_c = (Cost)arc.i_qspn_get_cost();
+                print(@"   Arc cost is $(arc_c.usec_rtt) usec.\n");
+                Cost c = (Cost)p.i_qspn_get_cost();
+                print(@"   Path cost is $(c.usec_rtt) usec.\n");
+                print(@"   Number of nodes inside is $(p.i_qspn_get_nodes_inside()).\n");
+                string hops = ""; string sep = "";
+                foreach (IQspnHop hop in p.i_qspn_get_hops())
+                {
+                    HCoord hop_h = hop.i_qspn_get_hcoord();
+                    int hop_arcid = hop.i_qspn_get_arc_id();
+                    hops += @"$(sep)arc $(hop_arcid) to ($(hop_h.lvl), $(hop_h.pos))";
+                    sep = ", ";
+                }
+                print(@"   Path: [$(hops)].\n");
+            }
             per_identity_qspn_path_added(this, p);
         }
 
