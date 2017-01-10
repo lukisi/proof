@@ -906,14 +906,43 @@ namespace ProofOfConcept
         public void changed_fp(int l)
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.changed_fp.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
+            print(@"   At level $(l).\n");
+            {
+                QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+                try {
+                    Fingerprint fp_l = (Fingerprint)qspn_mgr.get_fingerprint(l);
+                    print(@"   Fingerprint $(fp_l.id), " +
+                        @"elderships $(fp_elderships_repr(fp_l)).\n");
+                } catch (QspnBootstrapInProgressError e) {
+                    print(@"   No more info because QspnBootstrapInProgressError at that level.\n");
+                }
+            }
             per_identity_qspn_changed_fp(this, l);
         }
 
         public void changed_nodes_inside(int l)
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.changed_nodes_inside.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
+            print(@"   At level $(l).\n");
+            {
+                QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
+                try {
+                    int nodes_inside_l = qspn_mgr.get_nodes_inside(l);
+                    print(@"   Nodes inside #$(nodes_inside_l).\n");
+                } catch (QspnBootstrapInProgressError e) {
+                    print(@"   No more info because QspnBootstrapInProgressError at that level.\n");
+                }
+            }
             per_identity_qspn_changed_nodes_inside(this, l);
         }
 
@@ -1470,6 +1499,7 @@ namespace ProofOfConcept
             {
                 string call_id = @"$(get_time_now())";
                 print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC get_full_etp: $(msg_hdr).\n");
+                print(@"   Requesting address is $(naddr_repr((Naddr)requesting_address)).\n");
                 try {
                     IQspnEtpMessage ret = addr.qspn_manager.get_full_etp(requesting_address);
                     print(@"$(get_time_now()): RPC call sent at $(call_id): returned ret=$(json_string_object(ret)).\n");

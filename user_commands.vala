@@ -1223,6 +1223,12 @@ Command list:
             new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
             new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
             print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): call make_real.\n");
+            {
+                print(@"   At level $(ch_level) with pos $(ch_pos) and eldership $(ch_eldership).\n");
+                Naddr _naddr = new_identity_data.my_naddr;
+                Fingerprint _fp = new_identity_data.my_fp;
+                print(@"   Will have naddr $(naddr_repr(_naddr)) and elderships $(fp_elderships_repr(_fp)) and fp0 $(_fp.id).\n");
+            }
             qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
             int _id = new_identity_data.local_identity_index;
             print(@"make_real at level $(ch_level) identity #$(_id).\n");
@@ -1892,6 +1898,12 @@ Command list:
             new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
             new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
             print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): call make_real.\n");
+            {
+                print(@"   At level $(ch_level) with pos $(ch_pos) and eldership $(ch_eldership).\n");
+                Naddr _naddr = new_identity_data.my_naddr;
+                Fingerprint _fp = new_identity_data.my_fp;
+                print(@"   Will have naddr $(naddr_repr(_naddr)) and elderships $(fp_elderships_repr(_fp)) and fp0 $(_fp.id).\n");
+            }
             qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
             int _id = new_identity_data.local_identity_index;
             print(@"make_real at level $(ch_level) identity #$(_id).\n");
