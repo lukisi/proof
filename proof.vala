@@ -1499,7 +1499,7 @@ namespace ProofOfConcept
             {
                 string call_id = @"$(get_time_now())";
                 print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC get_full_etp: $(msg_hdr).\n");
-                print(@"   Requesting address is $(naddr_repr((Naddr)requesting_address)).\n");
+                print(@"   requesting_address=$(naddr_repr((Naddr)requesting_address)).\n");
                 try {
                     IQspnEtpMessage ret = addr.qspn_manager.get_full_etp(requesting_address);
                     print(@"$(get_time_now()): RPC call sent at $(call_id): returned ret=$(json_string_object(ret)).\n");
