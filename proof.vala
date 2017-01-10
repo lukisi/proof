@@ -25,6 +25,15 @@ using TaskletSystem;
 
 namespace ProofOfConcept
 {
+    internal string json_string_object(Object obj)
+    {
+        Json.Node n = Json.gobject_serialize(obj);
+        Json.Generator g = new Json.Generator();
+        g.root = n;
+        string ret = g.to_data(null);
+        return ret;
+    }
+
     const uint16 ntkd_port = 60269;
     const int max_paths = 5;
     const double max_common_hops_ratio = 0.6;
@@ -1430,8 +1439,25 @@ namespace ProofOfConcept
             public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
             throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
             {
-                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC get_full_etp: $(msg_hdr).\n");
-                return addr.qspn_manager.get_full_etp(requesting_address);
+                string call_id = @"$(get_time_now())";
+                print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC get_full_etp: $(msg_hdr).\n");
+                try {
+                    IQspnEtpMessage ret = addr.qspn_manager.get_full_etp(requesting_address);
+                    print(@"$(get_time_now()): RPC call sent at $(call_id): returned ret=$(json_string_object(ret)).\n");
+                    return ret;
+                } catch (QspnNotAcceptedError e) {
+                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed QspnNotAcceptedError.\n");
+                    throw e;
+                } catch (QspnBootstrapInProgressError e) {
+                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed QspnBootstrapInProgressError.\n");
+                    throw e;
+                } catch (StubError e) {
+                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed StubError.\n");
+                    throw e;
+                } catch (DeserializeError e) {
+                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed DeserializeError.\n");
+                    throw e;
+                }
             }
 
             public void got_destroy()
