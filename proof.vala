@@ -899,7 +899,17 @@ namespace ProofOfConcept
         public void arc_removed(IQspnArc arc, string message, bool bad_link)
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.arc_removed.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
+            {
+                QspnArc qspnarc = (QspnArc)arc;
+                Arc real_arc = qspnarc.arc;
+                print(@"   Real arc is through $(real_arc.neighborhood_arc.nic.dev) to $(real_arc.neighborhood_arc.neighbour_mac).\n");
+                print(@"   Identity arc is from $(qspnarc.sourceid.id) to $(qspnarc.destid.id).\n");
+            }
             per_identity_qspn_arc_removed(this, arc, message, bad_link);
         }
 
@@ -954,21 +964,30 @@ namespace ProofOfConcept
                 print("   Handlers have been disabled for this identity.\n");
                 return;
             }
-            print(@"   New destination to ($(h.lvl), $(h.pos)).\n");
+            print(@"   Destination to ($(h.lvl), $(h.pos)).\n");
             per_identity_qspn_destination_added(this, h);
         }
 
         public void destination_removed(HCoord h)
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.destination_removed.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
+            print(@"   Destination to ($(h.lvl), $(h.pos)).\n");
             per_identity_qspn_destination_removed(this, h);
         }
 
         public void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.gnode_splitted.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
             per_identity_qspn_gnode_splitted(this, a, d, fp);
         }
 
@@ -1006,21 +1025,73 @@ namespace ProofOfConcept
         public void path_changed(IQspnNodePath p)
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.path_changed.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
+            {
+                QspnArc arc = (QspnArc)p.i_qspn_get_arc();
+                Arc real_arc = arc.arc;
+                print(@"   Real arc is through $(real_arc.neighborhood_arc.nic.dev) to $(real_arc.neighborhood_arc.neighbour_mac).\n");
+                print(@"   Identity arc is from $(arc.sourceid.id) to $(arc.destid.id).\n");
+                Cost arc_c = (Cost)arc.i_qspn_get_cost();
+                print(@"   Arc cost is $(arc_c.usec_rtt) usec.\n");
+                Cost c = (Cost)p.i_qspn_get_cost();
+                print(@"   Path cost is $(c.usec_rtt) usec.\n");
+                print(@"   Number of nodes inside is $(p.i_qspn_get_nodes_inside()).\n");
+                string hops = ""; string sep = "";
+                foreach (IQspnHop hop in p.i_qspn_get_hops())
+                {
+                    HCoord hop_h = hop.i_qspn_get_hcoord();
+                    int hop_arcid = hop.i_qspn_get_arc_id();
+                    hops += @"$(sep)arc $(hop_arcid) to ($(hop_h.lvl), $(hop_h.pos))";
+                    sep = ", ";
+                }
+                print(@"   Path: [$(hops)].\n");
+            }
             per_identity_qspn_path_changed(this, p);
         }
 
         public void path_removed(IQspnNodePath p)
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.path_removed.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
+            {
+                QspnArc arc = (QspnArc)p.i_qspn_get_arc();
+                Arc real_arc = arc.arc;
+                print(@"   Real arc is through $(real_arc.neighborhood_arc.nic.dev) to $(real_arc.neighborhood_arc.neighbour_mac).\n");
+                print(@"   Identity arc is from $(arc.sourceid.id) to $(arc.destid.id).\n");
+                Cost arc_c = (Cost)arc.i_qspn_get_cost();
+                print(@"   Arc cost is $(arc_c.usec_rtt) usec.\n");
+                Cost c = (Cost)p.i_qspn_get_cost();
+                print(@"   Path cost is $(c.usec_rtt) usec.\n");
+                print(@"   Number of nodes inside is $(p.i_qspn_get_nodes_inside()).\n");
+                string hops = ""; string sep = "";
+                foreach (IQspnHop hop in p.i_qspn_get_hops())
+                {
+                    HCoord hop_h = hop.i_qspn_get_hcoord();
+                    int hop_arcid = hop.i_qspn_get_arc_id();
+                    hops += @"$(sep)arc $(hop_arcid) to ($(hop_h.lvl), $(hop_h.pos))";
+                    sep = ", ";
+                }
+                print(@"   Path: [$(hops)].\n");
+            }
             per_identity_qspn_path_removed(this, p);
         }
 
         public void presence_notified()
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.presence_notified.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
             per_identity_qspn_presence_notified(this);
         }
 
@@ -1054,7 +1125,11 @@ namespace ProofOfConcept
         public void remove_identity()
         {
             print(@"$(get_time_now()): Identity #$(local_identity_index): signal Qspn.remove_identity.\n");
-            if (qspn_handlers_disabled) return;
+            if (qspn_handlers_disabled)
+            {
+                print("   Handlers have been disabled for this identity.\n");
+                return;
+            }
             per_identity_qspn_remove_identity(this);
         }
     }
@@ -1502,19 +1577,19 @@ namespace ProofOfConcept
                 print(@"   requesting_address=$(naddr_repr((Naddr)requesting_address)).\n");
                 try {
                     IQspnEtpMessage ret = addr.qspn_manager.get_full_etp(requesting_address);
-                    print(@"$(get_time_now()): RPC call sent at $(call_id): returned ret=$(json_string_object(ret)).\n");
+                    print(@"$(get_time_now()): RPC call to get_full_etp sent at $(call_id): returned ret=$(json_string_object(ret)).\n");
                     return ret;
                 } catch (QspnNotAcceptedError e) {
-                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed QspnNotAcceptedError.\n");
+                    print(@"$(get_time_now()): RPC call to get_full_etp sent at $(call_id): throwed QspnNotAcceptedError.\n");
                     throw e;
                 } catch (QspnBootstrapInProgressError e) {
-                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed QspnBootstrapInProgressError.\n");
+                    print(@"$(get_time_now()): RPC call to get_full_etp sent at $(call_id): throwed QspnBootstrapInProgressError.\n");
                     throw e;
                 } catch (StubError e) {
-                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed StubError.\n");
+                    print(@"$(get_time_now()): RPC call to get_full_etp sent at $(call_id): throwed StubError.\n");
                     throw e;
                 } catch (DeserializeError e) {
-                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed DeserializeError.\n");
+                    print(@"$(get_time_now()): RPC call to get_full_etp sent at $(call_id): throwed DeserializeError.\n");
                     throw e;
                 }
             }
@@ -1542,15 +1617,15 @@ namespace ProofOfConcept
                 print(@"   is_full=$(is_full).\n");
                 try {
                     addr.qspn_manager.send_etp(etp, is_full);
-                    print(@"$(get_time_now()): RPC call sent at $(call_id): completed.\n");
+                    print(@"$(get_time_now()): RPC call to send_etp sent at $(call_id): completed.\n");
                 } catch (QspnNotAcceptedError e) {
-                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed QspnNotAcceptedError.\n");
+                    print(@"$(get_time_now()): RPC call to send_etp sent at $(call_id): throwed QspnNotAcceptedError.\n");
                     throw e;
                 } catch (StubError e) {
-                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed StubError.\n");
+                    print(@"$(get_time_now()): RPC call to send_etp sent at $(call_id): throwed StubError.\n");
                     throw e;
                 } catch (DeserializeError e) {
-                    print(@"$(get_time_now()): RPC call sent at $(call_id): throwed DeserializeError.\n");
+                    print(@"$(get_time_now()): RPC call to send_etp sent at $(call_id): throwed DeserializeError.\n");
                     throw e;
                 }
             }
@@ -1588,6 +1663,8 @@ namespace ProofOfConcept
             throws QspnNotAcceptedError, StubError, DeserializeError
             {
                 print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): would call RPC send_etp, but have no (other) arcs.\n");
+                print(@"   etp=$(json_string_object(etp)).\n");
+                print(@"   is_full=$(is_full).\n");
             }
         }
 

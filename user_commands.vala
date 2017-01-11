@@ -1066,6 +1066,37 @@ Command list:
         }
         // Create new qspn manager
         print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): construct Qspn.enter_net.\n");
+        {
+            print(@"   previous_identity=$(old_local_identity_index).\n");
+            string _naddr_s = naddr_repr(new_identity_data.my_naddr);
+            string _elderships_s = fp_elderships_repr(new_identity_data.my_fp);
+            string _fp0_id_s = @"$(new_identity_data.my_fp.id)";
+            print(@"   my_naddr=$(_naddr_s) elderships=$(_elderships_s) fp0=$(_fp0_id_s) nodeid=$(new_identity_data.nodeid.id).\n");
+            print(@"   guest_gnode_level=$(op.guest_gnode_level), host_gnode_level=$(op.host_gnode_level).\n");
+            print(@"   internal_arcs #: $(internal_arc_set.size).\n");
+            for (int i = 0; i < internal_arc_set.size; i++)
+            {
+                print(@"    #$(i):\n");
+                QspnArc qspnarc = (QspnArc)internal_arc_set[i];
+                Naddr peer_naddr = (Naddr)internal_arc_peer_naddr_set[i];
+                string peer_naddr_s = naddr_repr(peer_naddr);
+                QspnArc prev_qspnarc = (QspnArc)internal_arc_prev_arc_set[i];
+                print(@"      dev=$(qspnarc.arc.neighborhood_arc.nic.dev)\n");
+                print(@"      peer_mac=$(qspnarc.arc.neighborhood_arc.neighbour_mac)\n");
+                print(@"      source-dest=$(qspnarc.sourceid.id)-$(qspnarc.destid.id)\n");
+                print(@"      peer_naddr=$(peer_naddr_s)\n");
+                print(@"      previous arc source-dest=$(prev_qspnarc.sourceid.id)-$(prev_qspnarc.destid.id)\n");
+            }
+            print(@"   external_arcs #: $(external_arc_set.size).\n");
+            for (int i = 0; i < external_arc_set.size; i++)
+            {
+                print(@"    #$(i):\n");
+                QspnArc qspnarc = (QspnArc)external_arc_set[i];
+                print(@"      dev=$(qspnarc.arc.neighborhood_arc.nic.dev)\n");
+                print(@"      peer_mac=$(qspnarc.arc.neighborhood_arc.neighbour_mac)\n");
+                print(@"      source-dest=$(qspnarc.sourceid.id)-$(qspnarc.destid.id)\n");
+            }
+        }
         QspnManager qspn_mgr = new QspnManager.enter_net(
             new_identity_data.my_naddr,
             internal_arc_set,
@@ -2061,7 +2092,7 @@ Command list:
             ia.rule_added = false;
             print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): call arc_add.\n");
             print(@"   dev=$(arc.neighborhood_arc.nic.dev)\n");
-            print(@"   peer_address=$(arc.neighborhood_arc.neighbour_nic_addr)\n");
+            print(@"   peer_mac=$(arc.neighborhood_arc.neighbour_mac)\n");
             print(@"   source-dest=$(sourceid.id)-$(destid.id)\n");
             qspn_mgr.arc_add(ia.qspn_arc);
 
