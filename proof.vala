@@ -1577,7 +1577,8 @@ namespace ProofOfConcept
                 print(@"   requesting_address=$(naddr_repr((Naddr)requesting_address)).\n");
                 try {
                     IQspnEtpMessage ret = addr.qspn_manager.get_full_etp(requesting_address);
-                    print(@"$(get_time_now()): RPC call to get_full_etp sent at $(call_id): returned ret=$(json_string_object(ret)).\n");
+                    string typename = ret.get_type().name();
+                    print(@"$(get_time_now()): RPC call to get_full_etp sent at $(call_id): returned $(typename) ret=$(json_string_object(ret)).\n");
                     return ret;
                 } catch (QspnNotAcceptedError e) {
                     print(@"$(get_time_now()): RPC call to get_full_etp sent at $(call_id): throwed QspnNotAcceptedError.\n");
@@ -1613,7 +1614,8 @@ namespace ProofOfConcept
             {
                 string call_id = @"$(get_time_now())";
                 print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC send_etp: $(msg_hdr).\n");
-                print(@"   etp=$(json_string_object(etp)).\n");
+                string typename = etp.get_type().name();
+                print(@"   $(typename) etp=$(json_string_object(etp)).\n");
                 print(@"   is_full=$(is_full).\n");
                 try {
                     addr.qspn_manager.send_etp(etp, is_full);
@@ -1663,7 +1665,8 @@ namespace ProofOfConcept
             throws QspnNotAcceptedError, StubError, DeserializeError
             {
                 print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): would call RPC send_etp, but have no (other) arcs.\n");
-                print(@"   etp=$(json_string_object(etp)).\n");
+                string typename = etp.get_type().name();
+                print(@"   $(typename) etp=$(json_string_object(etp)).\n");
                 print(@"   is_full=$(is_full).\n");
             }
         }
