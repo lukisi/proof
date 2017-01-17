@@ -1101,6 +1101,8 @@ Command list:
                 print(@"      source-dest=$(qspnarc.sourceid.id)-$(qspnarc.destid.id)\n");
                 print(@"      peer_naddr=$(peer_naddr_s)\n");
                 print(@"      previous arc source-dest=$(prev_qspnarc.sourceid.id)-$(prev_qspnarc.destid.id)\n");
+                Cost c = (Cost)qspnarc.i_qspn_get_cost();
+                print(@"      cost=$(c.usec_rtt) usec\n");
             }
             print(@"   external_arcs #: $(external_arc_set.size).\n");
             for (int i = 0; i < external_arc_set.size; i++)
@@ -1110,6 +1112,8 @@ Command list:
                 print(@"      dev=$(qspnarc.arc.neighborhood_arc.nic.dev)\n");
                 print(@"      peer_mac=$(qspnarc.arc.neighborhood_arc.neighbour_mac)\n");
                 print(@"      source-dest=$(qspnarc.sourceid.id)-$(qspnarc.destid.id)\n");
+                Cost c = (Cost)qspnarc.i_qspn_get_cost();
+                print(@"      cost=$(c.usec_rtt) usec\n");
             }
         }
         QspnManager qspn_mgr = new QspnManager.enter_net(
