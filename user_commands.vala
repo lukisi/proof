@@ -470,12 +470,24 @@ Command list:
     {
         string my_elderships_str = "";
         string sep = "";
-        for (int i = 0; i < levels-my_fp.level; i++)
+        for (int i = 0; i < my_fp.elderships.size; i++)
         {
             my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
             sep = ":";
         }
         return my_elderships_str;
+    }
+
+    string fp_elderships_seed_repr(Fingerprint my_fp)
+    {
+        string my_elderships_seed_str = "";
+        string sep = "";
+        for (int i = 0; i < my_fp.elderships_seed.size; i++)
+        {
+            my_elderships_seed_str = @"$(my_fp.elderships_seed[i])$(sep)$(my_elderships_seed_str)";
+            sep = ":";
+        }
+        return my_elderships_seed_str;
     }
 
     Gee.List<string> show_handlednics()
@@ -526,15 +538,18 @@ Command list:
         {
             string fp_i_s = "<BootstrapInProgress>";
             string fp_elderships_s = "<BootstrapInProgress>";
+            string fp_elderships_seed_s = "<BootstrapInProgress>";
             string nodes_inside_i_s = "<BootstrapInProgress>";
             try {
                 Fingerprint fp_i = (Fingerprint)qspn_mgr.get_fingerprint(i);
                 fp_i_s = @"$(fp_i.id)";
                 fp_elderships_s = fp_elderships_repr(fp_i);
+                fp_elderships_seed_s = fp_elderships_seed_repr(fp_i);
                 int nodes_inside_i = qspn_mgr.get_nodes_inside(i);
                 nodes_inside_i_s = @"$(nodes_inside_i)";
             } catch (QspnBootstrapInProgressError e) {}
-            line = @"    Level $(i): Fingerprint $(fp_i_s), elderships $(fp_elderships_s). Nodes inside #$(nodes_inside_i_s).";
+            line = @"    Level $(i): Fingerprint $(fp_i_s), elderships $(fp_elderships_s),";
+            line += @" elderships-seed $(fp_elderships_seed_s). Nodes inside #$(nodes_inside_i_s).";
             ret.add(line);
         }
         return ret;
