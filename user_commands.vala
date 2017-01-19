@@ -778,6 +778,13 @@ Command list:
         string old_ns = new_identity_data.network_namespace;
         string new_ns = old_identity_data.network_namespace;
 
+
+        // Old identity will become of connectivity and so will change its
+        //  address. The call to `make_connectivity` must be done after the
+        //  creation of new identity with `enter_net`. But the address in data
+        //  structure IdentityData will be changed now in order to proceed with
+        //  'ip' commands.
+        QspnManager.ChangeNaddrDelegate old_identity_update_naddr;
         {
             // Change address of connectivity identity.
             int ch_level = op.guest_gnode_level;
@@ -785,7 +792,7 @@ Command list:
             int ch_eldership = op.connectivity_pos_eldership;
             int64 fp_id = old_identity_data.my_fp.id;
 
-            QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+            old_identity_update_naddr = (_a) => {
                 Naddr a = (Naddr)_a;
                 ArrayList<int> _naddr_temp = new ArrayList<int>();
                 _naddr_temp.add_all(a.pos);
@@ -797,17 +804,8 @@ Command list:
             _elderships_temp.add_all(old_identity_data.my_fp.elderships);
             _elderships_temp[ch_level] = ch_eldership;
 
-            old_identity_data.my_naddr = (Naddr)update_naddr(old_identity_data.my_naddr);
+            old_identity_data.my_naddr = (Naddr)old_identity_update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
-            old_id_qspn_mgr.make_connectivity(
-                old_identity_data.connectivity_from_level,
-                old_identity_data.connectivity_to_level,
-                update_naddr, old_identity_data.my_fp);
-            int _lf = old_identity_data.connectivity_from_level;
-            int _lt = old_identity_data.connectivity_to_level;
-            int _id = old_identity_data.local_identity_index;
-            print(@"make_connectivity from level $(_lf) to level $(_lt) identity #$(_id).\n");
-            foreach (string s in print_local_identity(_id)) print(s + "\n");
         }
 
         HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
@@ -1104,6 +1102,19 @@ Command list:
         new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
         foreach (string s in print_local_identity(new_identity_data.local_identity_index)) print(s + "\n");
+
+        // call to make_connectivity
+        {
+            old_id_qspn_mgr.make_connectivity(
+                old_identity_data.connectivity_from_level,
+                old_identity_data.connectivity_to_level,
+                old_identity_update_naddr, old_identity_data.my_fp);
+            int _lf = old_identity_data.connectivity_from_level;
+            int _lt = old_identity_data.connectivity_to_level;
+            int _id = old_identity_data.local_identity_index;
+            print(@"make_connectivity from level $(_lf) to level $(_lt) identity #$(_id).\n");
+            foreach (string s in print_local_identity(_id)) print(s + "\n");
+        }
 
         // Add new destination IPs into new forwarding-tables in old network namespace
         int bid3 = cm.begin_block();
@@ -1487,6 +1498,12 @@ Command list:
         string old_ns = new_identity_data.network_namespace;
         string new_ns = old_identity_data.network_namespace;
 
+        // Old identity will become of connectivity and so will change its
+        //  address. The call to `make_connectivity` must be done after the
+        //  creation of new identity with `migration`. But the address in data
+        //  structure IdentityData will be changed now in order to proceed with
+        //  'ip' commands.
+        QspnManager.ChangeNaddrDelegate old_identity_update_naddr;
         {
             // Change address of connectivity identity.
             int ch_level = op.guest_gnode_level;
@@ -1494,7 +1511,7 @@ Command list:
             int ch_eldership = op.connectivity_pos_eldership;
             int64 fp_id = old_identity_data.my_fp.id;
 
-            QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+            old_identity_update_naddr = (_a) => {
                 Naddr a = (Naddr)_a;
                 ArrayList<int> _naddr_temp = new ArrayList<int>();
                 _naddr_temp.add_all(a.pos);
@@ -1506,17 +1523,8 @@ Command list:
             _elderships_temp.add_all(old_identity_data.my_fp.elderships);
             _elderships_temp[ch_level] = ch_eldership;
 
-            old_identity_data.my_naddr = (Naddr)update_naddr(old_identity_data.my_naddr);
+            old_identity_data.my_naddr = (Naddr)old_identity_update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
-            old_id_qspn_mgr.make_connectivity(
-                old_identity_data.connectivity_from_level,
-                old_identity_data.connectivity_to_level,
-                update_naddr, old_identity_data.my_fp);
-            int _lf = old_identity_data.connectivity_from_level;
-            int _lt = old_identity_data.connectivity_to_level;
-            int _id = old_identity_data.local_identity_index;
-            print(@"make_connectivity from level $(_lf) to level $(_lt) identity #$(_id).\n");
-            foreach (string s in print_local_identity(_id)) print(s + "\n");
         }
 
         HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
@@ -1822,6 +1830,19 @@ Command list:
         new_identity_data.addr_man = new AddressManagerForIdentity(qspn_mgr);
 
         foreach (string s in print_local_identity(new_identity_data.local_identity_index)) print(s + "\n");
+
+        // call to make_connectivity
+        {
+            old_id_qspn_mgr.make_connectivity(
+                old_identity_data.connectivity_from_level,
+                old_identity_data.connectivity_to_level,
+                old_identity_update_naddr, old_identity_data.my_fp);
+            int _lf = old_identity_data.connectivity_from_level;
+            int _lt = old_identity_data.connectivity_to_level;
+            int _id = old_identity_data.local_identity_index;
+            print(@"make_connectivity from level $(_lf) to level $(_lt) identity #$(_id).\n");
+            foreach (string s in print_local_identity(_id)) print(s + "\n");
+        }
 
         // Netsukuku Address of new identity will be changing.
         if (op.prev_op_id == null)
