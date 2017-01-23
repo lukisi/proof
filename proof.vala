@@ -1112,8 +1112,8 @@ namespace ProofOfConcept
                         Fingerprint fp_i = (Fingerprint)qspn_mgr.get_fingerprint(i);
                         int nodes_inside_i = qspn_mgr.get_nodes_inside(i);
                         print(@"   Level $(i): Fingerprint $(fp_i.id)");
-                        if (i > 0) print(@", elderships $(fp_elderships_repr(fp_i))");
-                        if (i < levels) print(@", elderships-seed $(fp_elderships_seed_repr(fp_i))");
+                        if (i < levels) print(@", elderships $(fp_elderships_repr(fp_i))");
+                        if (i > 0) print(@", elderships-seed $(fp_elderships_seed_repr(fp_i))");
                         print(@". Nodes inside #$(nodes_inside_i).\n");
                     } catch (QspnBootstrapInProgressError e) {
                         assert_not_reached();
