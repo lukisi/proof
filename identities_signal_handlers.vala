@@ -193,6 +193,10 @@ namespace ProofOfConcept
         if (ia.qspn_arc != null)
         {
             QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id, "qspn");
+            print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): call arc_remove.\n");
+            print(@"   dev=$((ia.qspn_arc as QspnArc).arc.neighborhood_arc.nic.dev)\n");
+            print(@"   peer_mac=$((ia.qspn_arc as QspnArc).arc.neighborhood_arc.neighbour_mac)\n");
+            print(@"   source-dest=$((ia.qspn_arc as QspnArc).sourceid.id)-$((ia.qspn_arc as QspnArc).destid.id)\n");
             qspn_mgr.arc_remove(ia.qspn_arc);
 
             if (ia.rule_added == true)
