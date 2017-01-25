@@ -926,8 +926,10 @@ namespace ProofOfConcept
                 QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(nodeid, "qspn");
                 try {
                     Fingerprint fp_l = (Fingerprint)qspn_mgr.get_fingerprint(l);
-                    print(@"   Fingerprint $(fp_l.id), " +
-                        @"elderships $(fp_elderships_repr(fp_l)).\n");
+                    print(@"   Fingerprint $(fp_l.id)");
+                    if (l < levels) print(@", elderships $(fp_elderships_repr(fp_l))");
+                    if (l > 0) print(@", elderships-seed $(fp_elderships_seed_repr(fp_l))");
+                    print(@".\n");
                 } catch (QspnBootstrapInProgressError e) {
                     print(@"   No more info because QspnBootstrapInProgressError at that level.\n");
                 }
