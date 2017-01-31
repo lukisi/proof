@@ -1042,6 +1042,9 @@ Command list:
 
                 assert(w0.qspn_arc != null);
                 print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): call get_naddr_for_arc.\n");
+                print(@"   dev=$(w0.qspn_arc.arc.neighborhood_arc.nic.dev)\n");
+                print(@"   peer_mac=$(w0.qspn_arc.arc.neighborhood_arc.neighbour_mac)\n");
+                print(@"   source-dest=$(w0.qspn_arc.sourceid.id)-$(w0.qspn_arc.destid.id)\n");
                 IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
                 assert(_w0_peer_naddr != null);
                 Naddr w0_peer_naddr = (Naddr)_w0_peer_naddr;
@@ -1051,6 +1054,7 @@ Command list:
                 _w1_peer_naddr.add_all(w0_peer_naddr.pos.slice(0, op.host_gnode_level-1));
                 _w1_peer_naddr.add_all(new_identity_data.my_naddr.pos.slice(op.host_gnode_level-1, levels));
                 Naddr w1_peer_naddr = new Naddr(_w1_peer_naddr.to_array(), _gsizes.to_array());
+                print(@"   naddr $(naddr_repr(w0_peer_naddr)) will become $(naddr_repr(w1_peer_naddr)).\n");
 
                 // Now add: the 3 ArrayList should have same size at the end.
                 internal_arc_set.add(w1.qspn_arc);
@@ -1824,6 +1828,9 @@ Command list:
 
                 assert(w0.qspn_arc != null);
                 print(@"$(get_time_now()): Identity #$(old_identity_data.local_identity_index): call get_naddr_for_arc.\n");
+                print(@"   dev=$(w0.qspn_arc.arc.neighborhood_arc.nic.dev)\n");
+                print(@"   peer_mac=$(w0.qspn_arc.arc.neighborhood_arc.neighbour_mac)\n");
+                print(@"   source-dest=$(w0.qspn_arc.sourceid.id)-$(w0.qspn_arc.destid.id)\n");
                 IQspnNaddr? _w0_peer_naddr = old_id_qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
                 assert(_w0_peer_naddr != null);
                 Naddr w0_peer_naddr = (Naddr)_w0_peer_naddr;
@@ -1833,6 +1840,7 @@ Command list:
                 _w1_peer_naddr.add_all(w0_peer_naddr.pos.slice(0, op.host_gnode_level-1));
                 _w1_peer_naddr.add_all(new_identity_data.my_naddr.pos.slice(op.host_gnode_level-1, levels));
                 Naddr w1_peer_naddr = new Naddr(_w1_peer_naddr.to_array(), _gsizes.to_array());
+                print(@"   naddr $(naddr_repr(w0_peer_naddr)) will become $(naddr_repr(w1_peer_naddr)).\n");
 
                 // Now add: the 3 ArrayList should have same size at the end.
                 internal_arc_set.add(w1.qspn_arc);
