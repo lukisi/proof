@@ -56,6 +56,11 @@ qspnclient_SOURCES =  \
 	$(NULL)
 
 qspnclient_VALAFLAGS = \
+	--vapidir $(GEE_PREFIX)/share/vala/vapi \
+	--vapidir $(TASKLETSYSTEM_VAPIDIR) \
+	--vapidir $(PTHTASKLET_VAPIDIR) \
+	--vapidir $(NTKDCOMMON_VAPIDIR) \
+	--vapidir $(NTKDRPC_VAPIDIR) \
 	--pkg gee-0.8 \
 	--pkg ntkd-common \
 	--pkg tasklet-system \
@@ -96,6 +101,7 @@ test_ipv4compute_SOURCES = \
 	$(NULL)
 
 test_ipv4compute_VALAFLAGS = \
+	--vapidir $(GEE_PREFIX)/share/vala/vapi \
 	--pkg gee-0.8 \
 	$(NULL)
 
@@ -116,6 +122,9 @@ test_commander_SOURCES = \
 	$(NULL)
 
 test_commander_VALAFLAGS = \
+	--vapidir $(GEE_PREFIX)/share/vala/vapi \
+	--vapidir $(TASKLETSYSTEM_VAPIDIR) \
+	--vapidir $(PTHTASKLET_VAPIDIR) \
 	--pkg gee-0.8 \
 	--pkg tasklet-system \
 	--pkg pth-tasklet \
