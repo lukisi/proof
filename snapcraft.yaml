@@ -1,0 +1,76 @@
+name: qspnclient
+version: "0.1"
+summary: qspnclient
+description: qspnclient
+grade: devel
+confinement: devmode
+
+parts:
+  ntkd-common:
+    source: git@github.com:lukisi/ntkd-common.git
+    plugin: autotools
+    build-packages:
+      - valac
+  tasklet-system:
+    source: git@github.com:lukisi/tasklet-system.git
+    plugin: autotools
+    build-packages:
+      - valac
+    stage-packages:
+      - libgee-0.8-2
+      - libgee-0.8-dev
+  pth-tasklet:
+    source: git@github.com:lukisi/pth-tasklet.git
+    after: [tasklet-system]
+    plugin: autotools
+    build-packages:
+      - valac
+    stage-packages:
+      - libgee-0.8-2
+      - libgee-0.8-dev
+      - libpth20
+      - libpth-dev
+  zcd:
+    source: git@github.com:lukisi/zcd.git
+    after: [tasklet-system, pth-tasklet]
+    plugin: autotools
+    build-packages:
+      - valac
+    stage-packages:
+      - libgee-0.8-2
+      - libgee-0.8-dev
+      - libjson-glib-1.0-0
+      - libjson-glib-dev
+  ntkdrpc:
+    source: git@github.com:lukisi/ntkdrpc.git
+    after: [tasklet-system, zcd]
+    plugin: autotools
+    build-packages:
+      - valac
+    stage-packages:
+      - libgee-0.8-2
+      - libgee-0.8-dev
+      - libjson-glib-1.0-0
+      - libjson-glib-dev
+  qspnclient:
+    source: git@github.com:lukisi/proof.git
+    after: [tasklet-system, pth-tasklet, ntkd-common, ntkdrpc]
+    plugin: autotools
+    build-packages:
+      - valac
+    stage-packages:
+      - libgee-0.8-2
+      - libgee-0.8-dev
+      - libjson-glib-1.0-0
+      - libjson-glib-dev
+  bash:
+    plugin: nil
+    stage-packages:
+      - bash
+
+apps:
+  qspnclient:
+    command: bin/qspnclient
+  bash:
+    command: bin/bash
+
