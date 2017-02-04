@@ -145,6 +145,7 @@ namespace ProofOfConcept
             PthTaskletImplementer.init();
             tasklet = PthTaskletImplementer.get_tasklet_system();
             // Open pipe for response in nonblock readonly.
+            pipe_init();
             client_open_pipe_response();
             // generate a command id
             int id = Random.int_range(0, int.MAX);
@@ -178,6 +179,7 @@ namespace ProofOfConcept
         }
         // `init` command.
         // Open pipe for commands in nonblock readonly.
+        pipe_init();
         server_open_pipe_commands();
         args.remove_at(1);  // remove keyword `init` and go on as usual.
 

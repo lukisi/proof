@@ -11,7 +11,7 @@ noinst_LTLIBRARIES = \
 	libmacgetter.la \
 	$(NULL)
 
-noinst_PROGRAMS =  \
+bin_PROGRAMS =  \
 	qspnclient \
 	$(NULL)
 

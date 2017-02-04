@@ -25,10 +25,23 @@ using TaskletSystem;
 
 namespace ProofOfConcept
 {
-    const string pipe_response = "/tmp/qspnclient_response";
-    const string pipe_commands = "/tmp/qspnclient_commands";
+    string pipe_response;
+    string pipe_commands;
     int server_fd_commands;
     int client_fd_response;
+
+    void pipe_init()
+    {
+        string basedir = "/var/run";
+        unowned string xdg_runtime_dir = Environment.get_variable("XDG_RUNTIME_DIR");
+        if (!(xdg_runtime_dir == null || xdg_runtime_dir == "")) basedir = xdg_runtime_dir;
+        if (basedir.has_suffix("/")) basedir = basedir.substring(0, basedir.length-1);
+        int mode = (int)(Posix.S_IRWXU | Posix.S_IRGRP | Posix.S_IXGRP | Posix.S_IROTH | Posix.S_IXOTH);
+        int r = DirUtils.create_with_parents(basedir, mode);
+        if (r != 0) error(@"Couldn't create dir '$(basedir)'.");
+        pipe_response = @"$(basedir)/qspnclient_pipe_response";
+        pipe_commands = @"$(basedir)/qspnclient_pipe_commands";
+    }
 
     size_t nonblock_read(int fd, void* b, size_t nbytes) throws Error
     {
