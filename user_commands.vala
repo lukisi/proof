@@ -785,7 +785,8 @@ Command list:
         //  creation of new identity with `enter_net`. But the address in data
         //  structure IdentityData will be changed now in order to proceed with
         //  'ip' commands.
-        QspnManager.ChangeNaddrDelegate old_identity_update_naddr;
+        ChangeNaddrDelegate old_identity_update_naddr;
+        ChangeFingerprintDelegate old_identity_update_internal_fingerprints;
         {
             // Change address of connectivity identity.
             int ch_level = op.guest_gnode_level;
@@ -807,6 +808,15 @@ Command list:
 
             old_identity_data.my_naddr = (Naddr)old_identity_update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+
+            old_identity_update_internal_fingerprints = (_f) => {
+                Fingerprint f = (Fingerprint)_f;
+                for (int l = ch_level; l < levels; l++)
+                    f.elderships[l] = old_identity_data.my_fp.elderships[l];
+                return f;
+                // Returning the same instance is ok, because the delegate is alway
+                // called like "x = update_internal_fingerprints(x)"
+            };
         }
 
         HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
@@ -966,6 +976,15 @@ Command list:
         for (int jj = 0; jj < op.host_gnode_level - 1 - op.guest_gnode_level; jj++) _elderships.insert(0, 0);
         _elderships.insert_all(0, prev_fp_old_identity.elderships.slice(0, op.guest_gnode_level));
         new_identity_data.my_fp = new Fingerprint(_elderships.to_array(), prev_fp_old_identity.id);
+        // Prepare update_copied_internal_fingerprints
+        ChangeFingerprintDelegate update_copied_internal_fingerprints = (_f) => {
+            Fingerprint f = (Fingerprint)_f;
+            for (int l = op.guest_gnode_level; l < levels; l++)
+                f.elderships[l] = new_identity_data.my_fp.elderships[l];
+            return f;
+            // Returning the same instance is ok, because the delegate is alway
+            // called like "x = update_internal_fingerprints(x)"
+        };
 
         // Compute local IPs. The valid intern IP are already set in old network namespace.
         compute_local_ip_set(new_identity_data.local_ip_set, new_identity_data.my_naddr);
@@ -1116,12 +1135,13 @@ Command list:
             }
         }
         QspnManager qspn_mgr = new QspnManager.enter_net(
-            new_identity_data.my_naddr,
             internal_arc_set,
             internal_arc_prev_arc_set,
             internal_arc_peer_naddr_set,
             external_arc_set,
+            new_identity_data.my_naddr,
             new_identity_data.my_fp,
+            update_copied_internal_fingerprints,
             new QspnStubFactory(new_identity_data),
             /*hooking_gnode_level*/ op.guest_gnode_level,
             /*into_gnode_level*/ op.host_gnode_level,
@@ -1156,7 +1176,9 @@ Command list:
             old_id_qspn_mgr.make_connectivity(
                 old_identity_data.connectivity_from_level,
                 old_identity_data.connectivity_to_level,
-                old_identity_update_naddr, old_identity_data.my_fp);
+                old_identity_update_naddr,
+                old_identity_update_internal_fingerprints,
+                old_identity_data.my_fp);
             int _lf = old_identity_data.connectivity_from_level;
             int _lt = old_identity_data.connectivity_to_level;
             int _id = old_identity_data.local_identity_index;
@@ -1276,7 +1298,7 @@ Command list:
             int ch_eldership = op.in_host_pos2_eldership;
             int64 fp_id = new_identity_data.my_fp.id;
 
-            QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+            ChangeNaddrDelegate update_naddr = (_a) => {
                 Naddr a = (Naddr)_a;
                 ArrayList<int> _naddr_temp = new ArrayList<int>();
                 _naddr_temp.add_all(a.pos);
@@ -1290,6 +1312,16 @@ Command list:
 
             new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
             new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+
+            ChangeFingerprintDelegate update_internal_fingerprints = (_f) => {
+                Fingerprint f = (Fingerprint)_f;
+                for (int l = ch_level; l < levels; l++)
+                    f.elderships[l] = new_identity_data.my_fp.elderships[l];
+                return f;
+                // Returning the same instance is ok, because the delegate is alway
+                // called like "x = update_internal_fingerprints(x)"
+            };
+
             print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): call make_real.\n");
             {
                 print(@"   At level $(ch_level) with pos $(ch_pos) and eldership $(ch_eldership).\n");
@@ -1297,7 +1329,10 @@ Command list:
                 Fingerprint _fp = new_identity_data.my_fp;
                 print(@"   Will have naddr $(naddr_repr(_naddr)) and elderships $(fp_elderships_repr(_fp)) and fp0 $(_fp.id).\n");
             }
-            qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
+            qspn_mgr.make_real(
+                               update_naddr,
+                               update_internal_fingerprints,
+                               new_identity_data.my_fp);
             int _id = new_identity_data.local_identity_index;
             print(@"make_real at level $(ch_level) identity #$(_id).\n");
             foreach (string s in print_local_identity(_id)) print(s + "\n");
@@ -1560,7 +1595,8 @@ Command list:
         //  creation of new identity with `migration`. But the address in data
         //  structure IdentityData will be changed now in order to proceed with
         //  'ip' commands.
-        QspnManager.ChangeNaddrDelegate old_identity_update_naddr;
+        ChangeNaddrDelegate old_identity_update_naddr;
+        ChangeFingerprintDelegate old_identity_update_internal_fingerprints;
         {
             // Change address of connectivity identity.
             int ch_level = op.guest_gnode_level;
@@ -1582,6 +1618,15 @@ Command list:
 
             old_identity_data.my_naddr = (Naddr)old_identity_update_naddr(old_identity_data.my_naddr);
             old_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+
+            old_identity_update_internal_fingerprints = (_f) => {
+                Fingerprint f = (Fingerprint)_f;
+                for (int l = ch_level; l < levels; l++)
+                    f.elderships[l] = old_identity_data.my_fp.elderships[l];
+                return f;
+                // Returning the same instance is ok, because the delegate is alway
+                // called like "x = update_internal_fingerprints(x)"
+            };
         }
 
         HashMap<int,HashMap<int,DestinationIPSet>> old_destination_ip_set;
@@ -1756,6 +1801,15 @@ Command list:
         for (int jj = 0; jj < op.host_gnode_level - 1 - op.guest_gnode_level; jj++) _elderships.insert(0, 0);
         _elderships.insert_all(0, prev_fp_old_identity.elderships.slice(0, op.guest_gnode_level));
         new_identity_data.my_fp = new Fingerprint(_elderships.to_array(), prev_fp_old_identity.id);
+        // Prepare update_copied_internal_fingerprints
+        ChangeFingerprintDelegate update_copied_internal_fingerprints = (_f) => {
+            Fingerprint f = (Fingerprint)_f;
+            for (int l = op.guest_gnode_level; l < levels; l++)
+                f.elderships[l] = new_identity_data.my_fp.elderships[l];
+            return f;
+            // Returning the same instance is ok, because the delegate is alway
+            // called like "x = update_internal_fingerprints(x)"
+        };
 
         // Compute local IPs. The valid intern IP are already set in old network namespace.
         compute_local_ip_set(new_identity_data.local_ip_set, new_identity_data.my_naddr);
@@ -1865,12 +1919,13 @@ Command list:
         // Create new qspn manager
         print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): construct Qspn.migration.\n");
         QspnManager qspn_mgr = new QspnManager.migration(
-            new_identity_data.my_naddr,
             internal_arc_set,
             internal_arc_prev_arc_set,
             internal_arc_peer_naddr_set,
             external_arc_set,
+            new_identity_data.my_naddr,
             new_identity_data.my_fp,
+            update_copied_internal_fingerprints,
             new QspnStubFactory(new_identity_data),
             /*hooking_gnode_level*/ op.guest_gnode_level,
             /*into_gnode_level*/ op.host_gnode_level,
@@ -1905,7 +1960,9 @@ Command list:
             old_id_qspn_mgr.make_connectivity(
                 old_identity_data.connectivity_from_level,
                 old_identity_data.connectivity_to_level,
-                old_identity_update_naddr, old_identity_data.my_fp);
+                old_identity_update_naddr,
+                old_identity_update_internal_fingerprints,
+                old_identity_data.my_fp);
             int _lf = old_identity_data.connectivity_from_level;
             int _lt = old_identity_data.connectivity_to_level;
             int _id = old_identity_data.local_identity_index;
@@ -1968,7 +2025,7 @@ Command list:
             int ch_eldership = op.in_host_pos2_eldership;
             int64 fp_id = new_identity_data.my_fp.id;
 
-            QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+            ChangeNaddrDelegate update_naddr = (_a) => {
                 Naddr a = (Naddr)_a;
                 ArrayList<int> _naddr_temp = new ArrayList<int>();
                 _naddr_temp.add_all(a.pos);
@@ -1982,6 +2039,16 @@ Command list:
 
             new_identity_data.my_naddr = (Naddr)update_naddr(new_identity_data.my_naddr);
             new_identity_data.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+
+            ChangeFingerprintDelegate update_internal_fingerprints = (_f) => {
+                Fingerprint f = (Fingerprint)_f;
+                for (int l = ch_level; l < levels; l++)
+                    f.elderships[l] = new_identity_data.my_fp.elderships[l];
+                return f;
+                // Returning the same instance is ok, because the delegate is alway
+                // called like "x = update_internal_fingerprints(x)"
+            };
+
             print(@"$(get_time_now()): Identity #$(new_identity_data.local_identity_index): call make_real.\n");
             {
                 print(@"   At level $(ch_level) with pos $(ch_pos) and eldership $(ch_eldership).\n");
@@ -1989,7 +2056,9 @@ Command list:
                 Fingerprint _fp = new_identity_data.my_fp;
                 print(@"   Will have naddr $(naddr_repr(_naddr)) and elderships $(fp_elderships_repr(_fp)) and fp0 $(_fp.id).\n");
             }
-            qspn_mgr.make_real(update_naddr, new_identity_data.my_fp);
+            qspn_mgr.make_real(update_naddr,
+                               update_internal_fingerprints,
+                               new_identity_data.my_fp);
             int _id = new_identity_data.local_identity_index;
             print(@"make_real at level $(ch_level) identity #$(_id).\n");
             foreach (string s in print_local_identity(_id)) print(s + "\n");
