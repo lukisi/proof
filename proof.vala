@@ -258,7 +258,7 @@ namespace ProofOfConcept
             1000 /*very high max_arcs*/,
             new NeighborhoodStubFactory(),
             new NeighborhoodIPRouteManager(),
-            () => @"169.254.$(Random.int_range(0, 255)).$(Random.int_range(0, 255))");
+            () => @"192.168.$(Random.int_range(0, 255)).$(Random.int_range(0, 255))");
         node_skeleton.neighborhood_mgr = neighborhood_mgr;
         // connect signals
         neighborhood_mgr.nic_address_set.connect(neighborhood_nic_address_set);
@@ -285,7 +285,7 @@ namespace ProofOfConcept
             if_list_dev, if_list_mac, if_list_linklocal,
             new IdmgmtNetnsManager(),
             new IdmgmtStubFactory(),
-            () => @"169.254.$(Random.int_range(0, 255)).$(Random.int_range(0, 255))");
+            () => @"192.168.$(Random.int_range(0, 255)).$(Random.int_range(0, 255))");
         identity_mgr_arcs = new ArrayList<string>();
         node_skeleton.identity_mgr = identity_mgr;
         identity_mgr.identity_arc_added.connect(identities_identity_arc_added);
