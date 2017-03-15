@@ -85,7 +85,17 @@ cat <<EOF | ssh gamma bash
 /home/luca/bin/qspnclient add_qspn_arc 0 eth1 00:16:3E:1A:C4:45
 EOF
 
-sleep 10
+sleep 3
+
+cat <<EOF | ssh beta bash
+set -e
+ping -q -n -c 1 10.0.0.20 -W 1 &>/dev/null || (echo "beta: errore ping 10.0.0.20"; exit 1)
+ping -q -n -c 1 10.0.0.21 -W 1 &>/dev/null || (echo "beta: errore ping 10.0.0.21"; exit 1)
+ping -q -n -c 1 10.0.0.22 -W 1 &>/dev/null || (echo "beta: errore ping 10.0.0.22"; exit 1)
+ping -q -n -c 1 10.0.0.23 -W 1 &>/dev/null || (echo "beta: errore ping 10.0.0.23"; exit 1)
+EOF
+
+sleep 2
 
 cat <<EOF | ssh beta bash
 /home/luca/bin/qspnclient quit
@@ -94,7 +104,15 @@ cat <<EOF | ssh mu bash
 /home/luca/bin/qspnclient quit
 EOF
 
-sleep 10
+sleep 3
+
+cat <<EOF | ssh gamma bash
+set -e
+ping -q -n -c 1 10.0.0.21 -W 1 &>/dev/null || (echo "gamma: errore ping 10.0.0.21"; exit 1)
+ping -q -n -c 1 10.0.0.22 -W 1 &>/dev/null || (echo "gamma: errore ping 10.0.0.22"; exit 1)
+EOF
+
+sleep 2
 
 cat <<EOF | ssh gamma bash
 /home/luca/bin/qspnclient quit
