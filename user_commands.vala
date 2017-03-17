@@ -1200,6 +1200,7 @@ Command list:
 
         // Remove old identity
         print(@"enter_net: Remove old identity #$(old_identity_data.local_identity_index)\n");
+        old_id_qspn_mgr.destroy();
         print("identity arcs of old_identity_data now:\n");
         foreach (string s in show_identity_arcs(old_identity_data.local_identity_index)) print(s + "\n");
         identity_mgr.remove_identity(old_identity_data.nodeid);

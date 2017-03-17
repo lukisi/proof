@@ -471,8 +471,10 @@ namespace ProofOfConcept
         foreach (int k in local_identities.keys) kk = k;
         IdentityData identity_data = local_identities[kk];
         assert(identity_data.main_id);
-        // ... disconnect signal handlers of qspn_mgr.
         qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
+        // ... send "destroy" message.
+        qspn_mgr.destroy();
+        // ... disconnect signal handlers of qspn_mgr.
         qspn_mgr.arc_removed.disconnect(identity_data.arc_removed);
         qspn_mgr.changed_fp.disconnect(identity_data.changed_fp);
         qspn_mgr.changed_nodes_inside.disconnect(identity_data.changed_nodes_inside);
