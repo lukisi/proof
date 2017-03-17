@@ -183,20 +183,12 @@ namespace ProofOfConcept
             print(@"remove_identity: Identity #$(_id) ($(_naddr)).\n");;
         }
         // The qspn manager wants to remove this connectivity identity because the connectivity is guaranteed.
-        warning("signal qspn_remove_identity: not implemented yet");
-        /*
-        // The qspn manager wants to remove this identity.
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
         qspn_mgr.destroy();
-        // We must remove identity from identity_manager. This will have IIdmgmtNetnsManager
-        //  to remove pseudodevs and the network namespace. Beforehand, the NetworkStack
-        //  instance has to be notified.
-        id.network_stack.removing_namespace();
         identity_mgr.unset_identity_module(id.nodeid, "qspn");
         identity_mgr.remove_identity(id.nodeid);
         // remove identity and its id-arcs from memory data-structures
         id.identity_arcs.clear();
         local_identities.unset(id.local_identity_index);
-        */
     }
 }
