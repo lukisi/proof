@@ -1605,15 +1605,19 @@ namespace ProofOfConcept
             public void got_destroy()
             throws StubError, DeserializeError
             {
-                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC got_destroy: $(msg_hdr).\n");
+                string call_id = @"$(get_time_now())";
+                print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC got_destroy: $(msg_hdr).\n");
                 addr.qspn_manager.got_destroy();
+                print(@"$(get_time_now()): RPC call to got_destroy sent at $(call_id): returned.\n");
             }
 
             public void got_prepare_destroy()
             throws StubError, DeserializeError
             {
-                print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC got_prepare_destroy: $(msg_hdr).\n");
+                string call_id = @"$(get_time_now())";
+                print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC got_prepare_destroy: $(msg_hdr).\n");
                 addr.qspn_manager.got_prepare_destroy();
+                print(@"$(get_time_now()): RPC call to got_prepare_destroy sent at $(call_id): returned.\n");
             }
 
             public void send_etp(IQspnEtpMessage etp, bool is_full)
