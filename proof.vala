@@ -524,6 +524,7 @@ namespace ProofOfConcept
         assert(identity_data.main_id);
         qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
         // ... send "destroy" message.
+        print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): call destroy.\n");
         qspn_mgr.destroy();
 
         // Then, we call stop_monitor_all of NeighborhoodManager.

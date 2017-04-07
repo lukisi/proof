@@ -184,6 +184,7 @@ namespace ProofOfConcept
         }
         // The qspn manager wants to remove this connectivity identity because the connectivity is guaranteed.
         QspnManager qspn_mgr = (QspnManager)identity_mgr.get_identity_module(id.nodeid, "qspn");
+        print(@"$(get_time_now()): Identity #$(id.local_identity_index): call destroy.\n");
         qspn_mgr.destroy();
         identity_mgr.unset_identity_module(id.nodeid, "qspn");
         identity_mgr.remove_identity(id.nodeid);
