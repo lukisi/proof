@@ -137,6 +137,7 @@ EOF
 sleep 1
 
 
+if false; then
 cat <<EOF | ssh epsilon bash
 /home/luca/bin/qspnclient print_time_ruler on
 EOF
@@ -146,6 +147,7 @@ EOF
 cat <<EOF | ssh gamma bash
 /home/luca/bin/qspnclient print_time_ruler on
 EOF
+fi
 
 
 cat <<EOF | ssh epsilon bash
