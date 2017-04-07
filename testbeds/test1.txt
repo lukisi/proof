@@ -32,6 +32,7 @@ sleep 2
 cat <<EOF | ssh alfa bash
 /home/luca/bin/qspnclient quit
 EOF
+sleep 1
 cat <<EOF | ssh beta bash
 /home/luca/bin/qspnclient quit
 EOF

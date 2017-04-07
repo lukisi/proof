@@ -501,9 +501,6 @@ namespace ProofOfConcept
 
         // TODO cleanup
 
-        // First, we call stop_monitor_all of NeighborhoodManager.
-        neighborhood_mgr.stop_monitor_all();
-
         // Remove connectivity identities and their network namespaces and linklocal addresses.
         ArrayList<int> local_identities_keys = new ArrayList<int>();
         local_identities_keys.add_all(local_identities.keys);
@@ -528,6 +525,10 @@ namespace ProofOfConcept
         qspn_mgr = (QspnManager)identity_mgr.get_identity_module(identity_data.nodeid, "qspn");
         // ... send "destroy" message.
         qspn_mgr.destroy();
+
+        // Then, we call stop_monitor_all of NeighborhoodManager.
+        neighborhood_mgr.stop_monitor_all();
+
         // ... disconnect signal handlers of qspn_mgr.
         qspn_mgr.arc_removed.disconnect(identity_data.arc_removed);
         qspn_mgr.changed_fp.disconnect(identity_data.changed_fp);
